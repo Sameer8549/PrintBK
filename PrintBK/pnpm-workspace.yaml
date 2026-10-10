@@ -1,0 +1,5 @@
+packages:
+  - 'student'
+  - 'backend'
+  - 'agent'
+  - 'packages/*'
