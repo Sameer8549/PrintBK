@@ -15,7 +15,7 @@ export class ManualUpiProvider implements PaymentProvider {
   }
 
   async processPayment(amount: number, orderId: string): Promise<PaymentResult> {
-    const res = await fetch(\`/orders/\${orderId}/pay\`, {
+    const res = await fetch(`/orders/${orderId}/pay`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ method: 'manual_upi' })
@@ -30,6 +30,6 @@ export class ManualUpiProvider implements PaymentProvider {
   }
 
   generateIntentUrl(amount: number, orderId: string) {
-    return \`upi://pay?pa=\${this.upiId}&pn=PrintBK&am=\${amount}&tr=\${orderId}&cu=INR\`;
+    return `upi://pay?pa=${this.upiId}&pn=PrintBK&am=${amount}&tr=${orderId}&cu=INR`;
   }
 }

@@ -28,7 +28,7 @@ export class RazorpayProvider implements PaymentProvider {
         amount: Math.round(amount * 100), // paise
         currency: 'INR',
         name: 'PrintBK',
-        description: \`Order \${orderId}\`,
+        description: `Order ${orderId}`,
         order_id: '', // To be generated via backend in a real scenario
         handler: function (response: any) {
           resolve({ success: true, transactionId: response.razorpay_payment_id });

@@ -11,7 +11,7 @@ export class CashProvider implements PaymentProvider {
 
   async processPayment(amount: number, orderId: string): Promise<PaymentResult> {
     // Notify the backend that order will be paid by cash
-    const res = await fetch(\`/orders/\${orderId}/pay\`, {
+    const res = await fetch(`/orders/${orderId}/pay`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ method: 'cash' })
