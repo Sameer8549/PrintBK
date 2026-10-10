@@ -32,6 +32,9 @@ function RouteMapper() {
   const navigate = useNavigate();
   // We simulate the 'go', 'setSheet' API of the old App.tsx to avoid massive rewrites immediately
   const go = (screen: string) => {
+    if (screen.startsWith('/')) {
+      return navigate(screen);
+    }
     const map: any = {
       entry: '/',
       basket: '/basket',

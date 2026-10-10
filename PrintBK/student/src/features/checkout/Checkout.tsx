@@ -3,6 +3,9 @@ import { Icon, Brand, Topbar, Segmented, SheetShell, Button, Toggle, Stepper, Ch
 import { Screen, Sheet, ServiceItem } from '../../lib/types';
 import { files, notify, browseFiles, scanPages, printReceipt, shareReceipt } from '../../lib/store';
 
+import { api } from '../../services/api';
+import { useBasket } from '../../store/basket';
+
 function Checkout({
   go,
   setSheet,
@@ -14,14 +17,32 @@ function Checkout({
 }) {
   const [payment, setPayment] = useState("UPI");
   const [phone, setPhone] = useState("");
-  const total = 86 + services.reduce((sum, service) => sum + (service.price ?? 0), 0);
-  const pay = () => {
+  const basket = useBasket();
+  const total = 86 + services.reduce((sum, service) => sum + (service.price ?? 0), 0); // Mock total for now until we fully wire breakdown
+
+  const [loading, setLoading] = useState(false);
+
+  const pay = async () => {
     if (payment === "Wallet") return go("failed");
-    if (payment === "Cash") {
-      notify("Order reserved. Pay at the counter.");
-      return go("ticket");
+    setLoading(true);
+    try {
+      // 1. Create order
+      const { orderId } = await api.createOrder({ files: basket.files, services: basket.services as any, rush: false });
+      
+      // 2. Clear basket
+      basket.clear();
+
+      // 3. Route to proper flow
+      if (payment === "Cash") {
+        notify("Order reserved. Pay at the counter.");
+        return go(`/order/${orderId}`);
+      }
+      go(`/pay/${orderId}`);
+    } catch (err) {
+      notify("Failed to place order. Try again.");
+    } finally {
+      setLoading(false);
     }
-    go("confirming");
   };
   return <main className="page has-dock">
       <Topbar title="Checkout" back onBack={() => go("basket")} />
