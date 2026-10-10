@@ -46,3 +46,20 @@ The system is a zero-cost, serverless-based self-service print platform designed
 
 ### 4. Fallback Architecture
 If free limits are ever breached, the platform components abstractly utilize `StorageProvider`, `DatabaseClient`, and `PaymentProvider`, ensuring they can be ported to a docker-compose deployment (e.g., on a 2GB DigitalOcean Droplet using Postgres and local storage).
+
+### Checklist
+- [x] Phase 0: Audit and Plan
+  - [x] Create `docs/audit.md` (screen inventory, mock data, dead buttons, CSS classes)
+  - [x] Capture 390x844 screenshot of EVERY screen and state (light and dark) into `docs/design/student/baseline/`
+  - [x] Write `docs/architecture.md` and a task checklist
+- [ ] Phase 1: Restructure the Frontend (No Visual Change)
+- [ ] Phase 2: Shared Logic (packages/shared)
+- [ ] Phase 3: Backend (Cloudflare Worker API)
+- [ ] Phase 4: Payments (Manual UPI, Cash, Razorpay dormant)
+- [ ] Phase 5: Print Agent
+- [ ] Phase 6: Connect the Frontend
+- [ ] Phase 7: Temporary Shop Tooling
+- [ ] Phase 8: PWA, Performance, Accessibility, Privacy
+- [ ] Phase 9: Testing and CI
+- [ ] Phase 10: Deployment
+- [ ] Phase 11: Final Verification and Handoff
