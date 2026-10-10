@@ -1,0 +1,19 @@
+name = "printbk-api"
+main = "src/index.ts"
+compatibility_date = "2024-03-20"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "printbk-d1"
+database_id = "mock-id-for-dev"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "printbk-files"
+
+[triggers]
+crons = ["* * * * *"] # Every minute for auto-delete
