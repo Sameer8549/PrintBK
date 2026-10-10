@@ -1,0 +1,10 @@
+{
+  "description": "PrintBK: upload, pay and pick up campus printing at HKBK Student Point, Bengaluru.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
