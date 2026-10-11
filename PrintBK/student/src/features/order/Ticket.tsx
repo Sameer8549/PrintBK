@@ -59,10 +59,37 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
   if (status === 'printing') stage = 1;
   else if (status === 'ready' || status === 'completed') stage = 2;
 
+  // Play synthesized audio chime for ready alert
+  const playReadyChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const playTone = (freq: number, start: number, duration: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0.25, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + duration);
+      };
+      const now = ctx.currentTime;
+      playTone(587.33, now, 0.22); // D5
+      playTone(880, now + 0.14, 0.45); // A5
+    } catch (_) {}
+  };
+
+  const savedPhone = localStorage.getItem('printbk-phone') || '';
+
   // Fire sound/vibration and notification when order transitions to ready
   useEffect(() => {
     if (status === 'ready' && !alertFired) {
       setAlertFired(true);
+      playReadyChime();
       if ('Notification' in window && Notification.permission === 'granted') {
         new Notification(`PrintBK: Order ${orderNumber} is Ready!`, {
           body: `Your documents are printed. Present pickup code ${pickupCode} at HKBK Student Point counter!`,
@@ -126,7 +153,11 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
 
   const shareWhatsApp = () => {
     const text = `PrintBK Order ${orderNumber} · Pickup Code: ${pickupCode} · Amount: ₹${total.toFixed(2)} · Location: HKBK Student Point`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    if (savedPhone) {
+      window.open(`https://wa.me/91${savedPhone}?text=${encodeURIComponent(text)}`, '_blank');
+    } else {
+      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    }
   };
 
   return (
@@ -148,9 +179,14 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
             <div style={{ fontSize: 18, fontWeight: 900, color: '#047857' }}>
               🎉 Print Job is Ready for Collection!
             </div>
-            <p style={{ margin: '6px 0 12px', fontSize: 13, color: '#065f46', lineHeight: 1.4 }}>
+            <p style={{ margin: '6px 0 10px', fontSize: 13, color: '#065f46', lineHeight: 1.4 }}>
               Present pickup code <b>{pickupCode}</b> at the HKBK Student Point counter to receive your documents.
             </p>
+            {savedPhone && (
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#047857', marginBottom: 12 }}>
+                🔔 Registered mobile: +91 {savedPhone}
+              </div>
+            )}
             <button
               onClick={shareWhatsApp}
               style={{
@@ -167,7 +203,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
                 gap: 6
               }}
             >
-              💬 Share Pickup Code to WhatsApp
+              💬 {savedPhone ? `Send Code to WhatsApp (+91 ${savedPhone})` : 'Share Pickup Code to WhatsApp'}
             </button>
           </div>
         )}

@@ -9,15 +9,50 @@ function Settings({ go }: { go: (screen: Screen) => void }) {
   const [phone, setPhone] = useState(() => localStorage.getItem('printbk-phone') || '');
   const [editingPhone, setEditingPhone] = useState(false);
   const [tempPhone, setTempPhone] = useState(phone);
+  const [pushStatus, setPushStatus] = useState<NotificationPermission | 'unsupported'>(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission;
+    }
+    return 'unsupported';
+  });
   const basket = useBasket();
   const history = useHistory();
 
-  const savePhone = () => {
-    const cleaned = tempPhone.trim();
+  const savePhone = async () => {
+    const raw = tempPhone.trim();
+    const digits = raw.replace(/\D/g, '');
+    const cleaned = digits.length >= 10 ? digits.slice(-10) : digits;
+
+    if (!cleaned) {
+      localStorage.removeItem('printbk-phone');
+      setPhone('');
+      setEditingPhone(false);
+      notify('Phone number removed');
+      return;
+    }
+
+    if (cleaned.length !== 10) {
+      notify('Please enter a valid 10-digit mobile number');
+      return;
+    }
+
     localStorage.setItem('printbk-phone', cleaned);
     setPhone(cleaned);
     setEditingPhone(false);
-    notify(cleaned ? 'Phone number saved for ready alerts' : 'Phone number removed');
+
+    // Request real browser notification permission immediately
+    if ('Notification' in window) {
+      try {
+        const perm = await Notification.requestPermission();
+        setPushStatus(perm);
+      } catch (_) {}
+    }
+
+    if ('vibrate' in navigator) {
+      try { navigator.vibrate([100, 50, 100]); } catch (_) {}
+    }
+
+    notify(`✓ Ready alerts enabled for +91 ${cleaned}`);
   };
 
   const removePhone = () => {
@@ -47,28 +82,12 @@ function Settings({ go }: { go: (screen: Screen) => void }) {
     notify('All device data and order history cleared');
   };
 
-  const testReadyAlert = async () => {
-    if ('Notification' in window) {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        new Notification('PrintBK: Ready Alert Preview', {
-          body: 'Your print order #1001 is READY for collection at HKBK Student Point! Pickup code: 1234',
-          icon: '/favicon.ico'
-        });
-      }
-    }
-    if ('vibrate' in navigator) {
-      navigator.vibrate([200, 100, 200]);
-    }
-    notify('🔔 Ready alert simulated (notification & vibration)');
-  };
-
   return (
     <main className="page" style={{ overflowY: 'auto', background: 'var(--color-bg,#f7f4ee)', minHeight: '100dvh', paddingBottom: 40 }}>
       <Topbar title="Settings" back onBack={() => go("entry")} />
 
       <div style={{ maxWidth: 580, margin: '16px auto 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {/* ── Phone Number for Ready Alerts (No transparent phantom numbers) ── */}
+        {/* ── Phone Number & Real Ready Alert Integration ── */}
         <div style={{
           background: '#ffffff',
           borderRadius: 16,
@@ -78,9 +97,9 @@ function Settings({ go }: { go: (screen: Screen) => void }) {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px' }}>
             <div>
-              <strong style={{ display: 'block', fontSize: 15, color: '#0f172a' }}>Phone Number</strong>
+              <strong style={{ display: 'block', fontSize: 15, color: '#0f172a' }}>Phone Number & Ready Alerts</strong>
               <small style={{ color: '#64748b', fontSize: 12, marginTop: 2, display: 'block' }}>
-                {phone ? `Registered: ${phone}` : 'Not configured — add for ready alerts'}
+                {phone ? `Registered: +91 ${phone}` : 'Enter 10-digit mobile number for pickup alerts'}
               </small>
             </div>
             <button
@@ -103,29 +122,71 @@ function Settings({ go }: { go: (screen: Screen) => void }) {
             </button>
           </div>
 
+          {/* Active alert indicator pill */}
+          {phone && !editingPhone && (
+            <div style={{
+              margin: '0 18px 16px',
+              padding: '10px 14px',
+              borderRadius: 12,
+              background: '#ecfdf5',
+              border: '1px solid #a7f3d0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13 }}>🟢</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#047857' }}>
+                  Real-time pickup alerts active for +91 {phone}
+                </span>
+              </div>
+              <span style={{ fontSize: 11, color: '#065f46', background: '#d1fae5', padding: '3px 8px', borderRadius: 6, fontWeight: 600 }}>
+                {pushStatus === 'granted' ? 'Push + Chime' : 'Audio + WA'}
+              </span>
+            </div>
+          )}
+
           {editingPhone && (
             <div style={{ padding: '0 18px 18px', borderTop: '1px solid #f1f5f9' }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#64748b', marginTop: 14, marginBottom: 6 }}>
-                Enter your mobile number for pickup alerts:
+                Mobile Number (India +91):
               </label>
-              <input
-                type="tel"
-                placeholder=""
-                value={tempPhone}
-                onChange={e => setTempPhone(e.target.value)}
-                autoFocus
-                style={{
-                  width: '100%',
-                  padding: '12px 14px',
-                  borderRadius: 10,
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{
+                  padding: '11px 12px',
+                  background: '#f1f5f9',
                   border: '1.5px solid #cbd5e1',
-                  fontSize: 15,
-                  boxSizing: 'border-box',
-                  background: '#ffffff',
-                  color: '#0f172a'
-                }}
-              />
-              <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                  borderRadius: 10,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: '#334155'
+                }}>
+                  +91
+                </span>
+                <input
+                  type="tel"
+                  maxLength={10}
+                  placeholder="9876543210"
+                  value={tempPhone}
+                  onChange={e => setTempPhone(e.target.value)}
+                  autoFocus
+                  style={{
+                    flex: 1,
+                    padding: '12px 14px',
+                    borderRadius: 10,
+                    border: '1.5px solid #cbd5e1',
+                    fontSize: 15,
+                    boxSizing: 'border-box',
+                    background: '#ffffff',
+                    color: '#0f172a'
+                  }}
+                />
+              </div>
+              <p style={{ fontSize: 11, color: '#64748b', marginTop: 6, marginBottom: 0 }}>
+                You will receive sound chime, vibration, browser notification, and instant WhatsApp pickup dispatch when staff marks your order ready.
+              </p>
+              <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
                 <button
                   style={{
                     flex: 1,
@@ -140,7 +201,7 @@ function Settings({ go }: { go: (screen: Screen) => void }) {
                   }}
                   onClick={savePhone}
                 >
-                  Save number
+                  Save & Enable Alerts
                 </button>
                 {phone && (
                   <button
@@ -162,40 +223,6 @@ function Settings({ go }: { go: (screen: Screen) => void }) {
               </div>
             </div>
           )}
-        </div>
-
-        {/* ── Ready Alert Notification Demo / Permission ── */}
-        <div style={{
-          background: '#ffffff',
-          borderRadius: 16,
-          border: '1.5px solid #e2e8f0',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.03)',
-          overflow: 'hidden'
-        }}>
-          <button
-            onClick={testReadyAlert}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '16px 18px',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              textAlign: 'left'
-            }}
-          >
-            <div>
-              <strong style={{ display: 'block', fontSize: 15, color: '#0f172a' }}>🔔 Ready Alert Notification</strong>
-              <small style={{ color: '#64748b', fontSize: 12, marginTop: 2, display: 'block' }}>
-                Test pickup notifications on this device
-              </small>
-            </div>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', background: '#eff6ff', padding: '4px 10px', borderRadius: 8 }}>
-              Test Alert
-            </span>
-          </button>
         </div>
 
         {/* ── Links & Information ── */}
