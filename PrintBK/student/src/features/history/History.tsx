@@ -2,38 +2,206 @@ import React from 'react';
 import { Icon, Topbar } from '../../components/ui';
 import { Screen } from '../../lib/types';
 import { useHistory } from '../../store/basket';
-import { notify } from '../../lib/store';
 
-function History({
-  go
-}: {
-  go: (screen: Screen) => void;
-}) {
+function History({ go }: { go: (screen: Screen) => void }) {
   const { orders } = useHistory();
 
-  return <main className="page">
-      <Topbar title="Order history" back onBack={() => go("entry")} />
-      {orders.length === 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '64px 24px', gap: 16 }}>
-          <h2 style={{ margin: 0, color: 'var(--color-primary)' }}>No orders yet</h2>
-          <p style={{ color: 'var(--color-secondary)', margin: 0, textAlign: 'center' }}>
-            Your print history will appear here after your first order.
-          </p>
-          <button className="primary" onClick={() => go("entry")}>Start printing</button>
-        </div>
-      ) : (
-        <>
-          <div className="section-heading"><h2>Past orders</h2><span>Last 30 days</span></div>
-          {orders.map(order => (
-            <section className="history-ticket" key={order.id}>
-              <b>#{order.id.slice(-6).toUpperCase()}</b>
-              <span>{new Date(order.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {order.files.length} file{order.files.length !== 1 ? 's' : ''}</span>
-              <strong>₹{order.total.toFixed(2)}</strong>
-              <button onClick={() => { notify("Reprint not available without original files"); }}>Reprint</button>
-            </section>
-          ))}
-        </>
-      )}
-    </main>;
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'ready':
+        return { label: 'Ready for Pickup', bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' };
+      case 'printing':
+        return { label: 'Printing Now', bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' };
+      case 'processing':
+        return { label: 'Queued to Print', bg: '#fefce8', color: '#ca8a04', border: '#fef08a' };
+      case 'completed':
+        return { label: 'Completed', bg: '#f1f5f9', color: '#475569', border: '#e2e8f0' };
+      case 'cancelled':
+      case 'rejected':
+        return { label: 'Cancelled', bg: '#fef2f2', color: '#dc2626', border: '#fecaca' };
+      default:
+        return { label: 'Pending Payment', bg: '#fff7ed', color: '#ea580c', border: '#fed7aa' };
+    }
+  };
+
+  return (
+    <main className="page" style={{ background: 'var(--color-bg, #f7f4ee)', minHeight: '100dvh', paddingBottom: 48 }}>
+      <Topbar title="Order History" back onBack={() => go("entry")} />
+
+      <div style={{ maxWidth: 580, margin: '16px auto 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {orders.length === 0 ? (
+          <div style={{
+            background: '#ffffff',
+            borderRadius: 20,
+            border: '1.5px solid #e2e8f0',
+            padding: '48px 24px',
+            textAlign: 'center',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.03)'
+          }}>
+            <div style={{
+              width: 56,
+              height: 56,
+              borderRadius: '50%',
+              background: '#f1f5f9',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              color: '#64748b'
+            }}>
+              <Icon name="history" size={26} />
+            </div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0b1020', margin: '0 0 6px' }}>
+              No past orders yet
+            </h2>
+            <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 24px', lineHeight: 1.5 }}>
+              Your print jobs and digital receipts will appear here once you place your first order.
+            </p>
+            <button
+              onClick={() => go("entry")}
+              style={{
+                background: '#0b1020',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 12,
+                padding: '12px 24px',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              Start New Print Job
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* ── Section Title (Clean, no overlap) ── */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px 4px' }}>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0b1020', margin: 0 }}>
+                  Recent Orders
+                </h2>
+                <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500 }}>
+                  Stored securely on this device
+                </span>
+              </div>
+              <span style={{
+                background: '#e2e8f0',
+                color: '#334155',
+                fontSize: 12,
+                fontWeight: 700,
+                padding: '4px 10px',
+                borderRadius: 99
+              }}>
+                {orders.length} order{orders.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+
+            {/* ── Order Cards ── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {orders.map((order) => {
+                const badge = getStatusBadge(order.status);
+                const orderNumStr = order.orderNumber
+                  ? `#${order.orderNumber}`
+                  : `#${order.id.slice(-6).toUpperCase()}`;
+                const dateStr = new Date(order.date).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                });
+
+                return (
+                  <div
+                    key={order.id}
+                    style={{
+                      background: '#ffffff',
+                      borderRadius: 16,
+                      border: '1.5px solid #e2e8f0',
+                      padding: '18px 20px',
+                      boxShadow: '0 2px 12px rgba(0,0,0,0.03)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 12,
+                      transition: 'border-color 0.15s ease'
+                    }}
+                  >
+                    {/* Header Row: Order Number & Status Badge */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                        <span style={{ fontSize: 18, fontWeight: 900, color: '#0b1020', letterSpacing: -0.5 }}>
+                          {orderNumStr}
+                        </span>
+                        <span style={{ fontSize: 12, color: '#94a3b8' }}>
+                          · {dateStr}
+                        </span>
+                      </div>
+                      <span style={{
+                        background: badge.bg,
+                        color: badge.color,
+                        border: `1px solid ${badge.border}`,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '3px 9px',
+                        borderRadius: 99
+                      }}>
+                        {badge.label}
+                      </span>
+                    </div>
+
+                    {/* Files & Amount Row */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f8fafc', borderRadius: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#334155' }}>
+                        <Icon name="file" size={16} />
+                        <span style={{ fontWeight: 500 }}>
+                          {order.files.length} document{order.files.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                        ₹{order.total.toFixed(2)}
+                      </span>
+                    </div>
+
+                    {/* Footer Row: Pickup code & Action button */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 2 }}>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>
+                        {order.pickupCode && order.pickupCode !== '——' ? (
+                          <span>Pickup code: <b style={{ color: '#0f172a', letterSpacing: 1.5 }}>{order.pickupCode}</b></span>
+                        ) : order.filesDeletedAt ? (
+                          <span style={{ color: '#059669' }}>✓ Files deleted</span>
+                        ) : (
+                          <span>Show at counter</span>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => go(`/order/${order.id}`)}
+                        style={{
+                          background: '#0b1020',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: 8,
+                          padding: '8px 14px',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6
+                        }}
+                      >
+                        View Ticket <Icon name="arrow" size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    </main>
+  );
 }
+
 export default History;

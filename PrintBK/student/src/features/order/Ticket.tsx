@@ -11,6 +11,8 @@ const steps = ['Queued', 'Printing', 'Ready!'];
 function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (sheet: Sheet) => void }) {
   const { id } = useParams<{ id: string }>();
   const { orders, updateOrder } = useHistory();
+  const [alertFired, setAlertFired] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Find the specific order from history by ID (or fall back to latest)
   const order = id ? orders.find(o => o.id === id) ?? orders[0] : orders[0];
@@ -57,6 +59,35 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
   if (status === 'printing') stage = 1;
   else if (status === 'ready' || status === 'completed') stage = 2;
 
+  // Fire sound/vibration and notification when order transitions to ready
+  useEffect(() => {
+    if (status === 'ready' && !alertFired) {
+      setAlertFired(true);
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(`PrintBK: Order ${orderNumber} is Ready!`, {
+          body: `Your documents are printed. Present pickup code ${pickupCode} at HKBK Student Point counter!`,
+          icon: '/favicon.ico'
+        });
+      }
+      if ('vibrate' in navigator) {
+        navigator.vibrate([250, 100, 250, 100, 300]);
+      }
+      notify(`🎉 Order ${orderNumber} is ready for pickup!`);
+    }
+  }, [status, alertFired, orderNumber, pickupCode]);
+
+  // Request notification permission if not yet decided
+  const enableNotifications = async () => {
+    if ('Notification' in window) {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        notify('✓ Notifications enabled for ready alerts');
+      } else {
+        notify('Notifications blocked in browser');
+      }
+    }
+  };
+
   // Status message based on server status
   let statusMessage = "Your job is queued — we'll print it shortly";
   if (status === 'pending_cash') {
@@ -81,112 +112,288 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
 
   const handleDeleteFiles = async () => {
     if (!order?.id) return;
+    setDeleting(true);
     try {
       await api.deleteFiles(order.id, order.accessToken);
       updateOrder(order.id, { filesDeletedAt: Math.floor(Date.now() / 1000) });
-      notify('Files permanently deleted');
+      notify('Files permanently deleted from server');
     } catch (err: any) {
       notify(err?.message || 'Deletion failed');
+    } finally {
+      setDeleting(false);
     }
   };
 
+  const shareWhatsApp = () => {
+    const text = `PrintBK Order ${orderNumber} · Pickup Code: ${pickupCode} · Amount: ₹${total.toFixed(2)} · Location: HKBK Student Point`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
   return (
-    <main className="page ticket-page" style={{ background: 'var(--color-bg,#f7f4ee)', minHeight: '100dvh' }}>
-      <Topbar title="Order ticket" />
+    <main className="page ticket-page" style={{ background: 'var(--color-bg,#f7f4ee)', minHeight: '100dvh', paddingBottom: 48 }}>
+      <Topbar title="Order Ticket" back onBack={() => go('entry')} />
 
-      <section className="ticket-card" style={{ margin: '16px', background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
-        {/* Header */}
-        <div style={{ background: 'var(--color-primary,#0b1020)', color: '#fff', padding: '20px 24px 16px' }}>
-          <div style={{ fontSize: 11, letterSpacing: 2, opacity: 0.6, marginBottom: 4 }}>PRINTBK ORDER</div>
-          <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -1 }}>{orderNumber}</div>
-          <div style={{ fontSize: 13, opacity: 0.7, marginTop: 2 }}>
-            {order?.files?.length ?? 0} file{(order?.files?.length ?? 0) !== 1 ? 's' : ''} · ₹{total.toFixed(2)}
-          </div>
-        </div>
-
-        {/* Pickup code — Revealed only once order reaches processing */}
-        <div style={{ padding: '24px', textAlign: 'center', borderBottom: '1.5px dashed #e2e8f0' }}>
-          <div style={{ fontSize: 11, letterSpacing: 2, color: '#718096', marginBottom: 8 }}>PICKUP CODE</div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-            <span style={{ fontSize: 52, fontWeight: 900, letterSpacing: 12, lineHeight: 1 }}>{pickupCode}</span>
-            {pickupCode !== '——' && (
-              <button onClick={async () => { await navigator.clipboard?.writeText(pickupCode); notify('Pickup code copied'); }}
-                aria-label="Copy pickup code"
-                style={{ background: '#f3f4f6', border: 'none', borderRadius: 8, padding: 8, cursor: 'pointer' }}>
-                <Icon name="copy" size={18} />
-              </button>
-            )}
-          </div>
-          <p style={{ margin: '12px 0 0', fontSize: 13, color: stage === 2 ? '#1f9d55' : '#718096', fontWeight: stage === 2 ? 600 : 400 }}>
-            {statusMessage}
-          </p>
-
-          {/* Student-Facing Files Deletion Line */}
-          <div style={{ marginTop: 10, fontSize: 12, color: isDeleted ? '#1f9d55' : '#718096' }}>
-            {isDeleted
-              ? '✓ Files permanently deleted'
-              : deleteAfterTime
-                ? `🕒 Files deleted at ${deleteAfterTime}`
-                : '🕒 Files deleted 5 mins after pickup'}
-          </div>
-        </div>
-
-        {/* Progress steps */}
-        <div style={{ display: 'flex', padding: '16px 24px', gap: 0 }}>
-          {steps.map((step, i) => (
-            <div key={step} style={{ flex: 1, textAlign: 'center', position: 'relative' }}>
-              {i > 0 && <div style={{ position: 'absolute', left: 0, top: 14, width: '50%', height: 2, background: i <= stage ? '#1f9d55' : '#e2e8f0' }} />}
-              {i < steps.length - 1 && <div style={{ position: 'absolute', right: 0, top: 14, width: '50%', height: 2, background: i < stage ? '#1f9d55' : '#e2e8f0' }} />}
-              <div style={{
-                width: 28, height: 28, borderRadius: '50%', margin: '0 auto 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, position: 'relative', zIndex: 1,
-                background: i < stage ? '#1f9d55' : i === stage ? '#0b1020' : '#e2e8f0',
-                color: i <= stage ? '#fff' : '#718096'
-              }}>
-                {i < stage ? <Icon name="check" size={12} /> : i + 1}
-              </div>
-              <span style={{ fontSize: 11, color: i === stage ? '#0b1020' : '#718096', fontWeight: i === stage ? 600 : 400 }}>{step}</span>
+      <div style={{ maxWidth: 580, margin: '0 auto' }}>
+        {/* ── High-visibility Ready Alert Banner ── */}
+        {status === 'ready' && (
+          <div style={{
+            margin: '16px 16px 0',
+            background: '#ecfdf5',
+            border: '2px solid #059669',
+            borderRadius: 16,
+            padding: '16px 20px',
+            textAlign: 'center',
+            boxShadow: '0 4px 16px rgba(5, 150, 105, 0.15)'
+          }}>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#047857' }}>
+              🎉 Print Job is Ready for Collection!
             </div>
-          ))}
-        </div>
+            <p style={{ margin: '6px 0 12px', fontSize: 13, color: '#065f46', lineHeight: 1.4 }}>
+              Present pickup code <b>{pickupCode}</b> at the HKBK Student Point counter to receive your documents.
+            </p>
+            <button
+              onClick={shareWhatsApp}
+              style={{
+                background: '#25d366',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 10,
+                padding: '9px 16px',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6
+              }}
+            >
+              💬 Share Pickup Code to WhatsApp
+            </button>
+          </div>
+        )}
 
-        {/* Files */}
-        {(order?.files?.length ?? 0) > 0 && (
-          <div style={{ padding: '0 24px 16px', borderTop: '1px solid #f3f4f6' }}>
-            <div style={{ fontSize: 11, letterSpacing: 1, color: '#718096', margin: '12px 0 8px' }}>FILES IN THIS ORDER</div>
-            {order!.files.map((name, i) => (
-              <div key={i} style={{ fontSize: 13, padding: '6px 0', display: 'flex', alignItems: 'center', gap: 8, borderBottom: i < order!.files.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
-                <Icon name="file" size={14} />
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+        {/* ── Main Ticket Card ── */}
+        <section className="ticket-card" style={{ margin: '16px', background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.06)', border: '1.5px solid #e2e8f0' }}>
+          {/* Header */}
+          <div style={{ background: 'var(--color-primary,#0b1020)', color: '#fff', padding: '22px 24px 18px' }}>
+            <div style={{ fontSize: 11, letterSpacing: 2, opacity: 0.6, marginBottom: 4 }}>PRINTBK ORDER</div>
+            <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: -1 }}>{orderNumber}</div>
+            <div style={{ fontSize: 13, opacity: 0.75, marginTop: 4 }}>
+              {order?.files?.length ?? 0} file{(order?.files?.length ?? 0) !== 1 ? 's' : ''} · ₹{total.toFixed(2)}
+            </div>
+          </div>
+
+          {/* Pickup code — Revealed only once order reaches processing */}
+          <div style={{ padding: '24px', textAlign: 'center', borderBottom: '1.5px dashed #e2e8f0' }}>
+            <div style={{ fontSize: 11, letterSpacing: 2, color: '#718096', marginBottom: 8, fontWeight: 700 }}>PICKUP CODE</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+              <span style={{ fontSize: 52, fontWeight: 900, letterSpacing: 12, lineHeight: 1, color: '#0f172a' }}>{pickupCode}</span>
+              {pickupCode !== '——' && (
+                <button
+                  onClick={async () => { await navigator.clipboard?.writeText(pickupCode); notify('Pickup code copied'); }}
+                  aria-label="Copy pickup code"
+                  style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 8, padding: 8, cursor: 'pointer' }}
+                >
+                  <Icon name="copy" size={18} />
+                </button>
+              )}
+            </div>
+            <p style={{ margin: '12px 0 0', fontSize: 13, color: stage === 2 ? '#059669' : '#64748b', fontWeight: stage === 2 ? 700 : 500 }}>
+              {statusMessage}
+            </p>
+
+            {/* Student-Facing Files Deletion Countdown / Status */}
+            <div style={{ marginTop: 12, fontSize: 12, color: isDeleted ? '#059669' : '#64748b', fontWeight: 500 }}>
+              {isDeleted
+                ? '✓ Files permanently deleted'
+                : deleteAfterTime
+                  ? `🕒 Files deleted at ${deleteAfterTime}`
+                  : '🕒 Files deleted 5 mins after pickup'}
+            </div>
+          </div>
+
+          {/* Progress steps */}
+          <div style={{ display: 'flex', padding: '16px 24px', gap: 0 }}>
+            {steps.map((step, i) => (
+              <div key={step} style={{ flex: 1, textAlign: 'center', position: 'relative' }}>
+                {i > 0 && <div style={{ position: 'absolute', left: 0, top: 14, width: '50%', height: 2, background: i <= stage ? '#059669' : '#e2e8f0' }} />}
+                {i < steps.length - 1 && <div style={{ position: 'absolute', right: 0, top: 14, width: '50%', height: 2, background: i < stage ? '#059669' : '#e2e8f0' }} />}
+                <div style={{
+                  width: 28, height: 28, borderRadius: '50%', margin: '0 auto 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, position: 'relative', zIndex: 1,
+                  background: i < stage ? '#059669' : i === stage ? '#0b1020' : '#e2e8f0',
+                  color: i <= stage ? '#fff' : '#718096'
+                }}>
+                  {i < stage ? <Icon name="check" size={12} /> : i + 1}
+                </div>
+                <span style={{ fontSize: 11, color: i === stage ? '#0b1020' : '#718096', fontWeight: i === stage ? 700 : 400 }}>{step}</span>
               </div>
             ))}
           </div>
-        )}
-      </section>
 
-      <div style={{ display: 'flex', gap: 10, padding: '0 16px 16px' }}>
-        <button style={{ flex: 1, padding: '13px', borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 500 }}
-          onClick={() => setSheet('receipt')}>
-          <Icon name="download" /> Receipt
-        </button>
-        <button style={{ flex: 1, padding: '13px', borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 500 }}
-          onClick={() => {
-            const text = `PrintBK order ${orderNumber} — Pickup code ${pickupCode}`;
-            if (navigator.share) navigator.share({ title: 'PrintBK', text }).catch(() => {});
-            else { navigator.clipboard?.writeText(text); notify('Copied to clipboard'); }
+          {/* Files List */}
+          {(order?.files?.length ?? 0) > 0 && (
+            <div style={{ padding: '0 24px 18px', borderTop: '1px solid #f1f5f9' }}>
+              <div style={{ fontSize: 11, letterSpacing: 1, color: '#94a3b8', margin: '14px 0 8px', fontWeight: 700, textTransform: 'uppercase' }}>
+                Documents in this job
+              </div>
+              {order!.files.map((name, i) => (
+                <div key={i} style={{ fontSize: 13, padding: '7px 0', display: 'flex', alignItems: 'center', gap: 10, borderBottom: i < order!.files.length - 1 ? '1px solid #f8fafc' : 'none' }}>
+                  <Icon name="file" size={15} />
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#1e293b' }}>{name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ── File Deletion Confirmation / On-Demand Delete ── */}
+        {isDeleted ? (
+          <div style={{
+            margin: '0 16px 16px',
+            background: '#ecfdf5',
+            border: '1.5px solid #a7f3d0',
+            borderRadius: 16,
+            padding: '16px 20px',
+            textAlign: 'center'
           }}>
-          <Icon name="share" /> Share
-        </button>
-      </div>
+            <div style={{ color: '#059669', fontWeight: 800, fontSize: 14 }}>
+              ✓ Files Permanently Deleted
+            </div>
+            <div style={{ color: '#047857', fontSize: 12, marginTop: 4, marginBottom: 14 }}>
+              Your documents have been securely wiped from our storage servers.
+            </div>
+            <button
+              onClick={() => go('entry')}
+              style={{
+                background: '#059669',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 10,
+                padding: '10px 20px',
+                fontWeight: 700,
+                fontSize: 13,
+                cursor: 'pointer'
+              }}
+            >
+              Start New Print Job →
+            </button>
+          </div>
+        ) : (
+          <div style={{ margin: '0 16px 16px' }}>
+            <button
+              onClick={handleDeleteFiles}
+              disabled={deleting}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: 12,
+                background: '#fff5f5',
+                border: '1.5px solid #fed7d7',
+                color: '#dc2626',
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: deleting ? 'wait' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8
+              }}
+            >
+              <Icon name="trash" size={16} />
+              {deleting ? 'Deleting files…' : 'Delete my files now'}
+            </button>
+          </div>
+        )}
 
-      <button className="support-link" style={{ display: 'block', width: '100%', textAlign: 'center', padding: 8, background: 'none', border: 'none', color: '#718096', fontSize: 13, cursor: 'pointer' }}
-        onClick={() => setSheet('report')}>Report a problem</button>
-      {!isDeleted && (
-        <button style={{ display: 'block', width: '100%', textAlign: 'center', padding: '8px 8px 24px', background: 'none', border: 'none', color: '#c53030', fontSize: 13, cursor: 'pointer' }}
-          onClick={handleDeleteFiles}>
-          <Icon name="trash" size={14} /> Delete my files now
-        </button>
-      )}
+        {/* ── Actions: Receipt, Share & Done Return Home ── */}
+        <div style={{ display: 'flex', gap: 10, padding: '0 16px 12px' }}>
+          <button
+            style={{
+              flex: 1,
+              padding: '14px',
+              borderRadius: 12,
+              border: '1.5px solid #cbd5e1',
+              background: '#fff',
+              cursor: 'pointer',
+              fontSize: 14,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              color: '#0f172a'
+            }}
+            onClick={() => setSheet('receipt')}
+          >
+            <Icon name="download" size={16} /> View Receipt
+          </button>
+          <button
+            style={{
+              flex: 1,
+              padding: '14px',
+              borderRadius: 12,
+              border: '1.5px solid #cbd5e1',
+              background: '#fff',
+              cursor: 'pointer',
+              fontSize: 14,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              color: '#0f172a'
+            }}
+            onClick={() => {
+              const text = `PrintBK order ${orderNumber} — Pickup code ${pickupCode}`;
+              if (navigator.share) navigator.share({ title: 'PrintBK', text }).catch(() => {});
+              else { navigator.clipboard?.writeText(text); notify('Copied to clipboard'); }
+            }}
+          >
+            <Icon name="share" size={16} /> Share
+          </button>
+        </div>
+
+        {/* ── Primary Return to Home Button (Never Stuck) ── */}
+        <div style={{ padding: '0 16px 16px' }}>
+          <button
+            onClick={() => go('entry')}
+            style={{
+              width: '100%',
+              padding: '16px',
+              borderRadius: 14,
+              background: '#0b1020',
+              color: '#ffffff',
+              border: 'none',
+              fontWeight: 800,
+              fontSize: 15,
+              cursor: 'pointer',
+              boxShadow: '0 4px 16px rgba(11, 16, 32, 0.2)'
+            }}
+          >
+            Done · Start New Print Job
+          </button>
+        </div>
+
+        {/* ── Secondary Links ── */}
+        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 16 }}>
+          <button
+            style={{ background: 'none', border: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer' }}
+            onClick={() => setSheet('report')}
+          >
+            Report a problem
+          </button>
+          {'Notification' in window && Notification.permission !== 'granted' && (
+            <button
+              style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}
+              onClick={enableNotifications}
+            >
+              🔔 Enable browser alerts when print is ready
+            </button>
+          )}
+        </div>
+      </div>
     </main>
   );
 }
+
 export default Ticket;

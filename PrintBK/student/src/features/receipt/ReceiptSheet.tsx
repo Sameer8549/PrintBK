@@ -195,7 +195,14 @@ ${rows}
       </div>
 
       <button
-        style={{ display: 'block', width: '100%', textAlign: 'center', padding: '12px 8px', background: 'none', border: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', marginTop: 8 }}
+        onClick={() => setSheet(null)}
+        style={{ width: '100%', padding: '13px', borderRadius: 12, background: '#0f172a', color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, cursor: 'pointer', marginTop: 12 }}
+      >
+        Done · Close Receipt
+      </button>
+
+      <button
+        style={{ display: 'block', width: '100%', textAlign: 'center', padding: '10px 8px', background: 'none', border: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', marginTop: 4 }}
         onClick={() => setSheet("report")}
       >
         Report a problem with this receipt

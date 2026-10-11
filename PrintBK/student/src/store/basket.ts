@@ -103,6 +103,7 @@ interface HistoryState {
   orders: OrderRecord[];
   addOrder: (order: OrderRecord) => void;
   updateOrder: (id: string, updates: Partial<OrderRecord>) => void;
+  clearHistory: () => void;
 }
 
 export const useHistory = create<HistoryState>()(
@@ -114,6 +115,7 @@ export const useHistory = create<HistoryState>()(
         set((state) => ({
           orders: state.orders.map((o) => (o.id === id ? { ...o, ...updates } : o)),
         })),
+      clearHistory: () => set({ orders: [] }),
     }),
     { name: 'printbk-history-v1' }
   )

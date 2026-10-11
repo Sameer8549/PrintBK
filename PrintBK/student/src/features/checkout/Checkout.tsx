@@ -43,7 +43,8 @@ function Checkout({ go, setSheet, services }: {
         files: basket.files,
         services: basket.services,
         rush: false,
-        payment: 'Cash'
+        payment: 'Cash',
+        phone: phone.trim() || undefined
       } as any);
 
       addOrder({
@@ -137,7 +138,7 @@ function Checkout({ go, setSheet, services }: {
           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: '#718096' }}>
             Phone <small style={{ fontWeight: 400 }}>(optional — for ready alert)</small>
           </label>
-          <input type="tel" placeholder="+91 98765 43210" value={phone} onChange={e => setPhone(e.target.value)}
+          <input type="tel" placeholder="" value={phone} onChange={e => setPhone(e.target.value)}
             style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 15, boxSizing: 'border-box' }} />
         </div>
 

@@ -24,6 +24,7 @@ import TypingSheet from '../features/services/TypingSheet';
 import CustomRequestSheet from '../features/services/CustomRequestSheet';
 import BreakdownSheet from '../features/pricing/BreakdownSheet';
 import PrivacyPolicy from '../features/settings/PrivacyPolicy';
+import About from '../features/about/About';
 
 import { useBasket } from '../store/basket';
 import type { ServiceLine } from '@printbk/shared';
@@ -45,6 +46,7 @@ function RouteMapper() {
       orderError: '/order/error',
       history: '/history',
       settings: '/settings',
+      about: '/about',
       uploading: '/uploading',
       preview: '/preview',
     };
@@ -88,6 +90,7 @@ function RouteMapper() {
         <Route path="/order/:id" element={<Ticket go={go} setSheet={setSheet} />} />
         <Route path="/history"   element={<History go={go} />} />
         <Route path="/settings"  element={<Settings go={go} />} />
+        <Route path="/about"     element={<About go={go} />} />
         <Route path="/uploading" element={<Uploading go={go} />} />
         <Route path="/preview"   element={<PrintPreview go={go} />} />
         <Route path="/privacy"   element={<PrivacyPolicy go={go} />} />

@@ -349,6 +349,7 @@ app.post('/orders', async (req, res) => {
       files,
       services,
       rush,
+      phone: req.body.phone ? String(req.body.phone).trim() : null,
       pickupCode,
       orderNumber,
       accessTokenHash,
