@@ -1,28 +1,11 @@
-# Dependencies
 node_modules/
-*/node_modules/
-*/*/node_modules/
-
-# Build artifacts
-dist/
-*/dist/
-.wrangler/
-*/.wrangler/
-
-# Environment and secrets
+student/node_modules/
+functions/api/node_modules/
+agent/node_modules/
+.catalystrc
+*.log
 .env
 .env.*
 !.env.example
-*.local
-
-# Catalyst local state and logs
-.catalyst/
-.catalystrc
-temp_test/
-*.log
-
-# OS & Editor files
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
+dist/
+student/dist/

@@ -1,0 +1,5 @@
+.catalystrc
+*.log
+.env
+.env.*
+!.env.example
