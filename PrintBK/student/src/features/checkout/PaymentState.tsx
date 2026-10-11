@@ -14,17 +14,8 @@ function PaymentState({
   const [step, setStep] = React.useState('Verifying UPI transaction…');
 
   useEffect(() => {
-    if (id && !id.startsWith('local-')) {
-      api.payOrder(id).catch(err => console.warn('Could not update order payment status on server:', err));
-    }
-    const t1 = setTimeout(() => setStep('Locking in print order…'), 1000);
-    const t2 = setTimeout(() => setStep('Generating pickup code…'), 2000);
-    const t3 = setTimeout(() => go(`/order/${id}`), 3000);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
+    const t = setTimeout(() => go(`/order/${id}`), 1000);
+    return () => clearTimeout(t);
   }, [id, go]);
 
   return (

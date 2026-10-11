@@ -88,16 +88,21 @@ export function fileFromRaw(raw: File): PrintFile {
 // Order history stored locally
 export interface OrderRecord {
   id: string;
+  orderNumber?: number;
   date: number;
   files: string[];
   total: number;
   pickupCode: string;
   status: string;
+  accessToken?: string;
+  deleteAfter?: number;
+  filesDeletedAt?: number;
 }
 
 interface HistoryState {
   orders: OrderRecord[];
   addOrder: (order: OrderRecord) => void;
+  updateOrder: (id: string, updates: Partial<OrderRecord>) => void;
 }
 
 export const useHistory = create<HistoryState>()(
@@ -105,6 +110,10 @@ export const useHistory = create<HistoryState>()(
     (set) => ({
       orders: [],
       addOrder: (order) => set((state) => ({ orders: [order, ...state.orders] })),
+      updateOrder: (id, updates) =>
+        set((state) => ({
+          orders: state.orders.map((o) => (o.id === id ? { ...o, ...updates } : o)),
+        })),
     }),
     { name: 'printbk-history-v1' }
   )

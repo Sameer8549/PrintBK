@@ -2,8 +2,17 @@ import { Basket, ShopConfig, OrderStatus, defaultShopConfig } from '@printbk/sha
 
 const API_BASE = import.meta.env.VITE_API_URL || '/server/api';
 
+export interface CreateOrderResponse {
+  orderId: string;
+  orderNumber: number;
+  status: OrderStatus;
+  breakdown: any;
+  pickupCode?: string | null;
+  accessToken: string;
+}
+
 export const api = {
-  async getConfig(): Promise<ShopConfig> {
+  async getConfig(): Promise<ShopConfig & { paymentMethods?: { cash: boolean; razorpay: boolean } }> {
     try {
       const res = await fetch(`${API_BASE}/config`);
       if (res.ok) return res.json();
@@ -27,41 +36,45 @@ export const api = {
     return res.json();
   },
 
-  async createOrder(basket: Basket): Promise<{ orderId: string; status: OrderStatus; breakdown: any }> {
+  async createOrder(basket: Basket & { payment?: string }): Promise<CreateOrderResponse> {
     const res = await fetch(`${API_BASE}/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(basket),
     });
-    if (!res.ok) throw new Error('Failed to create order');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to create order');
+    }
     return res.json();
   },
 
-  async getOrder(orderId: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/orders/${orderId}`);
-    if (!res.ok) throw new Error('Failed to fetch order');
+  async getOrder(orderId: string, token?: string): Promise<any> {
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['X-Order-Token'] = token;
+    }
+    const res = await fetch(`${API_BASE}/orders/${orderId}`, { headers });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to fetch order');
+    }
     return res.json();
   },
 
-  async getOrders(): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/orders`);
-    if (!res.ok) throw new Error('Failed to fetch orders');
-    return res.json();
-  },
-
-  async payOrder(orderId: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/orders/${orderId}/pay`, { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to update payment');
-    return res.json();
-  },
-
-  async updateOrderStatus(orderId: string, status: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/orders/${orderId}/status`, {
+  async deleteFiles(orderId: string, token?: string): Promise<{ ok: boolean; deletedAt: number }> {
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['X-Order-Token'] = token;
+    }
+    const res = await fetch(`${API_BASE}/orders/${orderId}/delete-files`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
+      headers,
     });
-    if (!res.ok) throw new Error('Failed to update order status');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to delete files');
+    }
     return res.json();
-  }
+  },
 };

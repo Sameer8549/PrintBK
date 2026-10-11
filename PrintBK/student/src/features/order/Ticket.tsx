@@ -4,29 +4,91 @@ import { Screen, Sheet } from '../../lib/types';
 import { notify } from '../../lib/store';
 import { useHistory } from '../../store/basket';
 import { useParams } from 'react-router-dom';
+import { api } from '../../services/api';
 
 const steps = ['Queued', 'Printing', 'Ready!'];
 
 function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (sheet: Sheet) => void }) {
   const { id } = useParams<{ id: string }>();
-  const { orders } = useHistory();
+  const { orders, updateOrder } = useHistory();
 
   // Find the specific order from history by ID (or fall back to latest)
   const order = id ? orders.find(o => o.id === id) ?? orders[0] : orders[0];
 
-  // Pickup code comes ONLY from the stored order — never generated fresh
-  const pickupCode = order?.pickupCode ?? '——';
-  const displayId = order ? `#${order.id.slice(-6).toUpperCase()}` : id ? `#${id.slice(-6).toUpperCase()}` : '#——';
+  // Poll server for live status updates if not a local-only order
+  useEffect(() => {
+    if (!order?.id || order.id.startsWith('local-')) return;
+    let isMounted = true;
+
+    const poll = async () => {
+      try {
+        const data = await api.getOrder(order.id, order.accessToken);
+        if (!isMounted || !data) return;
+        updateOrder(order.id, {
+          status: data.status,
+          pickupCode: data.pickupCode || order.pickupCode,
+          orderNumber: data.orderNumber || order.orderNumber,
+          deleteAfter: data.deleteAfter || order.deleteAfter,
+          filesDeletedAt: data.filesDeletedAt || order.filesDeletedAt,
+        });
+      } catch (err) {
+        // Silently retain cached state
+      }
+    };
+
+    poll();
+    const isFinal = ['completed', 'cancelled', 'rejected', 'expired'].includes(order.status);
+    if (!isFinal) {
+      const timer = setInterval(poll, 3500);
+      return () => { isMounted = false; clearInterval(timer); };
+    }
+    return () => { isMounted = false; };
+  }, [order?.id, order?.status, order?.accessToken]);
+
+  const status = order?.status ?? 'pending_cash';
+  const orderNumber = order?.orderNumber ? `#${order.orderNumber}` : order?.id ? `#${order.id.slice(-6).toUpperCase()}` : '#——';
+  const pickupCode = (['pending_payment', 'pending_cash', 'waiting_quote'].includes(status) || !order?.pickupCode || order.pickupCode === '——')
+    ? '——'
+    : order.pickupCode;
   const total = order?.total ?? 0;
 
-  const [stage, setStage] = useState(0);
-  const [, setSheet_] = useState<Sheet>(null);
+  // Compute stage for progress bar
+  let stage = 0;
+  if (status === 'printing') stage = 1;
+  else if (status === 'ready' || status === 'completed') stage = 2;
 
-  useEffect(() => {
-    const t1 = setTimeout(() => setStage(1), 3000);
-    const t2 = setTimeout(() => setStage(2), 7000);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, []);
+  // Status message based on server status
+  let statusMessage = "Your job is queued — we'll print it shortly";
+  if (status === 'pending_cash') {
+    statusMessage = `Show order ${orderNumber} at counter to pay ₹${total.toFixed(2)} and start printing`;
+  } else if (status === 'printing') {
+    statusMessage = 'Printing now — almost ready!';
+  } else if (status === 'ready') {
+    statusMessage = `Ready! Show code ${pickupCode} at the counter.`;
+  } else if (status === 'completed') {
+    statusMessage = 'Order completed! Thank you.';
+  } else if (status === 'rejected') {
+    statusMessage = 'Order rejected at counter. Please speak with staff.';
+  } else if (status === 'cancelled') {
+    statusMessage = 'Order cancelled.';
+  }
+
+  // Deletion timer / notice
+  const isDeleted = Boolean(order?.filesDeletedAt);
+  const deleteAfterTime = order?.deleteAfter
+    ? new Date(order.deleteAfter * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : null;
+
+  const handleDeleteFiles = async () => {
+    if (!order?.id) return;
+    try {
+      await api.deleteFiles(order.id, order.accessToken);
+      updateOrder(order.id, { filesDeletedAt: Math.floor(Date.now() / 1000) });
+      notify('Files permanently deleted');
+    } catch (err: any) {
+      notify(err?.message || 'Deletion failed');
+    }
+  };
 
   return (
     <main className="page ticket-page" style={{ background: 'var(--color-bg,#f7f4ee)', minHeight: '100dvh' }}>
@@ -36,26 +98,37 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
         {/* Header */}
         <div style={{ background: 'var(--color-primary,#0b1020)', color: '#fff', padding: '20px 24px 16px' }}>
           <div style={{ fontSize: 11, letterSpacing: 2, opacity: 0.6, marginBottom: 4 }}>PRINTBK ORDER</div>
-          <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -1 }}>{displayId}</div>
+          <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -1 }}>{orderNumber}</div>
           <div style={{ fontSize: 13, opacity: 0.7, marginTop: 2 }}>
             {order?.files?.length ?? 0} file{(order?.files?.length ?? 0) !== 1 ? 's' : ''} · ₹{total.toFixed(2)}
           </div>
         </div>
 
-        {/* Pickup code — THE source of truth */}
+        {/* Pickup code — Revealed only once order reaches processing */}
         <div style={{ padding: '24px', textAlign: 'center', borderBottom: '1.5px dashed #e2e8f0' }}>
           <div style={{ fontSize: 11, letterSpacing: 2, color: '#718096', marginBottom: 8 }}>PICKUP CODE</div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
             <span style={{ fontSize: 52, fontWeight: 900, letterSpacing: 12, lineHeight: 1 }}>{pickupCode}</span>
-            <button onClick={async () => { await navigator.clipboard?.writeText(pickupCode); notify('Pickup code copied'); }}
-              aria-label="Copy pickup code"
-              style={{ background: '#f3f4f6', border: 'none', borderRadius: 8, padding: 8, cursor: 'pointer' }}>
-              <Icon name="copy" size={18} />
-            </button>
+            {pickupCode !== '——' && (
+              <button onClick={async () => { await navigator.clipboard?.writeText(pickupCode); notify('Pickup code copied'); }}
+                aria-label="Copy pickup code"
+                style={{ background: '#f3f4f6', border: 'none', borderRadius: 8, padding: 8, cursor: 'pointer' }}>
+                <Icon name="copy" size={18} />
+              </button>
+            )}
           </div>
           <p style={{ margin: '12px 0 0', fontSize: 13, color: stage === 2 ? '#1f9d55' : '#718096', fontWeight: stage === 2 ? 600 : 400 }}>
-            {stage === 0 ? 'Your job is queued — we\'ll print it shortly' : stage === 1 ? 'Printing now — almost ready!' : `Ready! Show code ${pickupCode} at the counter.`}
+            {statusMessage}
           </p>
+
+          {/* Student-Facing Files Deletion Line */}
+          <div style={{ marginTop: 10, fontSize: 12, color: isDeleted ? '#1f9d55' : '#718096' }}>
+            {isDeleted
+              ? '✓ Files permanently deleted'
+              : deleteAfterTime
+                ? `🕒 Files deleted at ${deleteAfterTime}`
+                : '🕒 Files deleted 5 mins after pickup'}
+          </div>
         </div>
 
         {/* Progress steps */}
@@ -97,7 +170,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
         </button>
         <button style={{ flex: 1, padding: '13px', borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 500 }}
           onClick={() => {
-            const text = `PrintBK order ${displayId} — Pickup code ${pickupCode}`;
+            const text = `PrintBK order ${orderNumber} — Pickup code ${pickupCode}`;
             if (navigator.share) navigator.share({ title: 'PrintBK', text }).catch(() => {});
             else { navigator.clipboard?.writeText(text); notify('Copied to clipboard'); }
           }}>
@@ -107,10 +180,12 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
 
       <button className="support-link" style={{ display: 'block', width: '100%', textAlign: 'center', padding: 8, background: 'none', border: 'none', color: '#718096', fontSize: 13, cursor: 'pointer' }}
         onClick={() => setSheet('report')}>Report a problem</button>
-      <button style={{ display: 'block', width: '100%', textAlign: 'center', padding: '8px 8px 24px', background: 'none', border: 'none', color: '#c53030', fontSize: 13, cursor: 'pointer' }}
-        onClick={() => { notify('Files deleted'); go('entry'); }}>
-        <Icon name="trash" size={14} /> Delete my files now
-      </button>
+      {!isDeleted && (
+        <button style={{ display: 'block', width: '100%', textAlign: 'center', padding: '8px 8px 24px', background: 'none', border: 'none', color: '#c53030', fontSize: 13, cursor: 'pointer' }}
+          onClick={handleDeleteFiles}>
+          <Icon name="trash" size={14} /> Delete my files now
+        </button>
+      )}
     </main>
   );
 }
