@@ -1,0 +1,12 @@
+{
+  "client": {
+    "source": "student/dist"
+  },
+  "functions": {
+    "targets": [
+      "api"
+    ],
+    "ignore": [],
+    "source": "functions"
+  }
+}

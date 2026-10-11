@@ -8,6 +8,7 @@ export interface PriceLine {
   unitPrice: number;
   total: number;
   detail: string;
+  formula?: string;
 }
 
 export interface PriceBreakdown {
@@ -34,69 +35,80 @@ export function priceOrder(basket: Basket, config: ShopConfig, now: Date = new D
 
   for (const file of basket.files) {
     const s = file.settings;
-    const { pages } = parsePageRange(s.range, file.pages);
+    const copies = s.copies ?? 1;
+    const nUp = s.nUp ?? 1;
+    const colorMode = s.colorMode ?? 'bw';
+    const sided = s.sided ?? 'single';
+    const range = s.range ?? 'all';
+    const paper = s.paper ?? 'A4';
+    
+    const { pages } = parsePageRange(range, file.pages || 1);
     let physicalPages = pages.length;
 
-    physicalPages = Math.ceil(physicalPages / s.nUp);
+    physicalPages = Math.ceil(physicalPages / nUp);
     
     if (s.booklet) {
        physicalPages = Math.ceil(pages.length / 4) * 2;
     }
 
     let sheets = physicalPages;
-    if (s.sided === 'double') {
+    if (sided === 'double') {
       sheets = Math.ceil(physicalPages / 2);
     }
-    const totalSheets = sheets * s.copies;
+    const totalSheets = sheets * copies;
     
     let colorPages = 0;
     let bwPages = 0;
     
-    if (s.colorMode === 'color') {
+    if (colorMode === 'color') {
       colorPages = physicalPages;
-    } else if (s.colorMode === 'bw') {
+    } else if (colorMode === 'bw') {
       bwPages = physicalPages;
     } else {
-      const ratio = pages.length > 0 ? (file.colorPages / file.pages) : 0;
+      const ratio = pages.length > 0 ? ((file.colorPages || 0) / (file.pages || 1)) : 0;
       colorPages = Math.ceil(physicalPages * ratio);
       bwPages = physicalPages - colorPages;
     }
 
-    let rateBW = config.rates.bw;
-    let rateColor = config.rates.color;
+    // User-defined exact rates:
+    // B&W single: ₹1.50, double: ₹0.85 per page
+    // Colour single: ₹8.00, double: ₹8.00 per page
+    const paperMult = config.rates.paperMultipliers[paper] || 1;
     
-    if (totalSheets >= config.rates.bulkTierThreshold) {
-      rateBW = config.rates.bulkTierRate;
+    let pricePerPageBW = (sided === 'double' ? 0.85 : 1.50) * paperMult;
+    let pricePerPageColor = (sided === 'double' ? 8.00 : 8.00) * paperMult;
+
+    // Bulk tier check for high-volume orders
+    if (totalSheets >= (config.rates.bulkTierThreshold || 100)) {
+      pricePerPageBW = Math.min(pricePerPageBW, 0.80 * paperMult);
     }
-
-    const paperMult = config.rates.paperMultipliers[s.paper] || 1;
-    rateBW *= paperMult;
-    rateColor *= paperMult;
-
-    let duplexDiscount = 0;
-    if (s.sided === 'double') {
-      duplexDiscount = config.rates.doubleSideDiscount;
-    }
-
-    const pricePerPageBW = rateBW * (1 - duplexDiscount);
-    const pricePerPageColor = rateColor * (1 - duplexDiscount);
     
-    const fileTotal = (bwPages * pricePerPageBW + colorPages * pricePerPageColor) * s.copies;
-    const roundedTotal = roundTo50Paise(fileTotal);
+    const fileTotal = (bwPages * pricePerPageBW + colorPages * pricePerPageColor) * copies;
+    const roundedTotal = Math.round(fileTotal * 100) / 100;
+
+    let formulaStr = '';
+    if (colorMode === 'bw') {
+      formulaStr = `${bwPages} pgs × ₹${pricePerPageBW.toFixed(2)} (${sided === 'double' ? '2-sided' : '1-sided'}) × ${copies} cop${copies > 1 ? 'ies' : 'y'}`;
+    } else if (colorMode === 'color') {
+      formulaStr = `${colorPages} pgs × ₹${pricePerPageColor.toFixed(2)} (Colour) × ${copies} cop${copies > 1 ? 'ies' : 'y'}`;
+    } else {
+      formulaStr = `(${bwPages} BW @ ₹${pricePerPageBW.toFixed(2)} + ${colorPages} Col @ ₹${pricePerPageColor.toFixed(2)}) × ${copies}`;
+    }
 
     lines.push({
       id: file.id,
       name: file.name,
-      qty: s.copies,
-      unitPrice: roundedTotal / s.copies,
+      qty: copies,
+      unitPrice: Math.round((roundedTotal / copies) * 100) / 100,
       total: roundedTotal,
-      detail: `${physicalPages} pages, ${s.colorMode}, ${s.sided}, ${s.paper}`
+      detail: `${physicalPages} pages · ${colorMode === 'bw' ? 'B&W' : 'Colour'} · ${sided === 'double' ? 'Double-sided' : 'Single-sided'}${nUp > 1 ? ` · ${nUp}-up` : ''}`,
+      formula: formulaStr
     });
     subtotal += roundedTotal;
 
-    if (s.sided === 'single' && !s.booklet) {
-      const duplexTotal = (bwPages * rateBW * (1 - config.rates.doubleSideDiscount) + colorPages * rateColor * (1 - config.rates.doubleSideDiscount)) * s.copies;
-      const savings = roundedTotal - roundTo50Paise(duplexTotal);
+    if (sided === 'single' && !s.booklet) {
+      const duplexTotal = (bwPages * 0.85 + colorPages * 8.00) * copies;
+      const savings = roundedTotal - (Math.round(duplexTotal * 100) / 100);
       if (savings > potentialSavings) {
         potentialSavings = savings;
         savingsSource = 'printing double-sided';
@@ -111,14 +123,15 @@ export function priceOrder(basket: Basket, config: ShopConfig, now: Date = new D
     }
     
     if (svc.price !== undefined) {
-      const lineTotal = roundTo50Paise(svc.price * svc.qty);
+      const lineTotal = Math.round(svc.price * svc.qty * 100) / 100;
       lines.push({
         id: svc.id,
         name: svc.name,
         qty: svc.qty,
         unitPrice: svc.price,
         total: lineTotal,
-        detail: svc.detail || svc.type
+        detail: svc.detail || svc.type,
+        formula: `${svc.qty} qty × ₹${svc.price.toFixed(2)}`
       });
       subtotal += lineTotal;
     }

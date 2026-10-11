@@ -34,13 +34,13 @@ export type ShopConfig = z.infer<typeof ShopConfigSchema>;
 
 export const defaultShopConfig: ShopConfig = {
   rates: {
-    bw: 1,
-    color: 5,
+    bw: 1.50,
+    color: 8.00,
     scan: 5,
-    photocopy: 1,
-    doubleSideDiscount: 0.2, // 20%
+    photocopy: 1.50,
+    doubleSideDiscount: 0.4333, // 1.50 -> 0.85
     bulkTierThreshold: 100,
-    bulkTierRate: 0.8,
+    bulkTierRate: 0.80,
     paperMultipliers: { A4: 1, A3: 2, Legal: 1.2 },
     staple: 5,
     spiral: 30,

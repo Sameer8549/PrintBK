@@ -9,7 +9,7 @@ enabled = true
 [[d1_databases]]
 binding = "DB"
 database_name = "printbk-d1"
-database_id = "mock-id-for-dev"
+database_id = "063df46c-bdbf-45bf-958e-9e62c59eaeb4"
 
 [[r2_buckets]]
 binding = "BUCKET"

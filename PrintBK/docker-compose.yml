@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  api:
+    image: node:20-alpine
+    working_dir: /app/backend
+    volumes:
+      - .:/app
+    command: pnpm run start
+    ports:
+      - "8787:8787"
+    environment:
+      - NODE_ENV=production
+      - API_BASE=http://localhost:8787
+      - DATABASE_URL=sqlite:///app/data/printbk.db
+      # If moving away from Cloudflare R2, map to an S3-compatible local MinIO here
+
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./student/dist:/usr/share/nginx/html
+
+  agent:
+    image: node:20-alpine
+    working_dir: /app/agent
+    volumes:
+      - .:/app
+    command: pnpm run start
+    environment:
+      - API_BASE=http://api:8787

@@ -11,7 +11,7 @@ export function Brand({
   large?: boolean;
 }) {
   return <div className={`brand ${large ? "brand--large" : ""}`}>
-      <img src={'/favicon.svg'} alt="PrintBK" />
+      <img src={import.meta.env.BASE_URL + 'favicon.svg'} alt="PrintBK" />
       {full && <div>
           <strong>PrintBK</strong>
           <span>print. pay. pick up.</span>

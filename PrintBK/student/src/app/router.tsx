@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate, useParams, Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom';
 
-import Splash from '../features/entry/Splash';
 import Entry from '../features/entry/Entry';
-import Uploading from '../features/entry/Uploading'; // wait, ui or entry?
+import Uploading from '../features/entry/Uploading';
 import Basket from '../features/basket/Basket';
-import EmptyBasket from '../features/basket/EmptyBasket';
 import PrintPreview from '../features/preview/PrintPreview';
 import OtherServices from '../features/services/OtherServices';
 import PhotoTool from '../features/photos/PhotoTool';
@@ -24,53 +22,56 @@ import LaminationSheet from '../features/services/LaminationSheet';
 import ScanningSheet from '../features/services/ScanningSheet';
 import TypingSheet from '../features/services/TypingSheet';
 import CustomRequestSheet from '../features/services/CustomRequestSheet';
-import SettingsSheet from '../components/ui/SettingsSheet';
-import PickerSheet from '../components/ui/PickerSheet';
 import BreakdownSheet from '../features/pricing/BreakdownSheet';
+import PrivacyPolicy from '../features/settings/PrivacyPolicy';
+
+import { useBasket } from '../store/basket';
+import type { ServiceLine } from '@printbk/shared';
 
 function RouteMapper() {
   const navigate = useNavigate();
-  // We simulate the 'go', 'setSheet' API of the old App.tsx to avoid massive rewrites immediately
+  const basket = useBasket();
+
   const go = (screen: string) => {
-    if (screen.startsWith('/')) {
-      return navigate(screen);
-    }
-    const map: any = {
+    if (screen.startsWith('/')) return navigate(screen);
+    const map: Record<string, string> = {
       entry: '/',
       basket: '/basket',
-      empty: '/basket', // or empty specific
+      empty: '/basket',
       services: '/services',
       photo: '/photos',
       checkout: '/checkout',
-      confirming: '/pay/1',
-      failed: '/pay/1?failed=true',
-      paid: '/pay/1?success=true',
-      ticket: '/order/1',
-      quoteTicket: '/order/q1',
-      orderError: '/order/1?error=true',
+      quoteTicket: '/order/quote',
+      orderError: '/order/error',
       history: '/history',
       settings: '/settings',
       uploading: '/uploading',
-      preview: '/preview'
+      preview: '/preview',
     };
     navigate(map[screen] || '/');
   };
-  
-  const [sheet, setSheet] = useState<string | null>(null);
 
-  // Render current sheet if any
+  const [sheet, setSheet] = useState<string | null>(null);
+  const [bindingType, setBindingType] = useState<string>("Spiral");
+  const [customNote, setCustomNote] = useState<string>("");
+
+  const addService = (s: any) => {
+    basket.addService(s);
+    setSheet(null);
+    // Navigate to basket after adding so user can see it
+    navigate('/basket');
+  };
+
   const renderSheet = () => {
     switch (sheet) {
-      case 'settings': return <SettingsSheet setSheet={setSheet as any} />;
-      case 'picker': return <PickerSheet setSheet={setSheet as any} />;
-      case 'breakdown': return <BreakdownSheet close={() => setSheet(null)} services={[]} />;
-      case 'receipt': return <ReceiptSheet setSheet={setSheet as any} services={[]} />;
-      case 'report': return <ReportSheet close={() => setSheet(null)} />;
-      case 'binding': return <BindingSheet close={() => setSheet(null)} addService={()=>{}} initialType="Spiral" />;
-      case 'lamination': return <LaminationSheet close={() => setSheet(null)} addService={()=>{}} />;
-      case 'scanning': return <ScanningSheet close={() => setSheet(null)} addService={()=>{}} />;
-      case 'typing': return <TypingSheet close={() => setSheet(null)} addService={()=>{}} />;
-      case 'custom': return <CustomRequestSheet close={() => setSheet(null)} addService={()=>{}} initialNotes="" />;
+      case 'breakdown': return <BreakdownSheet close={() => setSheet(null)} />;
+      case 'receipt':   return <ReceiptSheet setSheet={setSheet as any} services={basket.services as any} />;
+      case 'report':    return <ReportSheet close={() => setSheet(null)} />;
+      case 'binding':   return <BindingSheet close={() => setSheet(null)} addService={addService} initialType={bindingType} />;
+      case 'lamination':return <LaminationSheet close={() => setSheet(null)} addService={addService} />;
+      case 'scanning':  return <ScanningSheet close={() => setSheet(null)} addService={addService} />;
+      case 'typing':    return <TypingSheet close={() => setSheet(null)} addService={addService} />;
+      case 'custom':    return <CustomRequestSheet close={() => setSheet(null)} addService={addService} initialNotes={customNote} />;
       default: return null;
     }
   };
@@ -78,16 +79,19 @@ function RouteMapper() {
   return (
     <>
       <Routes>
-        <Route path="/" element={<Entry go={go} setSheet={setSheet} openPhoto={() => navigate('/photos')} />} />
-        <Route path="/basket" element={<Basket go={go} setSheet={setSheet} services={[]} />} />
-        <Route path="/services" element={<OtherServices go={go} setSheet={setSheet} addService={()=>{}} openBinding={()=>{}} openCustom={()=>{}} />} />
-        <Route path="/photos" element={<PhotoTool go={go} initialLayout="3:4" />} />
-        <Route path="/checkout" element={<Checkout go={go} setSheet={setSheet} services={[]} />} />
-        <Route path="/history" element={<History go={go} />} />
-        <Route path="/settings" element={<Settings go={go} />} />
-        <Route path="/order/:id" element={<Ticket go={go} setSheet={setSheet} services={[]} />} />
+        <Route path="/"          element={<Entry go={go} setSheet={setSheet} openPhoto={() => navigate('/photos')} />} />
+        <Route path="/basket"    element={<Basket go={go} setSheet={setSheet} />} />
+        <Route path="/services"  element={<OtherServices go={go} setSheet={setSheet} addService={addService} openBinding={(t) => { setBindingType(t); setSheet('binding'); }} openCustom={(t) => { setCustomNote(t); setSheet('custom'); }} />} />
+        <Route path="/photos"    element={<PhotoTool go={go} initialLayout="Passport 8-up" />} />
+        <Route path="/checkout"  element={<Checkout go={go} setSheet={setSheet} services={[]} />} />
+        <Route path="/pay/:id"   element={<PaymentState go={go} />} />
+        <Route path="/order/:id" element={<Ticket go={go} setSheet={setSheet} />} />
+        <Route path="/history"   element={<History go={go} />} />
+        <Route path="/settings"  element={<Settings go={go} />} />
         <Route path="/uploading" element={<Uploading go={go} />} />
-        <Route path="/preview" element={<PrintPreview go={go} />} />
+        <Route path="/preview"   element={<PrintPreview go={go} />} />
+        <Route path="/privacy"   element={<PrivacyPolicy go={go} />} />
+        <Route path="*"          element={<Entry go={go} setSheet={setSheet} openPhoto={() => navigate('/photos')} />} />
       </Routes>
       {renderSheet()}
     </>
@@ -96,8 +100,8 @@ function RouteMapper() {
 
 export function AppRouter() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <RouteMapper />
-    </BrowserRouter>
+    </HashRouter>
   );
 }

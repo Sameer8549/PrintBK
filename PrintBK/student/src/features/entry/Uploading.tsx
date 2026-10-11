@@ -1,40 +1,71 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Icon, Brand, Topbar, Segmented, SheetShell, Button, Toggle, Stepper, Chip, ProgressPaperFeed, StatusChip, PriceBar, InlineWarning } from '../../components/ui';
-import { Screen, Sheet, ServiceItem } from '../../lib/types';
-import { files, notify, browseFiles, scanPages, printReceipt, shareReceipt } from '../../lib/store';
+import React, { useState, useEffect } from 'react';
+import { Icon, Brand, Topbar } from '../../components/ui';
+import { Screen } from '../../lib/types';
+import { useBasket } from '../../store/basket';
+import type { PrintFile } from '../../store/basket';
 
-function Uploading({
-  go
-}: {
-  go: (screen: Screen) => void;
-}) {
-  const [paused, setPaused] = useState(true);
-  const [retried, setRetried] = useState(false);
+function Uploading({ go }: { go: (screen: Screen) => void }) {
+  const basket = useBasket();
+  const addFile = useBasket(s => s.addFile);
+  const [ready, setReady] = useState(basket.files.length > 0);
+
   useEffect(() => {
-    if (!paused && retried) {
-      const timer = setTimeout(() => go("basket"), 1400);
-      return () => clearTimeout(timer);
+    if (basket.files.length > 0 && !ready) {
+      setReady(true);
     }
-  }, [paused, retried, go]);
-  return <main className="page upload-page">
+    if (ready && basket.files.length > 0) {
+      const t = setTimeout(() => go("basket"), 600);
+      return () => clearTimeout(t);
+    }
+  }, [basket.files.length, ready, go]);
+
+  return (
+    <main className="page upload-page">
       <Topbar title="Preparing files" back onBack={() => go("entry")} />
-      <div className="upload-heading"><span className="kicker">SMART CHECKS RUNNING</span><h1>Getting everything print-ready.</h1><p>You can fix anything before paying.</p></div>
-      <div className="upload-stack">
-        <section className="upload-card complete"><span className="file-thumb"><Icon name="file" /><b>PDF</b></span><div><strong>Engineering_Mathematics_Unit-4.pdf</strong><small>40 pages · checked</small><div className="progress"><i /></div></div><Icon name="check" /></section>
-        <section className={`upload-card ${paused ? "paused" : ""}`}><span className="file-thumb"><Icon name="file" /><b>DOCX</b></span><div><strong>Thermodynamics_Lab_Record.docx</strong><small>{paused ? "Upload paused" : "Uploading · 78%"}</small><div className="progress"><i /></div></div><button onClick={() => {
-          setPaused(!paused);
-          notify(paused ? "Upload resumed" : "Upload paused");
-        }}>{paused ? "Resume" : "Pause"}</button></section>
-        <section className={`upload-card ${retried ? "" : "failed"}`}><span className="file-thumb"><Icon name="file" /><b>PNG</b></span><div><strong>ID_card_front.png</strong><small>{retried ? "Uploading · 92%" : "Connection dropped. File is safe."}</small><div className="progress"><i /></div></div><button onClick={() => {
-          setRetried(true);
-          notify("Retrying upload");
-        }}>Retry</button></section>
+      <div className="upload-heading">
+        <span className="kicker">SMART CHECKS RUNNING</span>
+        <h1>Getting everything print-ready.</h1>
+        <p>You can fix anything before paying.</p>
       </div>
-      <div className="upload-foot"><div className="scanner-line" /><span>Checking margins, colour pages and blanks</span></div>
-      <button className="primary full" disabled={paused || !retried} onClick={() => go("basket")}>Open basket</button>
-    </main>;
+
+      {basket.files.length > 0 ? (
+        <div className="upload-stack">
+          {basket.files.map((file: PrintFile) => (
+            <section key={file.id} className="upload-card complete">
+              <span className="file-thumb">
+                <Icon name="file" />
+                <b>{file.type.toUpperCase()}</b>
+              </span>
+              <div>
+                <strong>{file.name}</strong>
+                <small>{file.pages} page{file.pages !== 1 ? 's' : ''} · ready</small>
+                <div className="progress"><i /></div>
+              </div>
+              <Icon name="check" />
+            </section>
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px', gap: 16 }}>
+          <div className="paper-feed wide"><span /></div>
+          <p style={{ color: 'var(--color-secondary)' }}>Waiting for files…</p>
+        </div>
+      )}
+
+      <div className="upload-foot">
+        <div className="scanner-line" />
+        <span>Checking margins, colour pages and blanks</span>
+      </div>
+      <button
+        className="primary full"
+        disabled={basket.files.length === 0}
+        onClick={() => go("basket")}
+      >
+        {basket.files.length === 0
+          ? "Waiting for files…"
+          : `Open basket (${basket.files.length} file${basket.files.length !== 1 ? 's' : ''})`}
+      </button>
+    </main>
+  );
 }
 export default Uploading;
-
-
-

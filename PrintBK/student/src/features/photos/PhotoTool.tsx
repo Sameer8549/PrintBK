@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon, Brand, Topbar, Segmented, SheetShell, Button, Toggle, Stepper, Chip, ProgressPaperFeed, StatusChip, PriceBar, InlineWarning } from '../../components/ui';
-import { Screen, Sheet, ServiceItem } from '../../lib/types';
-import { files, notify, browseFiles, scanPages, printReceipt, shareReceipt } from '../../lib/store';
+import { Screen, Sheet } from '../../lib/types';
+import { notify } from '../../lib/store';
+import { useBasket } from '../../store/basket';
 
 function PhotoTool({
   go,
@@ -10,7 +11,10 @@ function PhotoTool({
   go: (screen: Screen) => void;
   initialLayout: string;
 }) {
-  const [layout, setLayout] = useState(initialLayout);
+  const addService = useBasket(s => s.addService);
+  const rawFileRef = React.useRef<File | null>(null);
+  const [layout, setLayout] = useState(''); // always start empty — user must choose
+
   const [ratio, setRatio] = useState("3:4");
   const [fit, setFit] = useState("Fill");
   const [rotation, setRotation] = useState(0);
@@ -129,7 +133,7 @@ function PhotoTool({
     if (layouts[value].ratio === "3:4") setRatio("3:4");
     notify(`${layouts[value].label} selected`);
   };
-  const importPhoto = (file?: File) => {
+  const importPhoto = (file?: File) => { if (!file) return; rawFileRef.current = file;
     if (!file) return;
     const url = URL.createObjectURL(file);
     if (isCardLayout) setCardPhotos(photos => photos.map((photo, index) => index === selectedSlot ? url : photo));else setPhotoSrc(url);
@@ -215,13 +219,24 @@ function PhotoTool({
         }}>{filledAll ? "Clear repeats" : "Fill all slots"}</button>}</div>
       </div>
       <div className={`photo-safe-note ${!layout || (isCardLayout ? cardPhotos.some(photo => !photo) : !photoSrc) ? "pending" : ""}`}><Icon name={!layout || (isCardLayout ? cardPhotos.some(photo => !photo) : !photoSrc) ? "camera" : "check"} /> {!layout ? "Choose a layout to build your sheet." : isCardLayout && cardPhotos.some(photo => !photo) ? "Add both front and back to continue." : !photoSrc ? "Choose a photo to start editing." : "Faces, edges and print size checked."}</div>
-      <div className="bottom-dock"><div className="total-block"><span>{layout ? `1 A4 sheet · ${config.slots} slots` : "Choose a layout"}</span><b>{layout ? `₹${config.price}.00` : "—"}</b><small>{layout ? "No hidden charges" : "Price appears here"}</small></div><button className="primary" disabled={!layout || (isCardLayout ? cardPhotos.some(photo => !photo) : !photoSrc)} onClick={() => {
+      <div className="bottom-dock"><div className="total-block"><span>{layout ? `1 A4 sheet · ${config.slots} slot${config.slots !== 1 ? 's' : ''}` : "Choose a layout"}</span><b>{layout ? `₹${config.price}.00` : "—"}</b><small>{layout ? "No hidden charges" : "Price appears here"}</small></div><button className="primary" disabled={!layout || (isCardLayout ? cardPhotos.some(photo => !photo) : !photoSrc)} onClick={() => {
+        // Add as a fixed-price service (not a file) so pricing is exact
+        addService({
+          id: crypto.randomUUID(),
+          type: 'addon',
+          name: `Photo print — ${config.label}`,
+          detail: `A4 · ${config.slots} slot${config.slots > 1 ? 's' : ''} · Colour`,
+          price: config.price,
+          qty: 1,
+        });
         notify(`${config.label} added to basket`);
         go("basket");
       }}>{isCardLayout && cardPhotos.some(photo => !photo) ? "Add front + back" : "Add photo sheet"}</button></div>
     </main>;
 }
 export default PhotoTool;
+
+
 
 
 

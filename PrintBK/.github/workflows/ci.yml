@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main", "feat/student-complete" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+      - name: Install pnpm
+        run: npm i -g pnpm
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Typecheck Student
+        run: cd student && pnpm typecheck
+      - name: Build Student
+        run: cd student && pnpm build
+      - name: Test Shared
+        run: cd packages/shared && pnpm test
+      - name: Typecheck Backend
+        run: cd backend && pnpm typecheck
+      - name: Typecheck Agent
+        run: cd agent && pnpm typecheck
