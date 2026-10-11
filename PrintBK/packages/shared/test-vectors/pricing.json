@@ -1,0 +1,5967 @@
+[
+  {
+    "id": "case-001",
+    "description": "Single page B&W single sided A4",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "1page.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 1.5,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 1.5,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-002",
+    "description": "Single page B&W double sided A4",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "1page.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 0.85,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 0.85,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-003",
+    "description": "2 pages B&W double sided A4 (1 sheet)",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "2page.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 1.7,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 1.7,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-004",
+    "description": "3 pages B&W double sided A4 (2 sheets)",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "3page.pdf",
+          "pages": 3,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 2.55,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 2.55,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-005",
+    "description": "99 sheets B&W single sided A4 (below bulk tier)",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "99pg.pdf",
+          "pages": 99,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 148.5,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 148.5,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-006",
+    "description": "100 sheets B&W single sided A4 (at bulk tier)",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "100pg.pdf",
+          "pages": 100,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 80,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 80,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-007",
+    "description": "101 sheets B&W single sided A4 (above bulk tier)",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "101pg.pdf",
+          "pages": 101,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 80.8,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 80.8,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-008",
+    "description": "99 sheets B&W double sided A4 (198 pages)",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "198pg.pdf",
+          "pages": 198,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 168.3,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 168.3,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-009",
+    "description": "100 sheets B&W double sided A4 (200 pages, bulk tier)",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "200pg.pdf",
+          "pages": 200,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 160,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 160,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-010",
+    "description": "101 sheets B&W double sided A4 (202 pages, bulk tier)",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "202pg.pdf",
+          "pages": 202,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 161.6,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 161.6,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-011",
+    "description": "1 page Color single sided A4",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "color1.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 1,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 8,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 8,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-012",
+    "description": "10 pages Color single sided A4",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "color10.pdf",
+          "pages": 10,
+          "settings": {
+            "copies": 1,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 80,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 80,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-013",
+    "description": "10 pages Color double sided A4",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "color10d.pdf",
+          "pages": 10,
+          "settings": {
+            "copies": 1,
+            "colorMode": "color",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 80,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 80,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-014",
+    "description": "Auto color mode: 10 pages, 3 color pages, single sided",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "mixed.pdf",
+          "pages": 10,
+          "colorPages": 3,
+          "settings": {
+            "copies": 1,
+            "colorMode": "auto",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 34.5,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 34.5,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-015",
+    "description": "Auto color mode: 10 pages, 3 color pages, double sided",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "mixed_d.pdf",
+          "pages": 10,
+          "colorPages": 3,
+          "settings": {
+            "copies": 1,
+            "colorMode": "auto",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 29.95,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 29.95,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-016",
+    "description": "A3 paper B&W single sided (2x multiplier)",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "a3_bw.pdf",
+          "pages": 5,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "single",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 15,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 15,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-017",
+    "description": "A3 paper B&W double sided (2x multiplier)",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "a3_bwd.pdf",
+          "pages": 6,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 10.2,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 10.2,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-018",
+    "description": "A3 paper Color single sided (2x multiplier)",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "a3_col.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 1,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 64,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 64,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-019",
+    "description": "Legal paper B&W single sided (1.2x multiplier)",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "legal_bw.pdf",
+          "pages": 10,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "single",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 18,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 18,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-020",
+    "description": "Legal paper Color single sided (1.2x multiplier)",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "legal_col.pdf",
+          "pages": 5,
+          "settings": {
+            "copies": 1,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 48,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 48,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-021",
+    "description": "2-up printing B&W 10 pages",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "2up.pdf",
+          "pages": 10,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "single",
+            "paper": "A4",
+            "nUp": 2
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 7.5,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 7.5,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-022",
+    "description": "4-up printing B&W 16 pages",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "4up.pdf",
+          "pages": 16,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "single",
+            "paper": "A4",
+            "nUp": 4
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 6,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 6,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-023",
+    "description": "Booklet printing B&W 8 pages",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "booklet8.pdf",
+          "pages": 8,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4",
+            "booklet": true
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 3.4,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 3.4,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-024",
+    "description": "Booklet printing B&W 9 pages",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "booklet9.pdf",
+          "pages": 9,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4",
+            "booklet": true
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 5.1,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 5.1,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-025",
+    "description": "Rush enabled with 15% surcharge",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "rush.pdf",
+          "pages": 20,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": true
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": true,
+    "expected": {
+      "subtotal": 30,
+      "rushFee": 4.5,
+      "gatewayFee": 0,
+      "total": 34.5,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-026",
+    "description": "Rush requested but disabled in config",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "rush_off.pdf",
+          "pages": 20,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": true
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 30,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 30,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-027",
+    "description": "Staple service addon",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "doc.pdf",
+          "pages": 10,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [
+        {
+          "id": "s1",
+          "type": "addon",
+          "name": "Corner Staple",
+          "price": 5,
+          "qty": 1
+        }
+      ],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 20,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 20,
+      "quotePending": false,
+      "linesCount": 2
+    }
+  },
+  {
+    "id": "case-028",
+    "description": "Spiral binding service addon",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "thesis.pdf",
+          "pages": 50,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [
+        {
+          "id": "s1",
+          "type": "addon",
+          "name": "Spiral Binding",
+          "price": 30,
+          "qty": 1
+        }
+      ],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 72.5,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 72.5,
+      "quotePending": false,
+      "linesCount": 2
+    }
+  },
+  {
+    "id": "case-029",
+    "description": "Hardcover binding service addon",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "project.pdf",
+          "pages": 120,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [
+        {
+          "id": "s1",
+          "type": "addon",
+          "name": "Hard Cover Book",
+          "price": 150,
+          "qty": 1
+        }
+      ],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 252,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 252,
+      "quotePending": false,
+      "linesCount": 2
+    }
+  },
+  {
+    "id": "case-030",
+    "description": "Lamination A4 addon (qty 2)",
+    "basket": {
+      "files": [],
+      "services": [
+        {
+          "id": "s1",
+          "type": "addon",
+          "name": "A4 Lamination",
+          "price": 25,
+          "qty": 2
+        }
+      ],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 50,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 50,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-031",
+    "description": "Walkin Photocopy (qty 15)",
+    "basket": {
+      "files": [],
+      "services": [
+        {
+          "id": "s1",
+          "type": "walkin",
+          "name": "Photocopy B&W",
+          "price": 1.5,
+          "qty": 15
+        }
+      ],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 22.5,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 22.5,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-032",
+    "description": "Walkin Scanning (qty 8)",
+    "basket": {
+      "files": [],
+      "services": [
+        {
+          "id": "s1",
+          "type": "walkin",
+          "name": "Document Scanning",
+          "price": 5,
+          "qty": 8
+        }
+      ],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 40,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 40,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-033",
+    "description": "Custom Request quote pending",
+    "basket": {
+      "files": [
+        {
+          "id": "f1",
+          "name": "custom.pdf",
+          "pages": 5,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [
+        {
+          "id": "s1",
+          "type": "request",
+          "name": "Custom Glossy Foil Print",
+          "qty": 1
+        }
+      ],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 7.5,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 7.5,
+      "quotePending": true,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-034",
+    "description": "1 pgs × 1 copies on A4 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-1",
+          "name": "doc_1.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 0.85,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 0.85,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-035",
+    "description": "1 pgs × 1 copies on A4 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-1-c",
+          "name": "doc_1_c.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 1,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 8,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 8,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-036",
+    "description": "1 pgs × 1 copies on A3 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-1",
+          "name": "doc_1.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 1.7,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 1.7,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-037",
+    "description": "1 pgs × 1 copies on A3 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-1-c",
+          "name": "doc_1_c.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 1,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 16,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 16,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-038",
+    "description": "1 pgs × 1 copies on Legal (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-1",
+          "name": "doc_1.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 1.02,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 1.02,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-039",
+    "description": "1 pgs × 1 copies on Legal (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-1-c",
+          "name": "doc_1_c.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 1,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 9.6,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 9.6,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-040",
+    "description": "1 pgs × 2 copies on A4 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-2",
+          "name": "doc_1.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 2,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 1.7,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 1.7,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-041",
+    "description": "1 pgs × 2 copies on A4 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-2-c",
+          "name": "doc_1_c.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 2,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 16,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 16,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-042",
+    "description": "1 pgs × 2 copies on A3 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-2",
+          "name": "doc_1.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 2,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 3.4,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 3.4,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-043",
+    "description": "1 pgs × 2 copies on A3 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-2-c",
+          "name": "doc_1_c.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 2,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 32,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 32,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-044",
+    "description": "1 pgs × 2 copies on Legal (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-2",
+          "name": "doc_1.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 2,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 2.04,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 2.04,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-045",
+    "description": "1 pgs × 2 copies on Legal (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-2-c",
+          "name": "doc_1_c.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 2,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 19.2,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 19.2,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-046",
+    "description": "1 pgs × 3 copies on A4 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-3",
+          "name": "doc_1.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 3,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 2.55,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 2.55,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-047",
+    "description": "1 pgs × 3 copies on A4 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-3-c",
+          "name": "doc_1_c.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 3,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 24,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 24,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-048",
+    "description": "1 pgs × 3 copies on A3 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-3",
+          "name": "doc_1.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 3,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 5.1,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 5.1,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-049",
+    "description": "1 pgs × 3 copies on A3 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-3-c",
+          "name": "doc_1_c.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 3,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 48,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 48,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-050",
+    "description": "1 pgs × 3 copies on Legal (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-3",
+          "name": "doc_1.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 3,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 3.06,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 3.06,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-051",
+    "description": "1 pgs × 3 copies on Legal (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-3-c",
+          "name": "doc_1_c.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 3,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 28.8,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 28.8,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-052",
+    "description": "1 pgs × 5 copies on A4 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-5",
+          "name": "doc_1.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 5,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 4.25,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 4.25,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-053",
+    "description": "1 pgs × 5 copies on A4 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-5-c",
+          "name": "doc_1_c.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 5,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 40,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 40,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-054",
+    "description": "1 pgs × 5 copies on A3 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-5",
+          "name": "doc_1.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 5,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 8.5,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 8.5,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-055",
+    "description": "1 pgs × 5 copies on A3 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-5-c",
+          "name": "doc_1_c.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 5,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 80,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 80,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-056",
+    "description": "1 pgs × 5 copies on Legal (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-5",
+          "name": "doc_1.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 5,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 5.1,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 5.1,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-057",
+    "description": "1 pgs × 5 copies on Legal (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-1-5-c",
+          "name": "doc_1_c.pdf",
+          "pages": 1,
+          "settings": {
+            "copies": 5,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 48,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 48,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-058",
+    "description": "2 pgs × 1 copies on A4 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-1",
+          "name": "doc_2.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 1.7,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 1.7,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-059",
+    "description": "2 pgs × 1 copies on A4 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-1-c",
+          "name": "doc_2_c.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 1,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 16,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 16,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-060",
+    "description": "2 pgs × 1 copies on A3 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-1",
+          "name": "doc_2.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 3.4,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 3.4,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-061",
+    "description": "2 pgs × 1 copies on A3 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-1-c",
+          "name": "doc_2_c.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 1,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 32,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 32,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-062",
+    "description": "2 pgs × 1 copies on Legal (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-1",
+          "name": "doc_2.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 2.04,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 2.04,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-063",
+    "description": "2 pgs × 1 copies on Legal (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-1-c",
+          "name": "doc_2_c.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 1,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 19.2,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 19.2,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-064",
+    "description": "2 pgs × 2 copies on A4 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-2",
+          "name": "doc_2.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 2,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 3.4,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 3.4,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-065",
+    "description": "2 pgs × 2 copies on A4 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-2-c",
+          "name": "doc_2_c.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 2,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 32,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 32,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-066",
+    "description": "2 pgs × 2 copies on A3 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-2",
+          "name": "doc_2.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 2,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 6.8,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 6.8,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-067",
+    "description": "2 pgs × 2 copies on A3 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-2-c",
+          "name": "doc_2_c.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 2,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 64,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 64,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-068",
+    "description": "2 pgs × 2 copies on Legal (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-2",
+          "name": "doc_2.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 2,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 4.08,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 4.08,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-069",
+    "description": "2 pgs × 2 copies on Legal (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-2-c",
+          "name": "doc_2_c.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 2,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 38.4,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 38.4,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-070",
+    "description": "2 pgs × 3 copies on A4 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-3",
+          "name": "doc_2.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 3,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 5.1,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 5.1,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-071",
+    "description": "2 pgs × 3 copies on A4 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-3-c",
+          "name": "doc_2_c.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 3,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 48,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 48,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-072",
+    "description": "2 pgs × 3 copies on A3 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-3",
+          "name": "doc_2.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 3,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 10.2,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 10.2,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-073",
+    "description": "2 pgs × 3 copies on A3 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-3-c",
+          "name": "doc_2_c.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 3,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 96,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 96,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-074",
+    "description": "2 pgs × 3 copies on Legal (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-3",
+          "name": "doc_2.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 3,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 6.12,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 6.12,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-075",
+    "description": "2 pgs × 3 copies on Legal (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-3-c",
+          "name": "doc_2_c.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 3,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 57.6,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 57.6,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-076",
+    "description": "2 pgs × 5 copies on A4 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-5",
+          "name": "doc_2.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 5,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 8.5,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 8.5,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-077",
+    "description": "2 pgs × 5 copies on A4 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-5-c",
+          "name": "doc_2_c.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 5,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 80,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 80,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-078",
+    "description": "2 pgs × 5 copies on A3 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-5",
+          "name": "doc_2.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 5,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 17,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 17,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-079",
+    "description": "2 pgs × 5 copies on A3 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-5-c",
+          "name": "doc_2_c.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 5,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 160,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 160,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-080",
+    "description": "2 pgs × 5 copies on Legal (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-5",
+          "name": "doc_2.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 5,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 10.2,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 10.2,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-081",
+    "description": "2 pgs × 5 copies on Legal (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-2-5-c",
+          "name": "doc_2_c.pdf",
+          "pages": 2,
+          "settings": {
+            "copies": 5,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 96,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 96,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-082",
+    "description": "4 pgs × 1 copies on A4 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-1",
+          "name": "doc_4.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 3.4,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 3.4,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-083",
+    "description": "4 pgs × 1 copies on A4 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-1-c",
+          "name": "doc_4_c.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 1,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 32,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 32,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-084",
+    "description": "4 pgs × 1 copies on A3 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-1",
+          "name": "doc_4.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 6.8,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 6.8,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-085",
+    "description": "4 pgs × 1 copies on A3 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-1-c",
+          "name": "doc_4_c.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 1,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 64,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 64,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-086",
+    "description": "4 pgs × 1 copies on Legal (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-1",
+          "name": "doc_4.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 4.08,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 4.08,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-087",
+    "description": "4 pgs × 1 copies on Legal (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-1-c",
+          "name": "doc_4_c.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 1,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 38.4,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 38.4,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-088",
+    "description": "4 pgs × 2 copies on A4 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-2",
+          "name": "doc_4.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 2,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 6.8,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 6.8,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-089",
+    "description": "4 pgs × 2 copies on A4 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-2-c",
+          "name": "doc_4_c.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 2,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 64,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 64,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-090",
+    "description": "4 pgs × 2 copies on A3 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-2",
+          "name": "doc_4.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 2,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 13.6,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 13.6,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-091",
+    "description": "4 pgs × 2 copies on A3 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-2-c",
+          "name": "doc_4_c.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 2,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 128,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 128,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-092",
+    "description": "4 pgs × 2 copies on Legal (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-2",
+          "name": "doc_4.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 2,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 8.16,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 8.16,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-093",
+    "description": "4 pgs × 2 copies on Legal (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-2-c",
+          "name": "doc_4_c.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 2,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 76.8,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 76.8,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-094",
+    "description": "4 pgs × 3 copies on A4 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-3",
+          "name": "doc_4.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 3,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 10.2,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 10.2,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-095",
+    "description": "4 pgs × 3 copies on A4 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-3-c",
+          "name": "doc_4_c.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 3,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 96,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 96,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-096",
+    "description": "4 pgs × 3 copies on A3 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-3",
+          "name": "doc_4.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 3,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 20.4,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 20.4,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-097",
+    "description": "4 pgs × 3 copies on A3 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-3-c",
+          "name": "doc_4_c.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 3,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 192,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 192,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-098",
+    "description": "4 pgs × 3 copies on Legal (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-3",
+          "name": "doc_4.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 3,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 12.24,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 12.24,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-099",
+    "description": "4 pgs × 3 copies on Legal (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-3-c",
+          "name": "doc_4_c.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 3,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 115.2,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 115.2,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-100",
+    "description": "4 pgs × 5 copies on A4 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-5",
+          "name": "doc_4.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 5,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 17,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 17,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-101",
+    "description": "4 pgs × 5 copies on A4 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-5-c",
+          "name": "doc_4_c.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 5,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 160,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 160,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-102",
+    "description": "4 pgs × 5 copies on A3 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-5",
+          "name": "doc_4.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 5,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 34,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 34,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-103",
+    "description": "4 pgs × 5 copies on A3 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-5-c",
+          "name": "doc_4_c.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 5,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 320,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 320,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-104",
+    "description": "4 pgs × 5 copies on Legal (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-5",
+          "name": "doc_4.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 5,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 20.4,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 20.4,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-105",
+    "description": "4 pgs × 5 copies on Legal (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-4-5-c",
+          "name": "doc_4_c.pdf",
+          "pages": 4,
+          "settings": {
+            "copies": 5,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 192,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 192,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-106",
+    "description": "7 pgs × 1 copies on A4 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-7-1",
+          "name": "doc_7.pdf",
+          "pages": 7,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 5.95,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 5.95,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-107",
+    "description": "7 pgs × 1 copies on A4 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-7-1-c",
+          "name": "doc_7_c.pdf",
+          "pages": 7,
+          "settings": {
+            "copies": 1,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A4"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 56,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 56,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-108",
+    "description": "7 pgs × 1 copies on A3 (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-7-1",
+          "name": "doc_7.pdf",
+          "pages": 7,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 11.9,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 11.9,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-109",
+    "description": "7 pgs × 1 copies on A3 (Color single)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-7-1-c",
+          "name": "doc_7_c.pdf",
+          "pages": 7,
+          "settings": {
+            "copies": 1,
+            "colorMode": "color",
+            "sided": "single",
+            "paper": "A3"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 112,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 112,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  },
+  {
+    "id": "case-110",
+    "description": "7 pgs × 1 copies on Legal (B&W double)",
+    "basket": {
+      "files": [
+        {
+          "id": "f-7-1",
+          "name": "doc_7.pdf",
+          "pages": 7,
+          "settings": {
+            "copies": 1,
+            "colorMode": "bw",
+            "sided": "double",
+            "paper": "Legal"
+          }
+        }
+      ],
+      "services": [],
+      "rush": false
+    },
+    "configRates": {
+      "bw": 1.5,
+      "color": 8,
+      "scan": 5,
+      "photocopy": 1.5,
+      "doubleSideDiscount": 0.4333,
+      "bulkTierThreshold": 100,
+      "bulkTierRate": 0.8,
+      "paperMultipliers": {
+        "A4": 1,
+        "A3": 2,
+        "Legal": 1.2
+      },
+      "staple": 5,
+      "spiral": 30,
+      "comb": 25,
+      "hardCover": 150,
+      "laminationID": 10,
+      "laminationA4": 25,
+      "laminationA3": 50,
+      "laminationThickExtra": 5,
+      "rushSurcharge": 0.15,
+      "gatewayFee": 0
+    },
+    "rushEnabled": false,
+    "expected": {
+      "subtotal": 7.14,
+      "rushFee": 0,
+      "gatewayFee": 0,
+      "total": 7.14,
+      "quotePending": false,
+      "linesCount": 1
+    }
+  }
+]

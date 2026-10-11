@@ -1,5 +1,7 @@
-import { Basket, ShopConfig, PrintFile } from './schemas';
+import type { Basket, ShopConfig, PrintFile } from './schemas';
 import { parsePageRange } from './parsePageRange';
+
+export { defaultShopConfig } from './defaultConfig';
 
 export interface PriceLine {
   id: string;
@@ -34,7 +36,7 @@ export function priceOrder(basket: Basket, config: ShopConfig, now: Date = new D
   let savingsSource = '';
 
   for (const file of basket.files) {
-    const s = file.settings;
+    const s = file.settings || ({} as any);
     const copies = s.copies ?? 1;
     const nUp = s.nUp ?? 1;
     const colorMode = s.colorMode ?? 'bw';
