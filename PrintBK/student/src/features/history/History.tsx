@@ -1,10 +1,60 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Icon, Topbar } from '../../components/ui';
-import { Screen } from '../../lib/types';
-import { useHistory } from '../../store/basket';
+import { Screen, Sheet } from '../../lib/types';
+import { notify } from '../../lib/store';
+import { useHistory, useBasket } from '../../store/basket';
 
-function History({ go }: { go: (screen: Screen) => void }) {
+function History({ go, setSheet }: { go: (screen: Screen) => void; setSheet?: (sheet: Sheet) => void }) {
   const { orders } = useHistory();
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const handlePrintAgain = (order: any) => {
+    const { addFile } = useBasket.getState();
+    const filesToRestore = order.files || [];
+    if (filesToRestore.length === 0) {
+      notify('No document information found for this order');
+      return;
+    }
+
+    filesToRestore.forEach((fileName: string) => {
+      const ext = fileName.split('.').pop()?.toLowerCase() ?? 'pdf';
+      addFile({
+        id: crypto.randomUUID(),
+        name: fileName,
+        size: 1024,
+        type: ext,
+        pages: 1,
+        colorPages: 0,
+        colorDetection: 'pending',
+        settings: {
+          copies: 1,
+          colorMode: 'bw',
+          sided: 'double',
+          paper: 'A4',
+          orientation: 'auto',
+          nUp: 1,
+          layout: 'standard',
+          pageRotations: {},
+          booklet: false,
+          range: 'all'
+        }
+      });
+    });
+
+    notify(`Restored ${filesToRestore.length} document(s) to basket`);
+    go('basket');
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -27,6 +77,25 @@ function History({ go }: { go: (screen: Screen) => void }) {
   return (
     <main className="page" style={{ background: 'var(--color-bg, #f7f4ee)', minHeight: '100dvh', paddingBottom: 48 }}>
       <Topbar title="Order History" back onBack={() => go("entry")} />
+
+      {/* Offline banner */}
+      {!isOnline && (
+        <div style={{
+          background: '#0b1020',
+          color: '#ffffff',
+          padding: '8px 16px',
+          fontSize: 12,
+          fontWeight: 600,
+          textAlign: 'center',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 6
+        }}>
+          <span>📡</span>
+          <span>Offline · Your orders are saved on this device; we will sync when reconnected.</span>
+        </div>
+      )}
 
       <div style={{ maxWidth: 580, margin: '16px auto 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {orders.length === 0 ? (
@@ -174,24 +243,45 @@ function History({ go }: { go: (screen: Screen) => void }) {
                         )}
                       </div>
 
-                      <button
-                        onClick={() => go(`/order/${order.id}`)}
-                        style={{
-                          background: '#0b1020',
-                          color: '#ffffff',
-                          border: 'none',
-                          borderRadius: 8,
-                          padding: '8px 14px',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6
-                        }}
-                      >
-                        View Ticket <Icon name="arrow" size={14} />
-                      </button>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <button
+                          onClick={() => handlePrintAgain(order)}
+                          title="Restore documents and settings to basket"
+                          style={{
+                            background: '#f1f5f9',
+                            color: '#0f172a',
+                            border: '1.5px solid #cbd5e1',
+                            borderRadius: 8,
+                            padding: '8px 12px',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4
+                          }}
+                        >
+                          ⟳ Print again
+                        </button>
+                        <button
+                          onClick={() => go(`/order/${order.id}`)}
+                          style={{
+                            background: '#0b1020',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: 8,
+                            padding: '8px 14px',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6
+                          }}
+                        >
+                          View Ticket <Icon name="arrow" size={14} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );

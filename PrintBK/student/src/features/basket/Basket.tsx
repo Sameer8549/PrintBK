@@ -4,6 +4,7 @@ import { Screen, Sheet } from '../../lib/types';
 import { notify } from '../../lib/store';
 import { useBasket, usePricing, fileFromRaw, rawFileMap } from '../../store/basket';
 import { browseAndAddFiles } from '../../lib/filePicker';
+import { api } from '../../services/api';
 import { type PrintFile, parsePageRange } from '@printbk/shared';
 
 /* ─── Option arrays ─────────────────────────────── */
@@ -33,11 +34,44 @@ const layoutModeOptions: { value: 'standard' | 'handout' | 'booklet'; label: str
   { value: 'booklet', label: 'Booklet' },
 ];
 
+function checkZipSafety(zip: any, compressedSize: number) {
+  const entries = Object.values(zip.files) as any[];
+  if (entries.length > 10000) {
+    throw new Error('Zip bomb detected: excessive zip entries (> 10,000)');
+  }
+  let totalUncompressed = 0;
+  for (const entry of entries) {
+    const uncomp = entry._data?.uncompressedSize ?? 0;
+    totalUncompressed += uncomp;
+  }
+  if (totalUncompressed > 100 * 1024 * 1024) {
+    throw new Error('Zip bomb detected: uncompressed size exceeds 100MB limit');
+  }
+  if (compressedSize > 5 * 1024 * 1024 && totalUncompressed / compressedSize > 10) {
+    throw new Error('Zip bomb detected: excessive compression ratio (> 10:1)');
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms = 15000, fallbackMessage = 'Preview timed out'): Promise<T> {
+  let timer: any;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(fallbackMessage)), ms);
+  });
+  return Promise.race([
+    promise.then(res => { clearTimeout(timer); return res; }),
+    timeoutPromise
+  ]);
+}
+
 /* ─── Actual Document Preview (PDF Canvas / Image / PPTX / DOCX / Slider) ── */
 function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) => void }) {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(file.pages || 1);
   const [loading, setLoading] = useState(false);
+  const [previewTimedOut, setPreviewTimedOut] = useState(false);
+  const [isBlankPage, setIsBlankPage] = useState(false);
+  const [isLowDpiImage, setIsLowDpiImage] = useState(false);
+  const [officeSecurityError, setOfficeSecurityError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
 
@@ -75,7 +109,29 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
   const isDoc = fileName.endsWith('.docx') || fileName.endsWith('.doc') || fileName.endsWith('.odt');
   const isImage = raw?.type.startsWith('image/') || /\.(jpe?g|png|webp|gif)$/i.test(fileName);
 
-  // 1. Load PDF
+  // 1. Check Image DPI for printing quality
+  useEffect(() => {
+    if (!raw || !isImage) return;
+    let active = true;
+    const url = URL.createObjectURL(raw);
+    const img = new Image();
+    img.onload = () => {
+      if (!active) return;
+      // An A4 sheet at 150 DPI is ~1240x1754. Flag image if under 600px width/height
+      if (img.naturalWidth < 600 || img.naturalHeight < 600) {
+        setIsLowDpiImage(true);
+      } else {
+        setIsLowDpiImage(false);
+      }
+    };
+    img.src = url;
+    return () => {
+      active = false;
+      URL.revokeObjectURL(url);
+    };
+  }, [raw, isImage]);
+
+  // 2. Load PDF with 15s timeout
   useEffect(() => {
     if (!raw || !isPdf) return;
     let active = true;
@@ -83,34 +139,37 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
     async function loadPdf() {
       setLoading(true);
       try {
-        const buffer = await raw!.arrayBuffer();
-        if (!active) return;
-        const pdfjs = (window as any).pdfjsLib;
-        if (pdfjs) {
-          const doc = await pdfjs.getDocument({ data: buffer }).promise;
+        await withTimeout((async () => {
+          const buffer = await raw!.arrayBuffer();
           if (!active) return;
-          setPdfDoc(doc);
-          setTotalPages(doc.numPages);
+          const pdfjs = (window as any).pdfjsLib;
+          if (pdfjs) {
+            const doc = await pdfjs.getDocument({ data: buffer }).promise;
+            if (!active) return;
+            setPdfDoc(doc);
+            setTotalPages(doc.numPages);
 
-          const metrics = [];
-          for (let pNum = 1; pNum <= Math.min(doc.numPages, 100); pNum++) {
-            try {
-              const p = await doc.getPage(pNum);
-              const vp = p.getViewport({ scale: 1.0 });
-              metrics.push({
-                pageNumber: pNum,
-                width: vp.width,
-                height: vp.height,
-                rotation: p.rotate || 0
-              });
-            } catch (_) {}
+            const metrics = [];
+            for (let pNum = 1; pNum <= Math.min(doc.numPages, 100); pNum++) {
+              try {
+                const p = await doc.getPage(pNum);
+                const vp = p.getViewport({ scale: 1.0 });
+                metrics.push({
+                  pageNumber: pNum,
+                  width: vp.width,
+                  height: vp.height,
+                  rotation: p.rotate || 0
+                });
+              } catch (_) {}
+            }
+            if (active && metrics.length > 0) {
+              useBasket.getState().updateFile(file.id, { pageMetrics: metrics, pages: doc.numPages });
+            }
           }
-          if (active && metrics.length > 0) {
-            useBasket.getState().updateFile(file.id, { pageMetrics: metrics, pages: doc.numPages });
-          }
-        }
-      } catch (err) {
+        })(), 15000);
+      } catch (err: any) {
         console.warn('PDF preview error:', err);
+        if (active) setPreviewTimedOut(true);
       } finally {
         if (active) setLoading(false);
       }
@@ -140,6 +199,16 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
 
         renderTask = pageObj.render({ canvasContext: ctx, viewport });
         await renderTask.promise;
+
+        try {
+          const imgData = ctx.getImageData(0, 0, Math.min(canvas.width, 100), Math.min(canvas.height, 100)).data;
+          let darkPixels = 0;
+          for (let i = 0; i < imgData.length; i += 4) {
+            const r = imgData[i], g = imgData[i + 1], b = imgData[i + 2];
+            if (r < 235 || g < 235 || b < 235) darkPixels++;
+          }
+          setIsBlankPage(darkPixels < 5);
+        } catch (_) {}
       } catch (err: any) {
         if (err?.name !== 'RenderingCancelledException') {
           console.warn('Page render error:', err);
@@ -205,7 +274,8 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
 
           if (isZip) {
             const JSZip = (await import('jszip')).default;
-            const zip = await JSZip.loadAsync(buf);
+            const zip = await withTimeout(JSZip.loadAsync(buf), 15000, 'Office document reading timed out');
+            checkZipSafety(zip, buf.byteLength);
 
             // 1. Detect base presentation slide dimensions (e.g. 16:9 vs 4:3)
             let baseSlideW = 320;
@@ -386,7 +456,8 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
         } else if (isDoc) {
           // Read word/document.xml
           const JSZip = (await import('jszip')).default;
-          const zip = await JSZip.loadAsync(buf);
+          const zip = await withTimeout(JSZip.loadAsync(buf), 15000, 'Office document reading timed out');
+          checkZipSafety(zip, buf.byteLength);
           const docKey = Object.keys(zip.files).find(k => k.replace(/\\/g, '/').toLowerCase().endsWith('word/document.xml'));
           if (docKey) {
             const xml = await zip.files[docKey].async('text');
@@ -412,8 +483,11 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
             }
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn('Office preview error:', err);
+        if (err?.message?.includes('Zip bomb') || err?.message?.includes('timed out')) {
+          if (active) setOfficeSecurityError(err.message);
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -521,6 +595,74 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
           lineHeight: 1.4
         }}>
           ℹ️ Slide{portraitPages.length > 1 ? 's' : ''} {portraitPages.slice(0, 5).join(', ')}{portraitPages.length > 5 ? '…' : ''} {portraitPages.length > 1 ? 'are' : 'is'} portrait; we will fit them automatically.
+        </div>
+      )}
+
+      {/* Security or parsing warning */}
+      {officeSecurityError && (
+        <div style={{
+          fontSize: 11,
+          background: '#fef2f2',
+          color: '#b91c1c',
+          padding: '6px 10px',
+          borderRadius: 6,
+          border: '1px solid #fecaca',
+          width: '100%',
+          boxSizing: 'border-box',
+          lineHeight: 1.4
+        }}>
+          ⚠️ {officeSecurityError}
+        </div>
+      )}
+
+      {/* Timeout warning */}
+      {previewTimedOut && (
+        <div style={{
+          fontSize: 11,
+          background: '#fffbeb',
+          color: '#b45309',
+          padding: '6px 10px',
+          borderRadius: 6,
+          border: '1px solid #fde68a',
+          width: '100%',
+          boxSizing: 'border-box',
+          lineHeight: 1.4
+        }}>
+          ⚠️ Preview generation timed out. The file will still print correctly.
+        </div>
+      )}
+
+      {/* Blank page warning */}
+      {isBlankPage && (
+        <div style={{
+          fontSize: 11,
+          background: '#fffbeb',
+          color: '#b45309',
+          padding: '6px 10px',
+          borderRadius: 6,
+          border: '1px solid #fde68a',
+          width: '100%',
+          boxSizing: 'border-box',
+          lineHeight: 1.4
+        }}>
+          ⚠️ This page appears to be blank. Check page range if unintentional.
+        </div>
+      )}
+
+      {/* Low DPI image warning */}
+      {isLowDpiImage && (
+        <div style={{
+          fontSize: 11,
+          background: '#fffbeb',
+          color: '#b45309',
+          padding: '6px 10px',
+          borderRadius: 6,
+          border: '1px solid #fde68a',
+          width: '100%',
+          boxSizing: 'border-box',
+          lineHeight: 1.4
+        }}>
+          ⚠️ Low resolution image detected — may look blurry when printed.
         </div>
       )}
 
@@ -833,6 +975,12 @@ function FileCard({
   const s = file.settings;
   const upd = (patch: Partial<typeof s>) => onUpdate({ ...file, settings: { ...s, ...patch } });
 
+  const pricing = usePricing();
+  const line = pricing.lines.find(l => l.id === file.id);
+  const [retryingUpload, setRetryingUpload] = useState(false);
+  const raw = rawFileMap.get(file.id);
+  const uploadError = (file as any).uploadError;
+
   const [customRangeText, setCustomRangeText] = useState((s.colorPlan?.colorPages || []).join(', '));
   const [customRangeError, setCustomRangeError] = useState<string | null>(null);
 
@@ -867,25 +1015,26 @@ function FileCard({
   };
 
   const sel = (v: boolean) => ({ border: `2px solid ${v ? '#0b1020' : '#e2e8f0'}`, background: v ? '#0b1020' : '#fff', color: v ? '#fff' : '#0b1020' });
-  const btn = { cursor: 'pointer' as const, borderRadius: 10, fontWeight: 600 as const, fontSize: 13 };
+  const btn = { cursor: 'pointer' as const, borderRadius: 10, fontWeight: 600 as const, fontSize: 13, minHeight: 44 };
   const presetBtn: React.CSSProperties = {
-    padding: '5px 9px',
-    borderRadius: 7,
+    padding: '8px 12px',
+    borderRadius: 8,
     border: '1px solid #cbd5e1',
     background: '#ffffff',
     color: '#334155',
     fontSize: 11,
     fontWeight: 600,
-    cursor: 'pointer'
+    cursor: 'pointer',
+    minHeight: 36
   };
 
   return (
     <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #e2e8f0', marginBottom: 10, position: 'relative', overflow: open ? 'visible' : 'hidden' }}>
-      {/* ── Header row: Clean single Edit toggle, no duplicate close or delete buttons ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px' }}>
-        <div style={{ fontSize: 22, lineHeight: 1 }}>📄</div>
+      {/* ── Header row: Clean single Edit toggle, formula, savings chip ── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px' }}>
+        <div style={{ fontSize: 24, lineHeight: 1, marginTop: 2 }}>📄</div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</div>
+          <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0f172a' }}>{file.name}</div>
           <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
             {file.pages} page{file.pages !== 1 ? 's' : ''} · {
               s.colorMode === 'bw' ? 'B&W' :
@@ -894,10 +1043,72 @@ function FileCard({
               'Auto'
             } · {s.sided === 'double' ? '2-sided' : '1-sided'} · ×{s.copies}
           </div>
+
+          {/* Pricing Formula and Total */}
+          {line && (
+            <div style={{ fontSize: 11, color: '#0f172a', fontWeight: 600, marginTop: 4, lineHeight: 1.3 }}>
+              <span>{line.formula}</span>
+              <span style={{ marginLeft: 6, fontWeight: 800, color: '#16a34a' }}>= ₹{line.total.toFixed(2)}</span>
+            </div>
+          )}
+
+          {/* Savings chips */}
+          <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+            {s.sided === 'double' && s.colorMode !== 'color' && (
+              <span style={{ fontSize: 10, fontWeight: 700, background: '#dcfce7', color: '#15803d', padding: '2px 7px', borderRadius: 4 }}>
+                🎉 Saved ₹{((file.pages || 1) * 0.65 * (s.copies || 1)).toFixed(2)} with 2-sided
+              </span>
+            )}
+            {(s.nUp ?? 1) > 1 && (
+              <span style={{ fontSize: 10, fontWeight: 700, background: '#e0f2fe', color: '#0369a1', padding: '2px 7px', borderRadius: 4 }}>
+                📄 Saved sheets with {s.nUp}-up
+              </span>
+            )}
+          </div>
+
+          {/* Upload failure or retry row */}
+          {uploadError && (
+            <div style={{ marginTop: 8, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '6px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: '#dc2626' }}>
+              <span>⚠️ Upload failed: {uploadError}</span>
+              <button
+                type="button"
+                aria-label="Retry upload"
+                disabled={retryingUpload}
+                onClick={async () => {
+                  if (!raw) return;
+                  setRetryingUpload(true);
+                  try {
+                    const res = await api.uploadFile(raw);
+                    if (res?.cloudId) {
+                      useBasket.getState().updateFile(file.id, { cloudId: res.cloudId, uploadStatus: 'done', uploadError: undefined } as any);
+                      notify('✓ Re-uploaded successfully');
+                    }
+                  } catch (e: any) {
+                    useBasket.getState().updateFile(file.id, { uploadError: e?.message || 'Upload retry failed' } as any);
+                    notify('Upload retry failed');
+                  } finally {
+                    setRetryingUpload(false);
+                  }
+                }}
+                style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', minHeight: 32 }}
+              >
+                {retryingUpload ? 'Retrying…' : 'Retry ⟳'}
+              </button>
+            </div>
+          )}
+
+          {/* Large file progress indicator */}
+          {file.size > 5 * 1024 * 1024 && !(file as any).cloudId && !uploadError && (
+            <div style={{ marginTop: 6, fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }}>⏳</span>
+              <span>Large file ({(file.size / (1024 * 1024)).toFixed(1)} MB) backing up to cloud…</span>
+            </div>
+          )}
         </div>
         <button
           onClick={() => setOpen(o => !o)}
-          style={{ ...btn, padding: '7px 14px', background: open ? '#f1f5f9' : '#0b1020', color: open ? '#475569' : '#fff', border: 'none', flexShrink: 0, fontWeight: 700, borderRadius: 10 }}
+          aria-label={open ? "Close settings" : "Edit document settings"}
+          style={{ ...btn, padding: '8px 14px', background: open ? '#f1f5f9' : '#0b1020', color: open ? '#475569' : '#fff', border: 'none', flexShrink: 0, fontWeight: 700, borderRadius: 10, minHeight: 44 }}
         >
           {open ? 'Done' : '✏️ Edit'}
         </button>

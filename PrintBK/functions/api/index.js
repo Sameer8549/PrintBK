@@ -445,8 +445,77 @@ app.post('/upload', (req, res, next) => {
   }
 });
 
+/* ─── Order Creation Abuse Prevention & Input Validation ─────────── */
+const orderCreationsByIp = new Map(); // ip -> [timestamp]
+const unpaidOrdersByIp = new Map();   // ip -> Set<orderId>
+
+function validateOrderInput(body) {
+  if (!body || typeof body !== 'object') return 'Invalid order payload';
+  const { files = [], services = [] } = body;
+
+  if (!Array.isArray(files)) return 'Files must be an array';
+  if (files.length > 20) return 'Exceeded maximum 20 files per order';
+
+  if (!Array.isArray(services)) return 'Services must be an array';
+  if (services.length > 20) return 'Exceeded maximum 20 services per order';
+
+  const validPapers = new Set(['A4', 'A3', 'Legal']);
+  const validColorModes = new Set(['bw', 'colour', 'color', 'auto', 'custom']);
+  const validSides = new Set(['single', 'double']);
+  const validOrientations = new Set(['portrait', 'landscape', 'auto']);
+  const validLayouts = new Set(['standard', 'handout', 'booklet']);
+
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    if (!f || typeof f !== 'object') return `File ${i + 1} is invalid`;
+    if (!f.name || typeof f.name !== 'string') return `File ${i + 1} name is required`;
+    if (typeof f.pages !== 'number' || f.pages < 1) return `File ${f.name} must have at least 1 page`;
+    if (f.pages > 500) return `File ${f.name} exceeds maximum 500 pages per file`;
+
+    const s = f.settings;
+    if (s && typeof s === 'object') {
+      if (typeof s.copies !== 'undefined') {
+        if (typeof s.copies !== 'number' || s.copies < 1 || s.copies > 100) {
+          return `File ${f.name} copies must be between 1 and 100`;
+        }
+      }
+      if (s.paper && !validPapers.has(s.paper)) return `File ${f.name} has invalid paper size "${s.paper}"`;
+      if (s.colorMode && !validColorModes.has(s.colorMode)) return `File ${f.name} has invalid color mode "${s.colorMode}"`;
+      if (s.sided && !validSides.has(s.sided)) return `File ${f.name} has invalid side setting "${s.sided}"`;
+      if (s.orientation && !validOrientations.has(s.orientation)) return `File ${f.name} has invalid orientation "${s.orientation}"`;
+      if (s.layout && !validLayouts.has(s.layout)) return `File ${f.name} has invalid layout "${s.layout}"`;
+      if (s.nUp && ![1, 2, 4, 6].includes(s.nUp)) return `File ${f.name} has invalid N-up setting "${s.nUp}"`;
+    }
+  }
+
+  return null;
+}
+
 /* ─── ORDER CREATION (Server-Authoritative Pricing & Codes) ───────── */
 app.post('/orders', async (req, res) => {
+  // 1. Strict Input Bounds Validation
+  const validationError = validateOrderInput(req.body);
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
+  }
+
+  // 2. Abuse Prevention: Rate Limit (5/min per IP)
+  const clientIp = req.ip || req.connection?.remoteAddress || 'unknown';
+  const nowMs = Date.now();
+  const oneMinAgo = nowMs - 60 * 1000;
+  let ipCreations = (orderCreationsByIp.get(clientIp) || []).filter(t => t > oneMinAgo);
+  if (ipCreations.length >= 5) {
+    return res.status(429).json({ error: 'Order creation rate limit exceeded (maximum 5 orders per minute). Please try again shortly.' });
+  }
+  ipCreations.push(nowMs);
+  orderCreationsByIp.set(clientIp, ipCreations);
+
+  // 3. Abuse Prevention: Limit Unpaid Orders (max 3 per IP)
+  const currentUnpaid = unpaidOrdersByIp.get(clientIp) || new Set();
+  if (currentUnpaid.size >= 3) {
+    return res.status(429).json({ error: 'Too many unpaid orders — please complete or cancel existing orders first' });
+  }
+
   try {
     const catalystApp = catalyst.initialize(req);
     const zcql = catalystApp.zcql();
@@ -500,6 +569,11 @@ app.post('/orders', async (req, res) => {
 
     // Hide pickup code until processing is approved
     const exposedPickupCode = ['pending_payment', 'pending_cash', 'waiting_quote'].includes(status) ? null : pickupCode;
+
+    if (['pending_payment', 'pending_cash', 'upi_started', 'waiting_quote'].includes(status)) {
+      currentUnpaid.add(orderId);
+      unpaidOrdersByIp.set(clientIp, currentUnpaid);
+    }
 
     res.json({
       orderId,
@@ -1281,6 +1355,28 @@ app.post('/cron/cleanup', async (req, res) => {
       );
       purgedOrdersCount++;
     }
+
+    // Auto-expire unpaid orders older than 30 minutes (1800 seconds)
+    const thirtyMinAgo = now - 1800;
+    try {
+      const expiredUnpaidRows = await zcql.executeZCQLQuery(
+        `SELECT id, basket FROM orders WHERE status = 'pending_payment' AND created_at <= ${thirtyMinAgo}`
+      );
+      for (const r of (expiredUnpaidRows || [])) {
+        const o = r.orders;
+        let b = {};
+        try { b = JSON.parse(o.basket || '{}'); } catch(e) {}
+        for (const f of (b.files || [])) {
+          if (f.cloudId) {
+            try { await folder.deleteFile(f.cloudId); } catch(e) {}
+          }
+        }
+        await zcql.executeZCQLQuery(
+          `UPDATE orders SET status = 'expired', files_deleted_at = ${now}, updated_at = ${now} WHERE id = '${esc(o.id)}'`
+        );
+        purgedOrdersCount++;
+      }
+    } catch (e) {}
 
     res.json({ ok: true, purgedOrdersCount, purgedFilesCount });
   } catch (err) {

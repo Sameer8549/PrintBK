@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Icon, Topbar } from '../../components/ui';
 import { Screen, Sheet } from '../../lib/types';
 import { notify } from '../../lib/store';
-import { useHistory } from '../../store/basket';
+import { useHistory, useBasket } from '../../store/basket';
 import { useParams } from 'react-router-dom';
 import { api } from '../../services/api';
 
@@ -170,6 +170,42 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
     }
   };
 
+  const handleRestoreBasket = () => {
+    const filesToRestore = order?.files || [];
+    if (filesToRestore.length === 0) {
+      notify('No document information found to restore');
+      go('entry');
+      return;
+    }
+    const { addFile } = useBasket.getState();
+    filesToRestore.forEach((fileName: string) => {
+      const ext = fileName.split('.').pop()?.toLowerCase() ?? 'pdf';
+      addFile({
+        id: crypto.randomUUID(),
+        name: fileName,
+        size: 1024,
+        type: ext,
+        pages: 1,
+        colorPages: 0,
+        colorDetection: 'pending',
+        settings: {
+          copies: 1,
+          colorMode: 'bw',
+          sided: 'double',
+          paper: 'A4',
+          orientation: 'auto',
+          nUp: 1,
+          layout: 'standard',
+          pageRotations: {},
+          booklet: false,
+          range: 'all'
+        }
+      });
+    });
+    notify(`Restored ${filesToRestore.length} document(s) to basket`);
+    go('basket');
+  };
+
   return (
     <main className="page ticket-page" style={{ background: 'var(--color-bg,#f7f4ee)', minHeight: '100dvh', paddingBottom: 48 }}>
       <Topbar title="Order Ticket" back onBack={() => go('entry')} />
@@ -209,6 +245,111 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
               }}
             >
               Select Payment Method (₹{total.toFixed(2)}) →
+            </button>
+          </div>
+        )}
+
+        {/* ── Order Rejected Banner ── */}
+        {status === 'rejected' && (
+          <div style={{
+            margin: '16px 16px 0',
+            background: '#fef2f2',
+            border: '2px solid #ef4444',
+            borderRadius: 16,
+            padding: '18px 20px',
+            textAlign: 'center',
+            boxShadow: '0 4px 16px rgba(239, 68, 68, 0.15)'
+          }}>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#b91c1c' }}>
+              ❌ Order Rejected at Counter
+            </div>
+            <p style={{ margin: '8px 0 12px', fontSize: 13, color: '#7f1d1d', lineHeight: 1.5 }}>
+              The print shop could not process this order (e.g. invalid file format or payment discrepancy). Please contact the counter directly at <b>+91 80 2544 1722</b> or visit HKBK Student Point.
+            </p>
+            <button
+              onClick={handleRestoreBasket}
+              style={{
+                background: '#ef4444',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 10,
+                padding: '10px 20px',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              Fix and Retry →
+            </button>
+          </div>
+        )}
+
+        {/* ── Order Cancelled Banner ── */}
+        {status === 'cancelled' && (
+          <div style={{
+            margin: '16px 16px 0',
+            background: '#f8fafc',
+            border: '2px solid #94a3b8',
+            borderRadius: 16,
+            padding: '18px 20px',
+            textAlign: 'center',
+            boxShadow: '0 4px 16px rgba(148, 163, 184, 0.15)'
+          }}>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#334155' }}>
+              Order Cancelled
+            </div>
+            <p style={{ margin: '8px 0 12px', fontSize: 13, color: '#475569', lineHeight: 1.5 }}>
+              This order was cancelled. Your documents have been safely cleared from our server storage.
+            </p>
+            <button
+              onClick={handleRestoreBasket}
+              style={{
+                background: '#0b1020',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 10,
+                padding: '10px 20px',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              Restart with Same Documents →
+            </button>
+          </div>
+        )}
+
+        {/* ── Order Expired Banner ── */}
+        {status === 'expired' && (
+          <div style={{
+            margin: '16px 16px 0',
+            background: '#fffbeb',
+            border: '2px solid #f59e0b',
+            borderRadius: 16,
+            padding: '18px 20px',
+            textAlign: 'center',
+            boxShadow: '0 4px 16px rgba(245, 158, 11, 0.15)'
+          }}>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#b45309' }}>
+              Order Expired
+            </div>
+            <p style={{ margin: '8px 0 12px', fontSize: 13, color: '#92400e', lineHeight: 1.5 }}>
+              Payment was not completed within 30 minutes, and temporary files were removed to protect your privacy.
+            </p>
+            <button
+              onClick={handleRestoreBasket}
+              style={{
+                background: '#0b1020',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 10,
+                padding: '10px 20px',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              Restart Print Job →
             </button>
           </div>
         )}
