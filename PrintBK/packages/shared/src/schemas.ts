@@ -90,7 +90,111 @@ export const BasketSchema = z.object({
 export type Basket = z.infer<typeof BasketSchema>;
 
 export const OrderStatusSchema = z.enum([
-  'pending_payment', 'waiting_quote', 'quote_sent', 'accepted', 'declined', 
-  'paid', 'processing', 'ready', 'completed', 'failed', 'refunded'
+  'pending_payment', 'pending_cash', 'upi_started', 'upi_claimed', 'waiting_quote', 'quote_sent', 'accepted', 'declined', 
+  'paid', 'processing', 'printing', 'ready', 'completed', 'cancelled', 'rejected', 'failed', 'refunded', 'expired'
 ]);
 export type OrderStatus = z.infer<typeof OrderStatusSchema>;
+
+/* ─── Typed Order Items for Staff App Tables ──────────────────────── */
+export const OrderItemTypeSchema = z.enum([
+  'document_bw',
+  'document_colour',
+  'photo',
+  'binding',
+  'lamination',
+  'scanning',
+  'photocopy',
+  'typing_custom'
+]);
+export type OrderItemType = z.infer<typeof OrderItemTypeSchema>;
+
+export const DocumentBwSpecsSchema = z.object({
+  pages: z.number(),
+  copies: z.number().default(1),
+  sides: z.enum(['single', 'double']).default('single'),
+  paper: z.enum(['A4', 'A3', 'Legal']).default('A4'),
+  orientation: z.enum(['portrait', 'landscape', 'auto']).default('auto'),
+  nUp: z.number().default(1),
+  duplexEdge: z.enum(['long', 'short']).optional(),
+  fileId: z.string(),
+  originalFilename: z.string(),
+  layout: z.enum(['standard', 'handout', 'booklet']).default('standard')
+});
+export type DocumentBwSpecs = z.infer<typeof DocumentBwSpecsSchema>;
+
+export const DocumentColourSpecsSchema = DocumentBwSpecsSchema.extend({
+  colorPlan: ColorPlanSchema,
+  bwPagesCount: z.number(),
+  colourPagesCount: z.number()
+});
+export type DocumentColourSpecs = z.infer<typeof DocumentColourSpecsSchema>;
+
+export const PhotoSpecsSchema = z.object({
+  size: z.enum(['passport', 'stamp', '4x6', '5x7', 'A4']),
+  paperType: z.enum(['glossy', 'matte']).default('glossy'),
+  copies: z.number().default(1),
+  fileId: z.string().optional()
+});
+export type PhotoSpecs = z.infer<typeof PhotoSpecsSchema>;
+
+export const BindingSpecsSchema = z.object({
+  kind: z.enum(['soft', 'spiral', 'hard']),
+  pageCount: z.number(),
+  colorCover: z.boolean().default(false),
+  attachedToFileId: z.string().optional()
+});
+export type BindingSpecs = z.infer<typeof BindingSpecsSchema>;
+
+export const LaminationSpecsSchema = z.object({
+  size: z.enum(['ID', 'A4', 'A3']),
+  thickness: z.enum(['standard', 'thick']).default('standard'),
+  quantity: z.number().default(1),
+  attachedToFileId: z.string().optional()
+});
+export type LaminationSpecs = z.infer<typeof LaminationSpecsSchema>;
+
+export const ScanningSpecsSchema = z.object({
+  pages: z.number(),
+  dpi: z.number().default(300),
+  colour: z.enum(['bw', 'colour']).default('colour'),
+  format: z.enum(['pdf', 'jpeg']).default('pdf'),
+  delivery: z.enum(['whatsapp', 'email', 'download']).default('download')
+});
+export type ScanningSpecs = z.infer<typeof ScanningSpecsSchema>;
+
+export const PhotocopySpecsSchema = z.object({
+  pages: z.number(),
+  copies: z.number().default(1),
+  sides: z.enum(['single', 'double']).default('single'),
+  colour: z.enum(['bw', 'colour']).default('bw')
+});
+export type PhotocopySpecs = z.infer<typeof PhotocopySpecsSchema>;
+
+export const TypingCustomSpecsSchema = z.object({
+  description: z.string(),
+  pagesEstimated: z.number().default(1),
+  urgency: z.enum(['normal', 'urgent']).default('normal'),
+  notes: z.string().optional()
+});
+export type TypingCustomSpecs = z.infer<typeof TypingCustomSpecsSchema>;
+
+export const OrderItemPricingSchema = z.object({
+  baseRate: z.number().optional(),
+  unitPrice: z.number(),
+  lineTotal: z.number(),
+  bwSubtotal: z.number().optional(),
+  colourSubtotal: z.number().optional()
+});
+export type OrderItemPricing = z.infer<typeof OrderItemPricingSchema>;
+
+export const OrderItemSchema = z.object({
+  id: z.string(),
+  type: OrderItemTypeSchema,
+  title: z.string(),
+  quantity: z.number().default(1),
+  specifications: z.record(z.string(), z.any()),
+  computedPricing: OrderItemPricingSchema,
+  printInstructions: z.string()
+});
+export type OrderItem = z.infer<typeof OrderItemSchema>;
+

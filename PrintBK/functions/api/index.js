@@ -312,6 +312,7 @@ async function getPrintFilesFolder(filestore) {
 
 /* ─── Single Source of Truth Pricing Configuration ──────────────── */
 const { priceOrder, defaultShopConfig } = require('./shared/pricing');
+const { basketToOrderItems } = require('./shared/orderItems');
 
 function esc(str) { return String(str ?? '').replace(/'/g, "''"); }
 function nowSec() { return Math.floor(Date.now() / 1000); }
@@ -467,6 +468,9 @@ app.post('/orders', async (req, res) => {
     const quotePending = pricing.quotePending;
     const status = quotePending ? 'waiting_quote' : (req.body.payment === 'Cash' ? 'pending_cash' : 'pending_payment');
     
+    // 4. Map into Typed Order Items for Staff App Tables
+    const typedItems = basketToOrderItems({ files, services, rush }, defaultShopConfig);
+
     const basketPayload = {
       files,
       services,
@@ -475,7 +479,8 @@ app.post('/orders', async (req, res) => {
       pickupCode,
       orderNumber,
       accessTokenHash,
-      breakdown: pricing
+      breakdown: pricing,
+      typedItems
     };
 
     const basketJson = esc(JSON.stringify(basketPayload));
@@ -504,7 +509,8 @@ app.post('/orders', async (req, res) => {
       quotePending,
       pickupCode: exposedPickupCode,
       accessToken: orderToken,
-      breakdown: pricing
+      breakdown: pricing,
+      items: typedItems
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to create order' });
@@ -568,6 +574,14 @@ app.get('/orders/:id', async (req, res) => {
     const isPreProcessing = ['pending_payment', 'pending_cash', 'upi_started', 'upi_claimed', 'waiting_quote'].includes(o.status);
     const exposedPickupCode = (isStudent && isPreProcessing) ? null : (basketData.pickupCode || '');
 
+    const typedItems = (basketData.typedItems && Array.isArray(basketData.typedItems) && basketData.typedItems.length > 0)
+      ? basketData.typedItems
+      : basketToOrderItems({
+          files: basketData.files || [],
+          services: basketData.services || [],
+          rush: basketData.rush || false
+        }, defaultShopConfig);
+
     res.json({
       id: o.id,
       orderNumber: o.order_number || basketData.orderNumber || 1001,
@@ -576,6 +590,7 @@ app.get('/orders/:id', async (req, res) => {
       quotePending: o.quote_pending,
       pickupCode: exposedPickupCode,
       basket: basketData,
+      items: typedItems,
       fileNames: JSON.parse(o.file_names || '[]'),
       deleteAfter: o.delete_after || null,
       filesDeletedAt: o.files_deleted_at || null,
@@ -1081,6 +1096,14 @@ app.get('/orders', async (req, res) => {
     res.json((rows || []).map(r => {
       let b = {};
       try { b = JSON.parse(r.orders.basket || '{}'); } catch(e) {}
+      const typedItems = (b.typedItems && Array.isArray(b.typedItems) && b.typedItems.length > 0)
+        ? b.typedItems
+        : basketToOrderItems({
+            files: b.files || [],
+            services: b.services || [],
+            rush: b.rush || false
+          }, defaultShopConfig);
+
       return {
         id: r.orders.id,
         orderNumber: r.orders.order_number || b.orderNumber || 1001,
@@ -1090,6 +1113,7 @@ app.get('/orders', async (req, res) => {
         pickupCode: b.pickupCode || '',
         fileNames: JSON.parse(r.orders.file_names || '[]'),
         filesCount: (b.files || []).length,
+        items: typedItems,
         createdAt: r.orders.created_at,
         updatedAt: r.orders.updated_at
       };

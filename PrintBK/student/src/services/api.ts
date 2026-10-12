@@ -1,4 +1,4 @@
-import { Basket, ShopConfig, OrderStatus, defaultShopConfig } from '@printbk/shared';
+import { Basket, ShopConfig, OrderStatus, OrderItem, defaultShopConfig } from '@printbk/shared';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/server/api';
 
@@ -9,6 +9,7 @@ export interface CreateOrderResponse {
   breakdown: any;
   pickupCode?: string | null;
   accessToken: string;
+  items?: OrderItem[];
 }
 
 export const api = {
