@@ -1,8 +1,162 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Topbar, Icon } from '../../components/ui';
 import { Screen } from '../../lib/types';
-import { useBasket } from '../../store/basket';
+import { useBasket, rawFileMap } from '../../store/basket';
 import { layoutSheets, type LayoutSheetsResult, type SheetLayout, type PlacedPage } from '@printbk/shared';
+
+function SheetPageSlot({
+  file,
+  pageNumber,
+  rotation,
+  isColour
+}: {
+  file: any;
+  pageNumber: number;
+  rotation?: number;
+  isColour: boolean;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [rendered, setRendered] = useState(false);
+  const raw = rawFileMap.get(file.id);
+  const fileName = (raw?.name || file.name || '').toLowerCase();
+  const isPdf = fileName.endsWith('.pdf');
+  const isImage = raw?.type?.startsWith('image/') || /\.(jpe?g|png|webp|gif)$/i.test(fileName);
+
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!raw || !isImage) return;
+    const url = URL.createObjectURL(raw);
+    setImageUrl(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [raw, isImage]);
+
+  useEffect(() => {
+    if (!raw || !isPdf) return;
+    let active = true;
+    let renderTask: any = null;
+
+    async function renderPage() {
+      try {
+        const pdfjs = (window as any).pdfjsLib;
+        if (!pdfjs) return;
+        const buf = await raw!.arrayBuffer();
+        if (!active) return;
+        const doc = await pdfjs.getDocument({ data: buf }).promise;
+        if (!active || pageNumber > doc.numPages) return;
+        const pageObj = await doc.getPage(pageNumber);
+        if (!active || !canvasRef.current) return;
+
+        const canvas = canvasRef.current;
+        const baseVp = pageObj.getViewport({ scale: 1.0 });
+        const scale = Math.min(320 / baseVp.width, 420 / baseVp.height, 1.2);
+        const viewport = pageObj.getViewport({ scale: Math.max(scale, 0.45) });
+
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        renderTask = pageObj.render({ canvasContext: ctx, viewport });
+        await renderTask.promise;
+        if (active) setRendered(true);
+      } catch (e: any) {
+        if (e?.name !== 'RenderingCancelledException') {
+          console.warn('Preview slot render error:', e);
+        }
+      }
+    }
+
+    renderPage();
+    return () => {
+      active = false;
+      if (renderTask) renderTask.cancel();
+    };
+  }, [raw, isPdf, pageNumber]);
+
+  const filterStyle = isColour
+    ? 'none'
+    : 'grayscale(100%) contrast(140%) brightness(102%)';
+
+  return (
+    <div style={{
+      width: '100%',
+      height: '100%',
+      position: 'relative',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+      background: '#ffffff'
+    }}>
+      {/* 1. PDF Canvas */}
+      {isPdf && (
+        <canvas
+          ref={canvasRef}
+          style={{
+            maxWidth: '100%',
+            maxHeight: '100%',
+            objectFit: 'contain',
+            display: rendered ? 'block' : 'none',
+            filter: filterStyle,
+            transform: rotation ? `rotate(${rotation}deg)` : undefined
+          }}
+        />
+      )}
+
+      {/* 2. Image Render */}
+      {isImage && imageUrl && (
+        <img
+          src={imageUrl}
+          alt={`Page ${pageNumber}`}
+          style={{
+            maxWidth: '100%',
+            maxHeight: '100%',
+            objectFit: 'contain',
+            display: 'block',
+            filter: filterStyle,
+            transform: rotation ? `rotate(${rotation}deg)` : undefined
+          }}
+        />
+      )}
+
+      {/* 3. Document Representation while loading or for Office files */}
+      {(!rendered || (!isPdf && !isImage)) && (
+        <div style={{
+          width: '90%',
+          height: '86%',
+          background: isColour ? 'linear-gradient(135deg, #f0fdf4 0%, #dbeafe 100%)' : '#f8fafc',
+          borderRadius: 4,
+          border: '1px solid #cbd5e1',
+          padding: '8px',
+          boxSizing: 'border-box',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          filter: filterStyle
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 9, fontWeight: 800, color: '#475569' }}>PAGE {pageNumber}</span>
+            <span style={{ fontSize: 8, background: '#e2e8f0', padding: '1px 4px', borderRadius: 3, fontWeight: 700 }}>
+              {isColour ? '🎨 Colour' : '⬛ B&W'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <div style={{ height: 3, background: isColour ? '#2563eb' : '#64748b', borderRadius: 2, width: '55%' }} />
+            <div style={{ height: 2, background: isColour ? '#93c5fd' : '#cbd5e1', borderRadius: 1 }} />
+            <div style={{ height: 2, background: isColour ? '#93c5fd' : '#cbd5e1', borderRadius: 1 }} />
+            <div style={{ height: 2, background: isColour ? '#93c5fd' : '#cbd5e1', borderRadius: 1, width: '75%' }} />
+          </div>
+          <div style={{ fontSize: 8, color: '#94a3b8', textAlign: 'right' }}>
+            {file.name}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function PrintPreview({
   go
@@ -147,6 +301,34 @@ function PrintPreview({
           overflow: 'hidden',
           boxSizing: 'border-box'
         }}>
+          {/* Booklet Spine / Fold line */}
+          {(activeFile.settings.layout === 'booklet' || activeFile.settings.booklet) && (
+            <div style={{
+              position: 'absolute',
+              left: '50%',
+              top: 0,
+              bottom: 0,
+              borderLeft: '2px dashed #94a3b8',
+              zIndex: 10,
+              pointerEvents: 'none'
+            }}>
+              <span style={{
+                position: 'absolute',
+                top: 8,
+                left: 4,
+                fontSize: 9,
+                fontWeight: 800,
+                color: '#64748b',
+                background: 'rgba(255,255,255,0.9)',
+                padding: '1px 5px',
+                borderRadius: 4,
+                border: '1px solid #cbd5e1'
+              }}>
+                CENTER FOLD
+              </span>
+            </div>
+          )}
+
           {currentSheet && currentSheet.pages.map((p, idx) => {
             // Percent coordinates relative to sheet size
             const leftPct = (p.x / currentSheet.width) * 100;
@@ -167,10 +349,14 @@ function PrintPreview({
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-around',
-                    padding: '8px 4px',
-                    boxSizing: 'border-box'
+                    padding: '8px 6px',
+                    boxSizing: 'border-box',
+                    background: '#f8fafc',
+                    border: '1px dashed #cbd5e1',
+                    borderRadius: 4
                   }}
                 >
+                  <div style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8', textAlign: 'center', marginBottom: 2 }}>NOTES</div>
                   <div style={{ borderBottom: '1.5px dashed #94a3b8', width: '100%' }} />
                   <div style={{ borderBottom: '1.5px dashed #94a3b8', width: '100%' }} />
                   <div style={{ borderBottom: '1.5px dashed #94a3b8', width: '100%' }} />
@@ -206,13 +392,13 @@ function PrintPreview({
                   overflow: 'hidden'
                 }}
               >
-                {/* Visual lines resembling document content */}
-                <div style={{ width: '80%', display: 'flex', flexDirection: 'column', gap: 4, opacity: 0.6 }}>
-                  <div style={{ height: 3, background: isColourPage ? '#3b82f6' : '#64748b', borderRadius: 2, width: '60%' }} />
-                  <div style={{ height: 2, background: isColourPage ? '#93c5fd' : '#cbd5e1', borderRadius: 1 }} />
-                  <div style={{ height: 2, background: isColourPage ? '#93c5fd' : '#cbd5e1', borderRadius: 1 }} />
-                  <div style={{ height: 2, background: isColourPage ? '#93c5fd' : '#cbd5e1', borderRadius: 1, width: '85%' }} />
-                </div>
+                {/* Real document preview rendering via SheetPageSlot */}
+                <SheetPageSlot
+                  file={activeFile}
+                  pageNumber={p.pageNumber}
+                  rotation={p.rotation}
+                  isColour={isColourPage}
+                />
 
                 {/* Page Badge */}
                 <div style={{
@@ -224,7 +410,8 @@ function PrintPreview({
                   fontSize: 10,
                   fontWeight: 800,
                   padding: '1px 5px',
-                  borderRadius: 4
+                  borderRadius: 4,
+                  zIndex: 5
                 }}>
                   {p.pageNumber}
                 </div>
@@ -238,7 +425,8 @@ function PrintPreview({
                     width: 7,
                     height: 7,
                     borderRadius: '50%',
-                    background: '#2563eb'
+                    background: '#2563eb',
+                    zIndex: 5
                   }} title="Colour page" />
                 )}
               </div>

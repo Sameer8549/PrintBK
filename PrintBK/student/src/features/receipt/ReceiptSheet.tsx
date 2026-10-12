@@ -68,14 +68,16 @@ function ReceiptSheet({
   const dateStr = targetOrder
     ? new Date(targetOrder.date).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '——';
-  const method = paymentMethod ?? (targetOrder?.paymentMethod === 'cash' ? 'Cash at Counter' : 'UPI');
+  const isCash = (paymentMethod?.toLowerCase().includes('cash') || targetOrder?.paymentMethod === 'cash' || targetOrder?.status === 'pending_cash');
+  const isUpi = !isCash;
+  const method = isCash ? 'Cash at Counter' : 'UPI Transfer';
 
-  let badgeText = '✓ PAID';
-  let badgeBg = '#ecfdf5';
-  let badgeColor = '#059669';
+  let badgeText = isCash ? '💵 CASH AT COUNTER' : '✓ PAID VIA UPI';
+  let badgeBg = isCash ? '#fef3c7' : '#ecfdf5';
+  let badgeColor = isCash ? '#b45309' : '#059669';
 
   if (targetOrder?.status === 'pending_cash') {
-    badgeText = '💵 CASH AT COUNTER';
+    badgeText = '💵 CASH DUE AT COUNTER';
     badgeBg = '#fef3c7';
     badgeColor = '#b45309';
   } else if (targetOrder?.status === 'upi_claimed') {
@@ -86,34 +88,71 @@ function ReceiptSheet({
     badgeText = '⚡ UPI PENDING';
     badgeBg = '#fef3c7';
     badgeColor = '#b45309';
+  } else if (targetOrder?.status === 'paid' && isUpi) {
+    badgeText = '✓ UPI VERIFIED';
+    badgeBg = '#ecfdf5';
+    badgeColor = '#059669';
   }
 
   const saveAsPDF = () => {
     const popup = window.open('', '_blank', 'width=460,height=760');
     if (!popup) { notify('Allow pop-ups to save the receipt'); return; }
     const rows = files.map(name => `<div class="row"><span>${name}</span><b>—</b></div>`).join('');
+    const servicesRows = (services ?? []).map(s => `<div class="row"><span>${s.name}</span><b>${s.price == null ? 'Quote' : `₹${s.price}`}</b></div>`).join('');
+
+    const paySectionHtml = isCash ? `
+      <div class="pay-card cash-card">
+        <div class="pay-badge">💵 PAYMENT: CASH AT COUNTER</div>
+        <div class="pay-row"><span>Collection Counter:</span><b>HKBK Student Point Desk</b></div>
+        <div class="pay-row"><span>Amount Payable:</span><b class="due">₹${total.toFixed(2)} (Cash Due)</b></div>
+        <div class="pay-row"><span>Payment Status:</span><b>DUE ON PICKUP</b></div>
+        <div class="pay-desc">Please pay exact cash at counter when your pickup code is called.</div>
+      </div>
+    ` : `
+      <div class="pay-card upi-card">
+        <div class="pay-badge">⚡ PAYMENT: UPI INSTANT TRANSFER</div>
+        <div class="pay-row"><span>Merchant Payee:</span><b>PrintBK HKBK</b></div>
+        <div class="pay-row"><span>Beneficiary VPA:</span><b>Q098686787@ybl</b></div>
+        <div class="pay-row"><span>Amount Paid:</span><b class="paid">₹${total.toFixed(2)}</b></div>
+        <div class="pay-row"><span>Transaction Status:</span><b>${targetOrder?.status === 'paid' ? 'VERIFIED ✓' : 'CLAIMED BY STUDENT'}</b></div>
+        <div class="pay-desc">Payment claimed via UPI to Q098686787@ybl. Shop staff will verify UTR and release prints.</div>
+      </div>
+    `;
+
     popup.document.write(`<!doctype html><html><head><title>PrintBK receipt ${displayId}</title>
 <style>
-  *{box-sizing:border-box}body{margin:0;padding:32px;background:#f7f4ee;font-family:Arial,sans-serif;color:#0b1020}
-  .receipt{max-width:380px;margin:auto;background:#fff;border:2px solid #0b1020;padding:24px;box-shadow:5px 5px 0 #0b1020}
-  header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
-  h1{margin:0;font-size:22px}.brand{font-size:20px;font-weight:700}small{color:#6d7283;font-size:11px}
-  .dash{border-top:2px dashed #d5cdb9;margin:14px 0}.row{display:flex;justify-content:space-between;gap:16px;margin:8px 0;font-size:13px}
-  .code{text-align:center;padding:14px;border:2px solid #0b1020;margin:16px 0}.code b{display:block;font:700 36px monospace;letter-spacing:8px}
-  .total{font-size:18px;font-weight:700}.paid{color:#1f9d55;font-weight:700}
-  footer{margin-top:20px;text-align:center;color:#7a7f90;font-size:10px}
-  @media print{body{padding:0;background:#fff}.receipt{box-shadow:none;max-width:none}}
+  *{box-sizing:border-box}body{margin:0;padding:28px 20px;background:#f7f4ee;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#0b1020}
+  .receipt{max-width:390px;margin:auto;background:#fff;border:2px solid #0b1020;padding:24px;box-shadow:6px 6px 0 #0b1020;border-radius:12px}
+  header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;border-bottom:1px solid #e2e8f0;padding-bottom:12px}
+  .brand{font-size:22px;font-weight:900;letter-spacing:-0.5px}small{color:#64748b;font-size:11px}
+  .dash{border-top:2px dashed #cbd5e1;margin:14px 0}
+  .row{display:flex;justify-content:space-between;gap:16px;margin:8px 0;font-size:13px;align-items:center}
+  .code{text-align:center;padding:14px;border:2px solid #0b1020;border-radius:10px;margin:16px 0;background:#f8fafc}
+  .code b{display:block;font:900 36px monospace;letter-spacing:10px;margin:4px 0 2px}
+  .total{font-size:18px;font-weight:900}
+  .pay-card{margin:14px 0;padding:12px 14px;border-radius:10px;font-size:12px}
+  .upi-card{background:#eff6ff;border:1.5px solid #bfdbfe;color:#1e3a8a}
+  .cash-card{background:#fefce8;border:1.5px solid #fef08a;color:#713f12}
+  .pay-badge{font-weight:800;font-size:11px;letter-spacing:0.8px;margin-bottom:8px}
+  .pay-row{display:flex;justify-content:space-between;margin:4px 0;font-size:12px}
+  .pay-desc{font-size:11px;margin-top:8px;padding-top:6px;border-top:1px dashed rgba(0,0,0,0.15);line-height:1.4}
+  .due{color:#b45309;font-weight:800}
+  .paid{color:#15803d;font-weight:800}
+  footer{margin-top:20px;text-align:center;color:#94a3b8;font-size:11px;line-height:1.5}
+  @media print{body{padding:0;background:#fff}.receipt{box-shadow:none;border:1px solid #cbd5e1;max-width:none}}
 </style></head><body><div class="receipt">
 <header><div><div class="brand">PrintBK</div><small>HKBK Student Point · Bengaluru</small></div><div style="text-align:right"><small>${dateStr}</small></div></header>
-<div class="row"><span>Order</span><b>${displayId}</b></div>
-<div class="row"><span>Payment</span><b class="paid">${method} · ₹${total.toFixed(2)}</b></div>
+<div class="row"><span>Order Reference</span><b>${displayId}</b></div>
+${paySectionHtml}
 <div class="dash"></div>
+<div style="font-size:11px;font-weight:800;letter-spacing:1px;color:#94a3b8;margin-bottom:8px">ITEMS & PRINTS</div>
 ${rows}
+${servicesRows}
 <div class="dash"></div>
-<div class="row total"><span>Total paid</span><b>₹${total.toFixed(2)}</b></div>
-<div class="code"><small>PICKUP CODE</small><b>${code}</b></div>
+<div class="row total"><span>Total Amount</span><b>₹${total.toFixed(2)}</b></div>
+<div class="code"><small>PICKUP CODE</small><b>${code}</b><small>${code !== '——' ? 'Present code at counter to receive prints' : 'Issued upon counter release'}</small></div>
 <footer>Files auto-delete 10 minutes after printing.<br>Thank you for using PrintBK!</footer>
-</div><script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`);
+</div><script>window.onload=()=>setTimeout(()=>window.print(),350)</script></body></html>`);
     popup.document.close();
   };
 
@@ -157,10 +196,31 @@ ${rows}
           </div>
         </div>
 
-        {/* Payment info row */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '10px 14px', borderRadius: 10 }}>
-          <span style={{ fontSize: 13, color: '#64748b' }}>Payment Mode</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{method}</span>
+        {/* Payment mode card tailored to method */}
+        <div style={{
+          background: isCash ? '#fefce8' : '#eff6ff',
+          border: `1.5px solid ${isCash ? '#fef08a' : '#bfdbfe'}`,
+          borderRadius: 12,
+          padding: '12px 14px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: isCash ? '#854d0e' : '#1e40af', letterSpacing: 0.5, textTransform: 'uppercase' }}>
+              {isCash ? '💵 CASH AT COUNTER' : '⚡ UPI INSTANT PAYMENT'}
+            </span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: isCash ? '#a16207' : '#2563eb' }}>
+              {isCash ? 'Due on Pickup' : 'To: Q098686787@ybl'}
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.4 }}>
+            {isCash ? (
+              <span>Please pay <b>₹${total.toFixed(2)} in cash</b> when collecting your prints at HKBK Student Point printing desk.</span>
+            ) : (
+              <span>Paid to <b>PrintBK HKBK</b> (VPA: <code style={{ background: '#dbeafe', padding: '1px 4px', borderRadius: 3, fontWeight: 700 }}>Q098686787@ybl</code>). Present pickup code at counter for release.</span>
+            )}
+          </div>
         </div>
 
         {/* Files & Services breakdown */}

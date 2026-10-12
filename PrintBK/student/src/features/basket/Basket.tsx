@@ -14,24 +14,24 @@ const colorOptions: { value: 'bw' | 'color' | 'auto' | 'custom'; label: string; 
   { value: 'auto',   label: 'Auto',       sub: 'detect'  },
   { value: 'custom', label: 'Custom',     sub: 'pick pgs' },
 ];
-const sidedOptions: { value: PrintFile['settings']['sided']; label: string }[] = [
-  { value: 'single', label: '1-Sided (₹1.50)' },
-  { value: 'double', label: '2-Sided (₹0.85)' },
+const sidedOptions: { value: PrintFile['settings']['sided']; label: string; sub: string; icon: string }[] = [
+  { value: 'single', label: '1-Sided', sub: '₹1.50/sheet', icon: '📄' },
+  { value: 'double', label: '2-Sided', sub: '₹0.85/side · Eco', icon: '🔄' },
 ];
-const nUpOptions: { value: number; label: string }[] = [
-  { value: 1, label: '1-up' },
-  { value: 2, label: '2-up' },
-  { value: 4, label: '4-up' },
+const nUpOptions: { value: number; label: string; sub: string; icon: string }[] = [
+  { value: 1, label: '1-up', sub: 'Full page', icon: '📄' },
+  { value: 2, label: '2-up', sub: 'Save 50% paper', icon: '📑' },
+  { value: 4, label: '4-up', sub: 'Compact grid', icon: '🗂️' },
 ];
-const orientationOptions: { value: 'auto' | 'portrait' | 'landscape'; label: string }[] = [
-  { value: 'auto', label: 'Auto (Best fit)' },
-  { value: 'portrait', label: 'Portrait' },
-  { value: 'landscape', label: 'Landscape' },
+const orientationOptions: { value: 'auto' | 'portrait' | 'landscape'; label: string; sub: string; icon: string }[] = [
+  { value: 'auto', label: 'Auto', sub: 'Smart fit', icon: '⚡' },
+  { value: 'portrait', label: 'Portrait', sub: 'Upright', icon: '📄' },
+  { value: 'landscape', label: 'Landscape', sub: 'Wide', icon: '🖼️' },
 ];
-const layoutModeOptions: { value: 'standard' | 'handout' | 'booklet'; label: string }[] = [
-  { value: 'standard', label: 'Standard' },
-  { value: 'handout', label: 'Handout' },
-  { value: 'booklet', label: 'Booklet' },
+const layoutModeOptions: { value: 'standard' | 'handout' | 'booklet'; label: string; sub: string; icon: string }[] = [
+  { value: 'standard', label: 'Standard', sub: 'Full sheet', icon: '📄' },
+  { value: 'handout', label: 'Handout', sub: 'Slide + Notes', icon: '📝' },
+  { value: 'booklet', label: 'Booklet', sub: 'Center fold', icon: '📖' },
 ];
 
 function checkZipSafety(zip: any, compressedSize: number) {
@@ -515,6 +515,25 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
     ? ((currentRot === 90 || currentRot === 270) ? currentMetric.width <= currentMetric.height : currentMetric.width >= currentMetric.height)
     : isPpt;
 
+  // Selected orientation & layout mode
+  const selectedOrientation = s.orientation ?? 'auto';
+  const effectiveIsLandscape = selectedOrientation === 'landscape'
+    ? true
+    : selectedOrientation === 'portrait'
+      ? false
+      : isPageLandscape;
+  const selectedLayout = s.layout ?? (s.booklet ? 'booklet' : 'standard');
+
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!raw || !isImage) return;
+    const url = URL.createObjectURL(raw);
+    setPreviewImageUrl(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [raw, isImage]);
+
   // Detect mixed slide sizes
   const portraitPages = (file.pageMetrics || []).filter(m => {
     const rot = ((file.settings.pageRotations?.[m.pageNumber] ?? m.rotation ?? 0) % 360 + 360) % 360;
@@ -536,6 +555,129 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
     ? 'grayscale(100%) contrast(140%) brightness(102%)'
     : 'none';
 
+  const renderPageContent = () => {
+    if (isPdf) {
+      return (
+        <canvas
+          ref={canvasRef}
+          style={{
+            maxWidth: '100%',
+            maxHeight: '100%',
+            width: '100%',
+            height: 'auto',
+            display: 'block',
+            objectFit: 'contain',
+            transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
+            transition: 'transform 0.2s ease'
+          }}
+        />
+      );
+    }
+    if (isImage && previewImageUrl) {
+      return (
+        <img
+          src={previewImageUrl}
+          alt="Preview"
+          style={{
+            maxWidth: '100%',
+            maxHeight: '100%',
+            width: '100%',
+            height: 'auto',
+            display: 'block',
+            objectFit: 'contain',
+            transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
+            transition: 'transform 0.2s ease'
+          }}
+        />
+      );
+    }
+    if (isPpt) {
+      return (
+        <div style={{
+          width: '100%',
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
+          transition: 'transform 0.2s ease'
+        }}>
+          <div
+            ref={pptxContainerRef}
+            style={{
+              width: '100%',
+              display: hasPptxRendered ? 'block' : 'none',
+              overflow: 'hidden',
+              borderRadius: 6
+            }}
+          />
+          {!hasPptxRendered && (
+            <div style={{
+              width: '100%',
+              aspectRatio: isPageLandscape ? '16/9' : '3/4',
+              background: isBW ? '#ffffff' : 'linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%)',
+              border: '1.5px solid #cbd5e1',
+              borderRadius: 6,
+              padding: '10px 12px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              boxSizing: 'border-box'
+            }}>
+              {officeThumb && page === 1 ? (
+                <img src={officeThumb} alt="Slide 1" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 4 }} />
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #e2e8f0', paddingBottom: 4, marginBottom: 4 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
+                      📊 {officeSlides[page - 1]?.title || `Slide ${page}`}
+                    </div>
+                    <span style={{ fontSize: 9, fontWeight: 700, background: '#e2e8f0', color: '#475569', padding: '1px 4px', borderRadius: 3 }}>
+                      {page}/{totalPages}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, overflowY: 'hidden' }}>
+                    {(officeSlides[page - 1]?.bullets || []).slice(0, 4).map((b, idx) => (
+                      <div key={idx} style={{ fontSize: 10, color: '#334155', display: 'flex', gap: 4, lineHeight: 1.2 }}>
+                        <span style={{ color: '#3b82f6', fontWeight: 700 }}>•</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 8, color: '#94a3b8', textAlign: 'right' }}>
+                    {file.name}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+    if (isDoc) {
+      return (
+        <div style={{ width: '100%', padding: '12px', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 220 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: 4 }}>
+            📝 {file.name} (P.{page})
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 10, color: '#334155', lineHeight: 1.3 }}>
+            {(officePages[page - 1] || []).map((para, idx) => (
+              <p key={idx} style={{ margin: 0 }}>{para}</p>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div style={{ padding: 20, textAlign: 'center' }}>
+        <div style={{ fontSize: 36, marginBottom: 6 }}>📄</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>{file.name}</div>
+      </div>
+    );
+  };
+
+  const isSheetWide = effectiveIsLandscape || selectedLayout === 'booklet' || (s.nUp ?? 1) === 2;
+
   return (
     <div style={{
       background: '#f8fafc',
@@ -550,7 +692,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
       {/* Top Preview Status */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', fontSize: 11, fontWeight: 700, color: '#64748b' }}>
         <span>DOCUMENT PREVIEW</span>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{
             background: isBW ? '#e2e8f0' : '#dbeafe',
             color: isBW ? '#334155' : '#1d4ed8',
@@ -559,18 +701,40 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
             fontSize: 10,
             fontWeight: 800
           }}>
-            {isBW ? '⬛ B&W Active' : '🎨 Colour Active'}
+            {isBW ? '⬛ B&W' : '🎨 Colour'}
           </span>
-          {isCustom && (
+          <span style={{
+            background: '#f1f5f9',
+            color: '#334155',
+            padding: '2px 8px',
+            borderRadius: 6,
+            fontSize: 10,
+            fontWeight: 800
+          }}>
+            {effectiveIsLandscape ? '🖼️ Landscape' : '📄 Portrait'}
+          </span>
+          {selectedLayout !== 'standard' && (
             <span style={{
-              background: '#f3e8ff',
-              color: '#7e22ce',
+              background: '#fef3c7',
+              color: '#b45309',
               padding: '2px 8px',
               borderRadius: 6,
               fontSize: 10,
               fontWeight: 800
             }}>
-              Custom ({customColorPages.length} colour)
+              {selectedLayout === 'handout' ? '📝 Handout' : '📖 Booklet'}
+            </span>
+          )}
+          {(s.nUp ?? 1) > 1 && (
+            <span style={{
+              background: '#e0f2fe',
+              color: '#0369a1',
+              padding: '2px 8px',
+              borderRadius: 6,
+              fontSize: 10,
+              fontWeight: 800
+            }}>
+              {s.nUp}-Up
             </span>
           )}
           {isDouble && (
@@ -666,159 +830,187 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
         </div>
       )}
 
-      {/* Main Preview Screen */}
+      {/* Main Preview Screen (Dynamically adjusts aspect ratio to reflect Orientation & Layout) */}
       <div style={{
         position: 'relative',
         width: '100%',
-        maxWidth: isPageLandscape ? 320 : 240,
-        minHeight: isPageLandscape ? 180 : 280,
+        maxWidth: isSheetWide ? 330 : 245,
+        aspectRatio: isSheetWide ? '1.414 / 1' : '1 / 1.414',
+        minHeight: isSheetWide ? 220 : 310,
         background: '#fff',
         borderRadius: 8,
-        border: '1.5px solid #0f172a',
+        border: '2px solid #0f172a',
         boxShadow: isDouble ? '4px 4px 0 #cbd5e1, 8px 8px 0 #94a3b8' : '4px 4px 0 #cbd5e1',
         overflow: 'hidden',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         filter: filterStyle,
-        transition: 'filter 0.25s ease'
+        transition: 'all 0.25s ease',
+        boxSizing: 'border-box'
       }}>
         {loading && (
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.8)', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.85)', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
             Loading preview…
           </div>
         )}
 
-        {/* 1. PDF Canvas Preview */}
-        {isPdf && (
-          <canvas
-            ref={canvasRef}
-            style={{
-              width: '100%',
-              height: 'auto',
-              display: 'block',
-              transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
-              transition: 'transform 0.2s ease'
-            }}
-          />
-        )}
-
-        {/* 2. Image Preview */}
-        {isImage && raw && (
-          <img
-            src={URL.createObjectURL(raw)}
-            alt="Preview"
-            style={{
-              width: '100%',
-              height: 'auto',
-              display: 'block',
-              objectFit: 'contain',
-              transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
-              transition: 'transform 0.2s ease'
-            }}
-          />
-        )}
-
-        {/* 3. PPTX / PPT Slide Preview */}
-        {isPpt && (
+        {/* ── Imposition Rendering based on Layout Mode ── */}
+        {selectedLayout === 'handout' ? (
           <div style={{
+            display: 'flex',
             width: '100%',
+            height: '100%',
+            padding: '12px 14px',
+            boxSizing: 'border-box',
+            alignItems: 'center',
+            gap: 12,
+            background: '#ffffff'
+          }}>
+            <div style={{
+              flex: '1.2',
+              height: '85%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid #cbd5e1',
+              borderRadius: 6,
+              background: '#f8fafc',
+              overflow: 'hidden',
+              padding: 4
+            }}>
+              {renderPageContent()}
+            </div>
+            <div style={{
+              flex: '1',
+              height: '80%',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-around',
+              padding: '6px 0',
+              boxSizing: 'border-box'
+            }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: '#94a3b8', letterSpacing: 1.2 }}>HANDOUT NOTES</div>
+              <div style={{ borderBottom: '1.5px dashed #94a3b8', width: '100%' }} />
+              <div style={{ borderBottom: '1.5px dashed #94a3b8', width: '100%' }} />
+              <div style={{ borderBottom: '1.5px dashed #94a3b8', width: '100%' }} />
+              <div style={{ borderBottom: '1.5px dashed #94a3b8', width: '100%' }} />
+            </div>
+          </div>
+        ) : selectedLayout === 'booklet' ? (
+          <div style={{
             position: 'relative',
             display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
-            transition: 'transform 0.2s ease'
+            width: '100%',
+            height: '100%',
+            padding: '10px 12px',
+            boxSizing: 'border-box',
+            alignItems: 'stretch',
+            gap: 8,
+            background: '#ffffff'
           }}>
-            {/* Visual Full Presentation Container */}
-            <div
-              ref={pptxContainerRef}
-              style={{
-                width: '100%',
-                display: hasPptxRendered ? 'block' : 'none',
-                overflow: 'hidden',
-                borderRadius: 8
-              }}
-            />
-
-            {/* Fallback slide card if visual renderer did not mount or for binary PPT */}
-            {!hasPptxRendered && (
-              <div style={{
-                width: '100%',
-                aspectRatio: isPageLandscape ? '16/9' : '3/4',
-                background: isBW ? '#ffffff' : 'linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%)',
-                border: '1.5px solid #cbd5e1',
-                borderRadius: 8,
-                padding: '14px 16px',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                boxSizing: 'border-box',
-                position: 'relative'
+            <div style={{
+              position: 'absolute',
+              left: '50%',
+              top: 0,
+              bottom: 0,
+              borderLeft: '2px dashed #94a3b8',
+              zIndex: 10,
+              pointerEvents: 'none'
+            }}>
+              <span style={{
+                position: 'absolute',
+                top: 6,
+                left: -20,
+                fontSize: 8,
+                fontWeight: 800,
+                color: '#64748b',
+                background: 'rgba(255,255,255,0.95)',
+                padding: '1px 4px',
+                borderRadius: 3,
+                border: '1px solid #cbd5e1'
               }}>
-                {officeThumb && page === 1 ? (
-                  <img src={officeThumb} alt="Slide 1" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 4 }} />
-                ) : (
-                  <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1.5px solid #e2e8f0', paddingBottom: 6, marginBottom: 6 }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
-                        📊 {officeSlides[page - 1]?.title || `Slide ${page}`}
-                      </div>
-                      <span style={{ fontSize: 10, fontWeight: 700, background: '#e2e8f0', color: '#475569', padding: '2px 6px', borderRadius: 4 }}>
-                        {page} / {totalPages}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, overflowY: 'hidden' }}>
-                      {(officeSlides[page - 1]?.bullets || []).map((b, idx) => (
-                        <div key={idx} style={{ fontSize: 11, color: '#334155', display: 'flex', gap: 6, lineHeight: 1.3 }}>
-                          <span style={{ color: '#3b82f6', fontWeight: 700 }}>•</span>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b}</span>
-                        </div>
-                      ))}
-                      {(!officeSlides[page - 1]?.bullets || officeSlides[page - 1]?.bullets.length === 0) && (
-                        <div style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                          Presentation Slide {page} of {totalPages}
-                        </div>
-                      )}
-                    </div>
-
-                    <div style={{ fontSize: 9, color: '#94a3b8', textAlign: 'right', marginTop: 2, letterSpacing: 0.5 }}>
-                      {file.name}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 4. DOCX Document Preview */}
-        {isDoc && (
-          <div style={{ width: '100%', padding: '16px', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: 8, minHeight: 260 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', borderBottom: '1.5px solid #e2e8f0', paddingBottom: 4 }}>
-              📝 {file.name} (Page {page})
+                FOLD
+              </span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 11, color: '#334155', lineHeight: 1.4 }}>
-              {(officePages[page - 1] || []).map((para, idx) => (
-                <p key={idx} style={{ margin: 0 }}>{para}</p>
-              ))}
-              {(!officePages[page - 1] || officePages[page - 1]?.length === 0) && (
-                <p style={{ margin: 0, color: '#94a3b8', fontStyle: 'italic' }}>Document Page {page}</p>
-              )}
+            <div style={{
+              flex: 1,
+              border: '1px solid #e2e8f0',
+              borderRadius: 6,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              padding: 4
+            }}>
+              {renderPageContent()}
+            </div>
+            <div style={{
+              flex: 1,
+              border: '1px dashed #cbd5e1',
+              borderRadius: 6,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#f8fafc',
+              padding: 8,
+              textAlign: 'center'
+            }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>
+                Page {page + 1 <= totalPages ? page + 1 : '—'}
+              </span>
+              <span style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>
+                Booklet spread
+              </span>
             </div>
           </div>
-        )}
-
-        {/* Fallback */}
-        {!isPdf && !isImage && !isPpt && !isDoc && (
-          <div style={{ padding: 24, textAlign: 'center' }}>
-            <div style={{ fontSize: 44, marginBottom: 8 }}>📄</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{file.name}</div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
-              {file.pages} page{file.pages !== 1 ? 's' : ''} · {nUp}-up
+        ) : (s.nUp ?? 1) === 2 ? (
+          <div style={{
+            display: 'flex',
+            width: '100%',
+            height: '100%',
+            padding: '10px 12px',
+            boxSizing: 'border-box',
+            alignItems: 'center',
+            gap: 8,
+            background: '#ffffff'
+          }}>
+            <div style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', height: '90%', padding: 4 }}>
+              {renderPageContent()}
+            </div>
+            <div style={{ flex: 1, border: '1px dashed #cbd5e1', borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', height: '90%', padding: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>
+                Page {page + 1 <= totalPages ? page + 1 : '—'}
+              </span>
+              <span style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>2-up slot</span>
             </div>
           </div>
+        ) : (s.nUp ?? 1) === 4 ? (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 6,
+            width: '100%',
+            height: '100%',
+            padding: '8px 10px',
+            boxSizing: 'border-box'
+          }}>
+            <div style={{ border: '1px solid #cbd5e1', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 2 }}>
+              {renderPageContent()}
+            </div>
+            <div style={{ border: '1px dashed #cbd5e1', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', fontSize: 10, fontWeight: 700, color: '#94a3b8' }}>
+              P{page + 1 <= totalPages ? page + 1 : '—'}
+            </div>
+            <div style={{ border: '1px dashed #cbd5e1', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', fontSize: 10, fontWeight: 700, color: '#94a3b8' }}>
+              P{page + 2 <= totalPages ? page + 2 : '—'}
+            </div>
+            <div style={{ border: '1px dashed #cbd5e1', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', fontSize: 10, fontWeight: 700, color: '#94a3b8' }}>
+              P{page + 3 <= totalPages ? page + 3 : '—'}
+            </div>
+          </div>
+        ) : (
+          renderPageContent()
         )}
       </div>
 
@@ -1187,10 +1379,18 @@ function FileCard({
             <div style={{ display: 'flex', gap: 6 }}>
               {orientationOptions.map(opt => (
                 <button key={opt.value} onClick={() => upd({ orientation: opt.value })}
-                  style={{ ...btn, flex: 1, padding: 10, ...sel((s.orientation ?? 'auto') === opt.value) }}>
-                  {opt.label}
+                  style={{ ...btn, flex: 1, padding: '9px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel((s.orientation ?? 'auto') === opt.value) }}>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{opt.icon} {opt.label}</span>
+                  <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 500 }}>{opt.sub}</span>
                 </button>
               ))}
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+              💡 {
+                (s.orientation ?? 'auto') === 'auto' ? 'Auto adapts sheet rotation to match your document slides/pages.' :
+                s.orientation === 'portrait' ? 'Forces sheets to print upright vertically.' :
+                'Forces sheets to print horizontally (rotated 90°).'
+              }
             </div>
           </div>
 
@@ -1200,10 +1400,18 @@ function FileCard({
             <div style={{ display: 'flex', gap: 6 }}>
               {layoutModeOptions.map(opt => (
                 <button key={opt.value} onClick={() => upd({ layout: opt.value })}
-                  style={{ ...btn, flex: 1, padding: 10, ...sel((s.layout ?? 'standard') === opt.value) }}>
-                  {opt.label}
+                  style={{ ...btn, flex: 1, padding: '9px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel((s.layout ?? 'standard') === opt.value) }}>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{opt.icon} {opt.label}</span>
+                  <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 500 }}>{opt.sub}</span>
                 </button>
               ))}
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+              💡 {
+                (s.layout ?? 'standard') === 'standard' ? 'Standard prints 1 full page or slide per sheet.' :
+                s.layout === 'handout' ? 'Handout places slide on left with ruled lines on right for lecture notes.' :
+                'Booklet arranges pages as a center-folded booklet spread.'
+              }
             </div>
           </div>
 
@@ -1213,10 +1421,14 @@ function FileCard({
             <div style={{ display: 'flex', gap: 6 }}>
               {sidedOptions.map(opt => (
                 <button key={opt.value} onClick={() => upd({ sided: opt.value })}
-                  style={{ ...btn, flex: 1, padding: 10, ...sel(s.sided === opt.value) }}>
-                  {opt.label}
+                  style={{ ...btn, flex: 1, padding: '9px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel(s.sided === opt.value) }}>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{opt.icon} {opt.label}</span>
+                  <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 500 }}>{opt.sub}</span>
                 </button>
               ))}
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+              💡 {s.sided === 'double' ? 'Double-sided saves paper and costs only ₹0.85/side instead of ₹1.50!' : 'Single-sided prints on one side only (₹1.50 per sheet).'}
             </div>
           </div>
 
@@ -1226,10 +1438,18 @@ function FileCard({
             <div style={{ display: 'flex', gap: 6 }}>
               {nUpOptions.map(opt => (
                 <button key={opt.value} onClick={() => upd({ nUp: opt.value })}
-                  style={{ ...btn, flex: 1, padding: 10, ...sel((s.nUp ?? 1) === opt.value) }}>
-                  {opt.label}
+                  style={{ ...btn, flex: 1, padding: '9px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel((s.nUp ?? 1) === opt.value) }}>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{opt.icon} {opt.label}</span>
+                  <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 500 }}>{opt.sub}</span>
                 </button>
               ))}
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+              💡 {
+                (s.nUp ?? 1) === 1 ? '1 page per sheet — standard full reading size.' :
+                (s.nUp ?? 1) === 2 ? '2 pages per sheet side-by-side — saves 50% paper and reduces your print total!' :
+                '4 pages per sheet in a 2×2 grid — best for quick review.'
+              }
             </div>
           </div>
 

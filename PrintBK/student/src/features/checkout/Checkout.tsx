@@ -81,110 +81,317 @@ function Checkout({ go, setSheet, services }: {
 
   /* ── Normal checkout ── */
   return (
-    <main className="page" style={{ display: 'flex', flexDirection: 'column', background: 'var(--color-bg,#f7f4ee)' }}>
+    <main className="page" style={{ display: 'flex', flexDirection: 'column', background: 'var(--color-bg,#f7f4ee)', minHeight: '100dvh' }}>
       <Topbar title="Checkout" back onBack={() => go('basket')} />
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        {/* Summary */}
-        <div style={{ background: '#fff', padding: '16px 24px', marginBottom: 2 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ color: '#718096', fontSize: 14 }}>
-              {basket.files.length} file{basket.files.length !== 1 ? 's' : ''}
-              {basket.services.length > 0 ? ` · ${basket.services.length} service${basket.services.length !== 1 ? 's' : ''}` : ''}
-            </span>
-            <button style={{ background: 'none', border: 'none', fontSize: 13, color: '#3b82f6', cursor: 'pointer', padding: 0 }} onClick={() => setSheet('breakdown')}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 100px', maxWidth: 440, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+        
+        {/* Order Summary Hero Card */}
+        <div style={{
+          background: '#ffffff',
+          borderRadius: 16,
+          border: '1.5px solid #e2e8f0',
+          padding: '20px',
+          marginBottom: 16,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.03)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                📄 {basket.files.length} {basket.files.length === 1 ? 'file' : 'files'}
+              </span>
+              <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                📑 {basket.files.reduce((s, f) => s + f.pages, 0)} pages
+              </span>
+              {basket.services.length > 0 && (
+                <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                  ✨ {basket.services.length} services
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => setSheet('breakdown')}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#2563eb',
+                cursor: 'pointer',
+                padding: '4px 6px'
+              }}
+            >
               Breakdown →
             </button>
           </div>
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4 }}>
-            <span style={{ fontSize: 13, color: '#718096' }}>{basket.files.reduce((s, f) => s + f.pages, 0)} pages</span>
-            <span style={{ fontSize: 32, fontWeight: 800, letterSpacing: -1 }}>₹{total.toFixed(2)}</span>
+            <span style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>Total payable</span>
+            <span style={{ fontSize: 34, fontWeight: 900, color: '#0f172a', letterSpacing: -1 }}>
+              ₹{total.toFixed(2)}
+            </span>
           </div>
+
           {pricing.savingsTip && (
-            <div style={{ fontSize: 12, color: '#1f9d55', marginTop: 8, padding: '6px 10px', background: '#f0fdf4', borderRadius: 8 }}>
-              💡 {pricing.savingsTip}
+            <div style={{
+              fontSize: 11,
+              color: '#15803d',
+              marginTop: 12,
+              padding: '8px 12px',
+              background: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              borderRadius: 8,
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}>
+              <span>💡</span>
+              <span>{pricing.savingsTip}</span>
             </div>
           )}
         </div>
 
-        {/* Payment options */}
-        <div style={{ padding: '20px 24px 8px' }}>
-          <h2 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 700 }}>Choose payment method</h2>
+        {/* Payment Method Selector */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 10 }}>
+            CHOOSE PAYMENT METHOD
+          </div>
 
           {/* 1. UPI Intent / QR (Primary) */}
-          <label style={{
-            display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', marginBottom: 10,
-            background: payment === 'UPI' ? '#eff6ff' : '#fff',
-            border: `2px solid ${payment === 'UPI' ? '#3b82f6' : '#e2e8f0'}`,
-            borderRadius: 14, cursor: 'pointer'
-          }}>
-            <input type="radio" name="pay" value="UPI" checked={payment === 'UPI'} onChange={() => setPayment('UPI')} style={{ accentColor: '#3b82f6' }} />
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 6 }}>
-                ⚡ Pay with UPI
-                <span style={{ fontSize: 10, background: '#dbeafe', color: '#1d4ed8', padding: '1px 6px', borderRadius: 4, fontWeight: 800 }}>Fastest</span>
+          <div
+            onClick={() => setPayment('UPI')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px',
+              marginBottom: 10,
+              background: payment === 'UPI' ? '#eff6ff' : '#ffffff',
+              border: `2px solid ${payment === 'UPI' ? '#2563eb' : '#e2e8f0'}`,
+              borderRadius: 14,
+              cursor: 'pointer',
+              boxShadow: payment === 'UPI' ? '0 4px 14px rgba(37,99,235,0.1)' : '0 2px 6px rgba(0,0,0,0.02)',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                background: payment === 'UPI' ? '#dbeafe' : '#f1f5f9',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 20
+              }}>
+                ⚡
               </div>
-              <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
-                GPay, PhonePe, Paytm, or scan QR
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  Pay with UPI
+                  <span style={{ fontSize: 10, background: '#dbeafe', color: '#1d4ed8', padding: '1px 6px', borderRadius: 4, fontWeight: 800 }}>
+                    Instant & Zero Fee
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                  Google Pay, PhonePe, Paytm, or QR scan
+                </div>
               </div>
             </div>
-          </label>
-
-          {/* 2. Cash at counter */}
-          {enabledMethods.cash && (
-            <label style={{
-              display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', marginBottom: 10,
-              background: payment === 'Cash' ? '#eff6ff' : '#fff',
-              border: `2px solid ${payment === 'Cash' ? '#3b82f6' : '#e2e8f0'}`,
-              borderRadius: 14, cursor: 'pointer'
+            <div style={{
+              width: 20,
+              height: 20,
+              borderRadius: '50%',
+              border: `2px solid ${payment === 'UPI' ? '#2563eb' : '#cbd5e1'}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: payment === 'UPI' ? '#2563eb' : '#fff'
             }}>
-              <input type="radio" name="pay" value="Cash" checked={payment === 'Cash'} onChange={() => setPayment('Cash')} style={{ accentColor: '#3b82f6' }} />
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>💵 Cash at counter</div>
-                <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
-                  Pay cash when your order is called at the shop
+              {payment === 'UPI' && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
+            </div>
+          </div>
+
+          {/* 2. Cash at Counter */}
+          {enabledMethods.cash && (
+            <div
+              onClick={() => setPayment('Cash')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px',
+                marginBottom: 10,
+                background: payment === 'Cash' ? '#f0fdf4' : '#ffffff',
+                border: `2px solid ${payment === 'Cash' ? '#16a34a' : '#e2e8f0'}`,
+                borderRadius: 14,
+                cursor: 'pointer',
+                boxShadow: payment === 'Cash' ? '0 4px 14px rgba(22,163,74,0.1)' : '0 2px 6px rgba(0,0,0,0.02)',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  background: payment === 'Cash' ? '#dcfce7' : '#f1f5f9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 20
+                }}>
+                  💵
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    Cash at Counter
+                    <span style={{ fontSize: 10, background: '#dcfce7', color: '#15803d', padding: '1px 6px', borderRadius: 4, fontWeight: 800 }}>
+                      Pay at Desk
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                    Pay in cash when order is called at the printing counter
+                  </div>
                 </div>
               </div>
-            </label>
+              <div style={{
+                width: 20,
+                height: 20,
+                borderRadius: '50%',
+                border: `2px solid ${payment === 'Cash' ? '#16a34a' : '#cbd5e1'}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: payment === 'Cash' ? '#16a34a' : '#fff'
+              }}>
+                {payment === 'Cash' && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
+              </div>
+            </div>
           )}
 
-          {/* 3. Dormant Razorpay (only shown if configured) */}
+          {/* 3. Razorpay (only shown if configured) */}
           {enabledMethods.razorpay && (
-            <label style={{
-              display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', marginBottom: 10,
-              background: payment === 'Razorpay' ? '#eff6ff' : '#fff',
-              border: `2px solid ${payment === 'Razorpay' ? '#3b82f6' : '#e2e8f0'}`,
-              borderRadius: 14, cursor: 'pointer'
-            }}>
-              <input type="radio" name="pay" value="Razorpay" checked={payment === 'Razorpay'} onChange={() => setPayment('Razorpay')} style={{ accentColor: '#3b82f6' }} />
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>💳 Online Gateway (Razorpay)</div>
-                <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
-                  Cards, Netbanking
+            <div
+              onClick={() => setPayment('Razorpay')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px',
+                marginBottom: 10,
+                background: payment === 'Razorpay' ? '#eff6ff' : '#ffffff',
+                border: `2px solid ${payment === 'Razorpay' ? '#2563eb' : '#e2e8f0'}`,
+                borderRadius: 14,
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
+                  💳
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a' }}>Online Cards & Netbanking</div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Debit card, Credit card, Netbanking</div>
                 </div>
               </div>
-            </label>
+              <div style={{
+                width: 20,
+                height: 20,
+                borderRadius: '50%',
+                border: `2px solid ${payment === 'Razorpay' ? '#2563eb' : '#cbd5e1'}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: payment === 'Razorpay' ? '#2563eb' : '#fff'
+              }}>
+                {payment === 'Razorpay' && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
+              </div>
+            </div>
           )}
         </div>
 
-        <div style={{ padding: '0 24px 16px' }}>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: '#718096' }}>
-            Phone <small style={{ fontWeight: 400 }}>(optional — for ready alert)</small>
+        {/* Notification Phone Input */}
+        <div style={{ background: '#ffffff', borderRadius: 16, border: '1.5px solid #e2e8f0', padding: '16px', marginBottom: 16 }}>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: '#475569' }}>
+            📱 WhatsApp / Phone Number <small style={{ fontWeight: 400, color: '#94a3b8' }}>(optional)</small>
           </label>
-          <input type="tel" placeholder="" value={phone} onChange={e => setPhone(e.target.value)}
-            style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 15, boxSizing: 'border-box' }} />
+          <input
+            type="tel"
+            placeholder="e.g. 9876543210"
+            value={phone}
+            onChange={e => setPhone(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '12px 14px',
+              borderRadius: 10,
+              border: '1.5px solid #cbd5e1',
+              fontSize: 14,
+              boxSizing: 'border-box'
+            }}
+          />
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>
+            Used only to send a ready notification when your document has finished printing.
+          </div>
         </div>
 
         {error && (
-          <div style={{ margin: '0 24px 12px', padding: '10px 14px', background: '#fff5f5', border: '1px solid #fed7d7', borderRadius: 10, color: '#c53030', fontSize: 13 }}>
-            {error}
+          <div style={{ marginBottom: 16, padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, color: '#dc2626', fontSize: 13, fontWeight: 600 }}>
+            ⚠️ {error}
           </div>
         )}
+
+        <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', lineHeight: 1.5 }}>
+          🔒 HKBK Student Point · Files auto-delete 10 minutes after printing
+        </div>
       </div>
 
-      <div style={{ padding: '12px 24px 32px', background: '#fff', borderTop: '1px solid #e2e8f0' }}>
-        <button className="primary full" style={{ width: '100%', padding: 16, fontSize: 17, fontWeight: 700, borderRadius: 14 }}
-          onClick={placeOrder} disabled={loading || (basket.files.length === 0 && basket.services.length === 0)}>
-          {loading ? 'Processing…' : hasQuote ? 'Send for quote' : (payment === 'Cash' ? '✓ Confirm & Pay Cash at Counter' : '⚡ Continue to UPI Payment')}
+      {/* Floating CTA Bottom Bar */}
+      <div style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: '#ffffff',
+        borderTop: '1.5px solid #e2e8f0',
+        padding: '14px 20px 24px',
+        boxShadow: '0 -4px 16px rgba(0,0,0,0.06)',
+        display: 'flex',
+        justifyContent: 'center',
+        zIndex: 50
+      }}>
+        <button
+          onClick={placeOrder}
+          disabled={loading || (basket.files.length === 0 && basket.services.length === 0)}
+          style={{
+            width: '100%',
+            maxWidth: 440,
+            padding: '16px',
+            fontSize: 16,
+            fontWeight: 800,
+            borderRadius: 14,
+            border: 'none',
+            background: payment === 'Cash' ? '#15803d' : '#2563eb',
+            color: '#ffffff',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            boxShadow: payment === 'Cash' ? '0 4px 14px rgba(21,128,61,0.3)' : '0 4px 14px rgba(37,99,235,0.3)',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8
+          }}
+        >
+          {loading ? (
+            'Processing Order…'
+          ) : hasQuote ? (
+            'Send Documents for Quote'
+          ) : payment === 'Cash' ? (
+            `✓ Reserve & Pay ₹${total.toFixed(2)} in Cash at Counter`
+          ) : (
+            `⚡ Pay ₹${total.toFixed(2)} via UPI`
+          )}
         </button>
       </div>
     </main>
