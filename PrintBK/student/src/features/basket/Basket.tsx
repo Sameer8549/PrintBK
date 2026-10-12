@@ -21,9 +21,19 @@ const nUpOptions: { value: number; label: string }[] = [
   { value: 2, label: '2-up' },
   { value: 4, label: '4-up' },
 ];
+const orientationOptions: { value: 'auto' | 'portrait' | 'landscape'; label: string }[] = [
+  { value: 'auto', label: 'Auto (Best fit)' },
+  { value: 'portrait', label: 'Portrait' },
+  { value: 'landscape', label: 'Landscape' },
+];
+const layoutModeOptions: { value: 'standard' | 'handout' | 'booklet'; label: string }[] = [
+  { value: 'standard', label: 'Standard' },
+  { value: 'handout', label: 'Handout' },
+  { value: 'booklet', label: 'Booklet' },
+];
 
 /* ─── Actual Document Preview (PDF Canvas / Image / PPTX / DOCX / Slider) ── */
-function DocumentPreview({ file }: { file: PrintFile }) {
+function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) => void }) {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(file.pages || 1);
   const [loading, setLoading] = useState(false);
@@ -71,6 +81,23 @@ function DocumentPreview({ file }: { file: PrintFile }) {
           if (!active) return;
           setPdfDoc(doc);
           setTotalPages(doc.numPages);
+
+          const metrics = [];
+          for (let pNum = 1; pNum <= Math.min(doc.numPages, 100); pNum++) {
+            try {
+              const p = await doc.getPage(pNum);
+              const vp = p.getViewport({ scale: 1.0 });
+              metrics.push({
+                pageNumber: pNum,
+                width: vp.width,
+                height: vp.height,
+                rotation: p.rotate || 0
+              });
+            } catch (_) {}
+          }
+          if (active && metrics.length > 0) {
+            useBasket.getState().updateFile(file.id, { pageMetrics: metrics, pages: doc.numPages });
+          }
         }
       } catch (err) {
         console.warn('PDF preview error:', err);
@@ -164,10 +191,28 @@ function DocumentPreview({ file }: { file: PrintFile }) {
           }
 
           const parsedSlides: { title: string; bullets: string[] }[] = [];
+          const slideMetrics: { pageNumber: number; width: number; height: number; rotation: number }[] = [];
 
           if (isZip) {
             const JSZip = (await import('jszip')).default;
             const zip = await JSZip.loadAsync(buf);
+
+            // 1. Detect base presentation slide dimensions (e.g. 16:9 vs 4:3)
+            let baseSlideW = 320;
+            let baseSlideH = 180;
+            const presKey = Object.keys(zip.files).find(k => k.replace(/\\/g, '/').toLowerCase().endsWith('ppt/presentation.xml'));
+            if (presKey) {
+              const presText = await zip.files[presKey].async('text');
+              const cxMatch = presText.match(/cx="(\d+)"[^>]*cy="(\d+)"/i) || presText.match(/cy="(\d+)"[^>]*cx="(\d+)"/i);
+              if (cxMatch) {
+                const cx = parseInt(cxMatch[1], 10);
+                const cy = parseInt(cxMatch[2], 10);
+                if (cx && cy) {
+                  baseSlideW = cx / 36000;
+                  baseSlideH = cy / 36000;
+                }
+              }
+            }
 
             // Check for thumbnail
             const thumbKey = Object.keys(zip.files).find(k => /docprops[\\/]thumbnail\.(jpe?g|png)$/i.test(k));
@@ -191,6 +236,20 @@ function DocumentPreview({ file }: { file: PrintFile }) {
             for (let idx = 0; idx < slideKeys.length; idx++) {
               const key = slideKeys[idx];
               const xml = await zip.files[key].async('text');
+
+              // Detect per-slide rotation or transform
+              let rot = 0;
+              const rotMatch = xml.match(/rot="(\d+)"/);
+              if (rotMatch) {
+                rot = Math.round(parseInt(rotMatch[1], 10) / 60000) % 360;
+              }
+              const isSwapped = rot === 90 || rot === 270;
+              slideMetrics.push({
+                pageNumber: idx + 1,
+                width: isSwapped ? baseSlideH : baseSlideW,
+                height: isSwapped ? baseSlideW : baseSlideH,
+                rotation: rot
+              });
               
               // Extract paragraph by paragraph
               const pMatches = Array.from(xml.matchAll(/<a:p[^>]*>([\s\S]*?)<\/a:p>/gi));
@@ -309,9 +368,10 @@ function DocumentPreview({ file }: { file: PrintFile }) {
           if (active && parsedSlides.length > 0) {
             setOfficeSlides(parsedSlides);
             setTotalPages(parsedSlides.length);
-            if (file.pages !== parsedSlides.length) {
-              useBasket.getState().updateFile(file.id, { pages: parsedSlides.length });
-            }
+            useBasket.getState().updateFile(file.id, {
+              pages: parsedSlides.length,
+              pageMetrics: slideMetrics.length > 0 ? slideMetrics : undefined
+            });
           }
         } else if (isDoc) {
           // Read word/document.xml
@@ -364,6 +424,29 @@ function DocumentPreview({ file }: { file: PrintFile }) {
     }
   }, [page, hasPptxRendered]);
 
+  // Calculate current page metric & rotation
+  const currentMetric = file.pageMetrics?.[page - 1];
+  const currentRot = ((file.settings.pageRotations?.[page] ?? currentMetric?.rotation ?? 0) % 360 + 360) % 360;
+  const isPageLandscape = currentMetric
+    ? ((currentRot === 90 || currentRot === 270) ? currentMetric.width <= currentMetric.height : currentMetric.width >= currentMetric.height)
+    : isPpt;
+
+  // Detect mixed slide sizes
+  const portraitPages = (file.pageMetrics || []).filter(m => {
+    const rot = ((file.settings.pageRotations?.[m.pageNumber] ?? m.rotation ?? 0) % 360 + 360) % 360;
+    const isWider = m.width >= m.height;
+    return (rot === 90 || rot === 270) ? isWider : !isWider;
+  }).map(m => m.pageNumber);
+  const isMixed = file.pageMetrics && file.pageMetrics.length > 1 && portraitPages.length > 0 && portraitPages.length < file.pageMetrics.length;
+
+  const handleRotateCurrentPage = () => {
+    const nextRot = (currentRot + 90) % 360;
+    const nextRotations = { ...(file.settings.pageRotations || {}), [page]: nextRot };
+    useBasket.getState().updateFile(file.id, {
+      settings: { ...file.settings, pageRotations: nextRotations }
+    });
+  };
+
   // Live CSS filter: Grayscale + high contrast for B&W, natural for Colour
   const filterStyle = isBW
     ? 'grayscale(100%) contrast(140%) brightness(102%)'
@@ -402,12 +485,29 @@ function DocumentPreview({ file }: { file: PrintFile }) {
         </div>
       </div>
 
+      {/* Mixed Slide Sizes Info Note */}
+      {isMixed && (
+        <div style={{
+          fontSize: 11,
+          background: '#eff6ff',
+          color: '#1d4ed8',
+          padding: '6px 10px',
+          borderRadius: 6,
+          border: '1px solid #bfdbfe',
+          width: '100%',
+          boxSizing: 'border-box',
+          lineHeight: 1.4
+        }}>
+          ℹ️ Slide{portraitPages.length > 1 ? 's' : ''} {portraitPages.slice(0, 5).join(', ')}{portraitPages.length > 5 ? '…' : ''} {portraitPages.length > 1 ? 'are' : 'is'} portrait; we will fit them automatically.
+        </div>
+      )}
+
       {/* Main Preview Screen */}
       <div style={{
         position: 'relative',
         width: '100%',
-        maxWidth: isPpt ? 320 : 260,
-        minHeight: isPpt ? 180 : 280,
+        maxWidth: isPageLandscape ? 320 : 240,
+        minHeight: isPageLandscape ? 180 : 280,
         background: '#fff',
         borderRadius: 8,
         border: '1.5px solid #0f172a',
@@ -427,7 +527,16 @@ function DocumentPreview({ file }: { file: PrintFile }) {
 
         {/* 1. PDF Canvas Preview */}
         {isPdf && (
-          <canvas ref={canvasRef} style={{ width: '100%', height: 'auto', display: 'block' }} />
+          <canvas
+            ref={canvasRef}
+            style={{
+              width: '100%',
+              height: 'auto',
+              display: 'block',
+              transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
+              transition: 'transform 0.2s ease'
+            }}
+          />
         )}
 
         {/* 2. Image Preview */}
@@ -435,13 +544,28 @@ function DocumentPreview({ file }: { file: PrintFile }) {
           <img
             src={URL.createObjectURL(raw)}
             alt="Preview"
-            style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain' }}
+            style={{
+              width: '100%',
+              height: 'auto',
+              display: 'block',
+              objectFit: 'contain',
+              transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
+              transition: 'transform 0.2s ease'
+            }}
           />
         )}
 
         {/* 3. PPTX / PPT Slide Preview */}
         {isPpt && (
-          <div style={{ width: '100%', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{
+            width: '100%',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
+            transition: 'transform 0.2s ease'
+          }}>
             {/* Visual Full Presentation Container */}
             <div
               ref={pptxContainerRef}
@@ -457,7 +581,7 @@ function DocumentPreview({ file }: { file: PrintFile }) {
             {!hasPptxRendered && (
               <div style={{
                 width: '100%',
-                aspectRatio: '16/9',
+                aspectRatio: isPageLandscape ? '16/9' : '3/4',
                 background: isBW ? '#ffffff' : 'linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%)',
                 border: '1.5px solid #cbd5e1',
                 borderRadius: 8,
@@ -534,47 +658,94 @@ function DocumentPreview({ file }: { file: PrintFile }) {
         )}
       </div>
 
-      {/* Page by Page Slider Controls */}
-      {totalPages > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, width: '100%', maxWidth: isPpt ? 320 : 260, justifyContent: 'space-between' }}>
-          <button
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page <= 1}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 8,
-              border: '1.5px solid #cbd5e1',
-              background: page <= 1 ? '#f1f5f9' : '#fff',
-              color: page <= 1 ? '#94a3b8' : '#0f172a',
-              cursor: page <= 1 ? 'not-allowed' : 'pointer',
-              fontWeight: 700,
-              fontSize: 12
-            }}
-          >
-            ◀ Prev
-          </button>
+      {/* Page by Page Slider Controls + Rotate Override */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, width: '100%', maxWidth: 320, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 8,
+                border: '1.5px solid #cbd5e1',
+                background: page <= 1 ? '#f1f5f9' : '#fff',
+                color: page <= 1 ? '#94a3b8' : '#0f172a',
+                cursor: page <= 1 ? 'not-allowed' : 'pointer',
+                fontWeight: 700,
+                fontSize: 11
+              }}
+            >
+              ◀
+            </button>
 
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
-            {isPpt ? `Slide ${page} of ${totalPages}` : `Page ${page} of ${totalPages}`}
-          </span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#0f172a' }}>
+              {isPpt ? `Slide ${page}/${totalPages}` : `Page ${page}/${totalPages}`}
+            </span>
 
-          <button
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 8,
-              border: '1.5px solid #cbd5e1',
-              background: page >= totalPages ? '#f1f5f9' : '#fff',
-              color: page >= totalPages ? '#94a3b8' : '#0f172a',
-              cursor: page >= totalPages ? 'not-allowed' : 'pointer',
-              fontWeight: 700,
-              fontSize: 12
-            }}
-          >
-            Next ▶
-          </button>
-        </div>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 8,
+                border: '1.5px solid #cbd5e1',
+                background: page >= totalPages ? '#f1f5f9' : '#fff',
+                color: page >= totalPages ? '#94a3b8' : '#0f172a',
+                cursor: page >= totalPages ? 'not-allowed' : 'pointer',
+                fontWeight: 700,
+                fontSize: 11
+              }}
+            >
+              ▶
+            </button>
+          </div>
+        )}
+
+        <button
+          onClick={handleRotateCurrentPage}
+          title="Rotate 90° clockwise"
+          style={{
+            padding: '6px 10px',
+            borderRadius: 8,
+            border: '1.5px solid #cbd5e1',
+            background: '#fff',
+            color: '#0f172a',
+            cursor: 'pointer',
+            fontSize: 11,
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4
+          }}
+        >
+          ⟳ Rotate {currentRot > 0 ? `(${currentRot}°)` : ''}
+        </button>
+      </div>
+
+      {/* Button to open Full Sheet Print Preview */}
+      {go && (
+        <button
+          onClick={() => go('preview')}
+          style={{
+            width: '100%',
+            maxWidth: 320,
+            padding: '8px 12px',
+            borderRadius: 8,
+            border: '1.5px solid #0f172a',
+            background: '#0f172a',
+            color: '#fff',
+            fontWeight: 700,
+            fontSize: 12,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6
+          }}
+        >
+          🔍 Full Sheet Print Preview
+        </button>
       )}
 
       {/* Live mode info text */}
@@ -590,10 +761,12 @@ function FileCard({
   file,
   onUpdate,
   onRemove,
+  go
 }: {
   file: PrintFile;
   onUpdate: (f: PrintFile) => void;
   onRemove: () => void;
+  go?: (screen: Screen) => void;
 }) {
   const [open, setOpen] = useState(true);
   const s = file.settings;
@@ -625,7 +798,7 @@ function FileCard({
       {open && (
         <div style={{ borderTop: '1.5px solid #e2e8f0', padding: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Live Document Preview (PDF / Images / PPTX / DOCX) */}
-          <DocumentPreview file={file} />
+          <DocumentPreview file={file} go={go} />
 
           {/* Colour */}
           <div>
@@ -635,6 +808,32 @@ function FileCard({
                 <button key={opt.value} onClick={() => upd({ colorMode: opt.value })}
                   style={{ ...btn, flex: 1, padding: '9px 4px', lineHeight: 1.3, ...sel(s.colorMode === opt.value) }}>
                   {opt.label}<br /><span style={{ fontSize: 10, fontWeight: 400, opacity: 0.75 }}>{opt.sub}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Orientation */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#718096', letterSpacing: 1.2, marginBottom: 8 }}>ORIENTATION</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {orientationOptions.map(opt => (
+                <button key={opt.value} onClick={() => upd({ orientation: opt.value })}
+                  style={{ ...btn, flex: 1, padding: 10, ...sel((s.orientation ?? 'auto') === opt.value) }}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Layout Mode */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#718096', letterSpacing: 1.2, marginBottom: 8 }}>LAYOUT MODE</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {layoutModeOptions.map(opt => (
+                <button key={opt.value} onClick={() => upd({ layout: opt.value })}
+                  style={{ ...btn, flex: 1, padding: 10, ...sel((s.layout ?? 'standard') === opt.value) }}>
+                  {opt.label}
                 </button>
               ))}
             </div>
@@ -804,6 +1003,7 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
                 file={f}
                 onUpdate={updated => updateFile(updated.id, updated)}
                 onRemove={() => removeFile(f.id)}
+                go={go}
               />
             ))}
             <button onClick={handleAddMore} style={{ width: '100%', padding: 12, borderRadius: 12, border: '1.5px dashed #c0b8a8', background: 'none', color: '#718096', fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>

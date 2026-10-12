@@ -41,15 +41,24 @@ export const PrintFileSchema = z.object({
   pages: z.number(),
   colorPages: z.number().default(0),
   colorDetection: z.enum(['pending', 'done', 'failed', 'na']).default('na'),
+  pageMetrics: z.array(z.object({
+    pageNumber: z.number(),
+    width: z.number(),
+    height: z.number(),
+    rotation: z.number().optional()
+  })).optional(),
   settings: z.object({
     copies: z.number().default(1),
-    colorMode: z.enum(['bw', 'color', 'auto']).default('bw'),
+    colorMode: z.enum(['bw', 'color', 'colour', 'auto', 'custom']).default('bw'),
     sided: z.enum(['single', 'double']).default('single'),
     paper: z.enum(['A4', 'A3', 'Legal']).default('A4'),
     orientation: z.enum(['portrait', 'landscape', 'auto']).default('auto'),
     nUp: z.number().default(1),
+    layout: z.enum(['standard', 'handout', 'booklet']).default('standard'),
     booklet: z.boolean().default(false),
-    range: z.string().default('all')
+    range: z.string().default('all'),
+    pageRotations: z.record(z.string(), z.number()).optional().default({}),
+    duplexEdge: z.enum(['long', 'short']).optional()
   })
 });
 export type PrintFile = z.infer<typeof PrintFileSchema>;
