@@ -1,7 +1,8 @@
 import type { Basket, ShopConfig, PrintFile } from './schemas';
 import { parsePageRange } from './parsePageRange';
 
-export { defaultShopConfig } from './defaultConfig';
+import { defaultShopConfig } from './defaultConfig';
+export { defaultShopConfig };
 
 export interface PriceLine {
   id: string;
@@ -27,7 +28,7 @@ function roundTo50Paise(val: number): number {
   return Math.round(val * 2) / 2;
 }
 
-export function priceOrder(basket: Basket, config: ShopConfig, now: Date = new Date()): PriceBreakdown {
+export function priceOrder(basket: Basket, config: ShopConfig = defaultShopConfig, now: Date = new Date()): PriceBreakdown {
   const lines: PriceLine[] = [];
   let subtotal = 0;
   let quotePending = false;

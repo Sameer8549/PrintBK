@@ -25,3 +25,8 @@ This reference document specifies the hard operational limits and quotas enforce
 1. **ZCQL Schema Drift Resilience**: If a newly added column (e.g. `order_number`) is queried before replication finishes across Catalyst replicas, the queries in `functions/api/index.js` fall back to the base column set transparently without throwing a 500 error.
 2. **Database Fallback for Pickup Codes**: If active order query times out, `crypto.randomInt(1000, 10000)` draws from the 4-digit namespace directly, ensuring orders can always be placed.
 3. **Stream Piping for Downloads**: File downloads (`GET /files/:cloudId`) use Node.js streams (`fileStream.pipe(res)`) rather than loading whole files into function RAM, preserving concurrency capacity.
+4. **Empirical Large Upload Validation (`scripts/test-upload-sizes.mjs`)**:
+   - **20 MB PDF Upload**: Succeeded (HTTP 200, returned `cloudId: 43505000000484041`).
+   - **25 MB PDF Upload**: Succeeded (HTTP 200, returned `cloudId: 43505000000503015`).
+   - **26 MB PDF Upload**: Rejected with HTTP 413 Payload Too Large (`LIMIT_FILE_SIZE`).
+   - Both 20 MB and 25 MB uploads stream directly to disk in `os.tmpdir()` and forward to File Store via Node streams, completely bypassing in-memory buffer exhaustion.

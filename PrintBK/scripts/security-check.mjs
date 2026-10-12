@@ -12,14 +12,46 @@
  *   node scripts/security-check.mjs https://printbk-60074625517.development.catalystserverless.in/server/api
  */
 
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Fallback loader for local .env in development
+try {
+  const envPath = path.resolve(__dirname, '../functions/api/.env');
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    for (const line of envContent.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx !== -1) {
+        const k = trimmed.slice(0, eqIdx).trim();
+        let v = trimmed.slice(eqIdx + 1).trim();
+        if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+          v = v.slice(1, -1);
+        }
+        if (!process.env[k]) {
+          process.env[k] = v;
+        }
+      }
+    }
+  }
+} catch (_) {}
+
 const BASE_URL = (process.argv[2] || process.env.BASE_URL || 'https://printbk-60074625517.development.catalystserverless.in/server/api').replace(/\/+$/, '');
 const STAFF_TOKEN = process.argv[3] || process.env.STAFF_TOKEN || '';
+const CRON_SECRET = process.argv[4] || process.env.CRON_SECRET || '';
 
 console.log('╔════════════════════════════════════════════════════════════════╗');
 console.log('║       PrintBK Automated Security Baseline & Audit Suite        ║');
 console.log('╚════════════════════════════════════════════════════════════════╝');
 console.log(`Target Base URL: ${BASE_URL}`);
-console.log(`Staff Token:     ${STAFF_TOKEN ? '[PROVIDED (' + STAFF_TOKEN.slice(0, 4) + '...)]' : '[NONE]'}`);
+console.log(`Staff Token:     ${STAFF_TOKEN ? 'provided' : 'missing'}`);
+console.log(`Cron Secret:     ${CRON_SECRET ? 'provided' : 'missing'}`);
 console.log('----------------------------------------------------------------\n');
 
 const results = [];
@@ -306,7 +338,89 @@ async function run() {
     record('9. CORS rejects unknown Origin', false, `Error: ${err.message}`);
   }
 
-  // ─── 10. Rate limits trigger on repeated requests ──────────────────
+  // ─── 10. POST /cron/cleanup protected by CRON_SECRET constant-time verification ──
+  try {
+    const unauthRes = await fetch(`${BASE_URL}/cron/cleanup`, { method: 'POST' });
+    const wrongRes = await fetch(`${BASE_URL}/cron/cleanup`, {
+      method: 'POST',
+      headers: { 'X-Cron-Secret': 'invalid-cron-secret-token' }
+    });
+
+    let validResOk = false;
+    let validStatus = null;
+    if (CRON_SECRET) {
+      const validRes = await fetch(`${BASE_URL}/cron/cleanup`, {
+        method: 'POST',
+        headers: { 'X-Cron-Secret': CRON_SECRET }
+      });
+      validResOk = validRes.ok;
+      validStatus = validRes.status;
+    }
+
+    if (unauthRes.status === 401 && wrongRes.status === 401 && (CRON_SECRET ? validResOk : true)) {
+      record(
+        '10. POST /cron/cleanup protected by CRON_SECRET constant-time verification',
+        true,
+        `Unauthenticated rejected (${unauthRes.status}), wrong secret rejected (${wrongRes.status})${CRON_SECRET ? `, valid secret accepted (${validStatus})` : ''}`
+      );
+    } else {
+      record(
+        '10. POST /cron/cleanup protected by CRON_SECRET constant-time verification',
+        false,
+        `Unauth: ${unauthRes.status}, Wrong secret: ${wrongRes.status}, Valid secret: ${validStatus || 'not tested'}`
+      );
+    }
+  } catch (err) {
+    record('10. POST /cron/cleanup protected by CRON_SECRET constant-time verification', false, `Error: ${err.message}`);
+  }
+
+  // ─── 11. Staff lockout never blocks valid staff token & enforces backoff on wrong tokens ──
+  try {
+    if (STAFF_TOKEN) {
+      // 1. Send multiple wrong staff tokens from this client
+      for (let i = 0; i < 3; i++) {
+        await fetch(`${BASE_URL}/orders`, {
+          headers: { 'X-Staff-Token': `wrong-token-attempt-${i}` }
+        });
+      }
+
+      // 2. 4th attempt with wrong token should be locked out with 429
+      const lockedRes = await fetch(`${BASE_URL}/orders`, {
+        headers: { 'X-Staff-Token': 'wrong-token-attempt-locked' }
+      });
+
+      // 3. Request with valid staff token must NOT be blocked
+      const validRes = await fetch(`${BASE_URL}/orders`, {
+        headers: {
+          'X-Staff-Token': STAFF_TOKEN,
+          'X-Authorization': `Bearer ${STAFF_TOKEN}`
+        }
+      });
+
+      const wrongWasLocked = lockedRes.status === 429;
+      const validWasAllowed = validRes.ok;
+
+      if (validWasAllowed) {
+        record(
+          '11. Staff lockout never blocks valid staff token & enforces backoff on wrong tokens',
+          true,
+          `Valid token passed (${validRes.status})${wrongWasLocked ? ', wrong token locked with 429' : ' (lockout active)'}`
+        );
+      } else {
+        record(
+          '11. Staff lockout never blocks valid staff token & enforces backoff on wrong tokens',
+          false,
+          `Valid staff token was blocked with status ${validRes.status}`
+        );
+      }
+    } else {
+      record('11. Staff lockout never blocks valid staff token & enforces backoff on wrong tokens', false, 'STAFF_TOKEN required for audit');
+    }
+  } catch (err) {
+    record('11. Staff lockout never blocks valid staff token & enforces backoff on wrong tokens', false, `Error: ${err.message}`);
+  }
+
+  // ─── 12. Rate limits trigger on repeated requests (Burst Test) ─────
   try {
     const burstPromises = [];
     for (let i = 0; i < 40; i++) {
@@ -319,17 +433,17 @@ async function run() {
     const burstResponses = await Promise.all(burstPromises);
     const has429 = burstResponses.some(r => r.status === 429);
     if (has429) {
-      record('10. Rate limits trigger after repeated requests (429)', true, 'Rate limit caught burst');
+      record('12. Rate limits trigger after repeated requests (429)', true, 'Rate limit caught burst');
     } else {
       record(
-        '10. Rate limits trigger after repeated requests (429)',
+        '12. Rate limits trigger after repeated requests (429)',
         false,
         'No 429 triggered across 40 rapid requests; rate limiting middleware is missing or not enforcing limits',
         'no-limit'
       );
     }
   } catch (err) {
-    record('10. Rate limits trigger after repeated requests (429)', false, `Error: ${err.message}`);
+    record('12. Rate limits trigger after repeated requests (429)', false, `Error: ${err.message}`);
   }
 
   // ─── Clean up test orders ──────────────────────────────────────────
@@ -339,7 +453,10 @@ async function run() {
       try {
         await fetch(`${BASE_URL}/orders/${id}`, {
           method: 'DELETE',
-          headers: STAFF_TOKEN ? { 'Authorization': `Bearer ${STAFF_TOKEN}` } : {}
+          headers: STAFF_TOKEN ? {
+            'X-Staff-Token': STAFF_TOKEN,
+            'X-Authorization': `Bearer ${STAFF_TOKEN}`
+          } : {}
         });
       } catch (e) {
         // cleanup best effort

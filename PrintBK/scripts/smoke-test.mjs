@@ -9,6 +9,36 @@
  *   node scripts/smoke-test.mjs [BASE_URL] [STAFF_TOKEN]
  */
 
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Fallback loader for local .env in development
+try {
+  const envPath = path.resolve(__dirname, '../functions/api/.env');
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    for (const line of envContent.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx !== -1) {
+        const k = trimmed.slice(0, eqIdx).trim();
+        let v = trimmed.slice(eqIdx + 1).trim();
+        if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+          v = v.slice(1, -1);
+        }
+        if (!process.env[k]) {
+          process.env[k] = v;
+        }
+      }
+    }
+  }
+} catch (_) {}
+
 const BASE_URL = (process.argv[2] || process.env.BASE_URL || 'https://printbk-60074625517.development.catalystserverless.in/server/api').replace(/\/+$/, '');
 const STAFF_TOKEN = process.argv[3] || process.env.STAFF_TOKEN || '';
 
@@ -22,7 +52,7 @@ console.log('╔═════════════════════�
 console.log('║       PrintBK Staff Counter End-to-End Smoke Test Suite        ║');
 console.log('╚════════════════════════════════════════════════════════════════╝');
 console.log(`Target Base URL: ${BASE_URL}`);
-console.log(`Staff Token:     [PROVIDED (${STAFF_TOKEN.slice(0, 4)}...)]`);
+console.log(`Staff Token:     ${STAFF_TOKEN ? 'provided' : 'missing'}`);
 console.log('----------------------------------------------------------------\n');
 
 let passCount = 0;

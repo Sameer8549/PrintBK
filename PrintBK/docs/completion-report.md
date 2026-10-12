@@ -11,10 +11,11 @@
 
 All 10 security, payment, data model, and architecture issues outlined in the PrintBK Security Hardening initiative have been completely resolved, empirically verified on the live Zoho Catalyst development environment, and documented with zero visual regressions to the student user experience.
 
-- **Zero Security Regressions**: 10 out of 10 automated security audit vectors passed on the live deployment.
+- **Zero Security Regressions**: 12 out of 12 automated security audit vectors passed on the live deployment.
 - **Zero Pricing Drift**: Unified TypeScript pricing engine in `@printbk/shared` synchronized with backend CJS bundle; passes all 110 golden test vectors with $\le 0.01\text{ INR}$ precision.
 - **End-to-End Staff Lifecycle Verification**: 19 out of 19 assertions passed in `scripts/smoke-test.mjs`, covering cash placement, counter approval, state transitions, retention timer scheduling, and cryptographic file purging.
-- **Student Privacy & File Protection**: Capability tokens (`X-Order-Token`), authenticated file downloads (`GET /files/:cloudId`), magic byte content sniffing, and automated 5-minute file retention policies enforced.
+- **Automated Retention Test Suite**: 12 out of 12 assertions passed in `scripts/retention-test.mjs`, verifying real file upload, transition to ready, retention wait, `POST /cron/cleanup` execution with `CRON_SECRET`, permanent file deletion from File Store, and `files_deleted_at` timestamp recording.
+- **Student Privacy & File Protection**: Capability tokens (`X-Order-Token`), authenticated file downloads (`GET /files/:cloudId`), magic byte content sniffing, disk-streamed multer uploads up to 25 MB, and automated 5-minute file retention policies enforced.
 - **Dormant Razorpay Architecture**: Cash at counter active; Razorpay dormant with zero student UPI claim attack surfaces.
 
 ---
@@ -29,7 +30,8 @@ Executed against live Catalyst URL: `https://printbk-60074625517.development.cat
 ║       PrintBK Automated Security Baseline & Audit Suite        ║
 ╚════════════════════════════════════════════════════════════════╝
 Target Base URL: https://printbk-60074625517.development.catalystserverless.in/server/api
-Staff Token:     [PROVIDED (fafe...)]
+Staff Token:     provided
+Cron Secret:     provided
 ----------------------------------------------------------------
 
 [ PASS ] 1. Unauthenticated GET /orders is rejected (401/403)
@@ -50,17 +52,64 @@ Staff Token:     [PROVIDED (fafe...)]
          Detail: Returned 401
 [ PASS ] 9. CORS rejects unknown Origin
          Detail: Header: [absent]
-[ PASS ] 10. Rate limits trigger after repeated requests (429)
+[ PASS ] 10. POST /cron/cleanup protected by CRON_SECRET constant-time verification
+         Detail: Unauthenticated rejected (401), wrong secret rejected (401), valid secret accepted (200)
+[ PASS ] 11. Staff lockout never blocks valid staff token & enforces backoff on wrong tokens
+         Detail: Valid token passed (200), wrong token locked with 429
+[ PASS ] 12. Rate limits trigger after repeated requests (429)
          Detail: Rate limit caught burst
 
 Cleaning up 2 test order(s)...
 
 ════════════════════════════════════════════════════════════════
-Summary: 10 PASSED, 0 FAILED out of 10 checks
+Summary: 12 PASSED, 0 FAILED out of 12 checks
 ════════════════════════════════════════════════════════════════
 ```
 
-### 2.2 End-to-End Staff Counter Smoke Test (`scripts/smoke-test.mjs`)
+### 2.2 Automated File Store Retention Test Suite (`scripts/retention-test.mjs`)
+Executed against live Catalyst URL: `https://printbk-60074625517.development.catalystserverless.in/server/api`
+
+```
+╔════════════════════════════════════════════════════════════════╗
+║       PrintBK Automated File Store Retention Test Suite        ║
+╚════════════════════════════════════════════════════════════════╝
+Target Base URL: https://printbk-60074625517.development.catalystserverless.in/server/api
+Staff Token:     provided
+Cron Secret:     provided
+----------------------------------------------------------------
+
+Step 1: Uploading a real valid PDF document to File Store...
+[ PASS ] 1. Upload real PDF to File Store succeeds (Status: 200)
+[ PASS ]    Cloud ID assigned to uploaded file
+[ PASS ]    Staff can download newly uploaded file from File Store (Status: 200)
+
+Step 2: Placing order with uploaded file reference...
+[ PASS ] 2. Order placed successfully with real file (Status: 200)
+[ PASS ]    Order ID created
+
+Step 3: Staff approves cash order and transitions to ready...
+[ PASS ] 3. Staff approves cash order (status -> processing, Status: 200)
+[ PASS ]    Staff advances status to printing (Status: 200)
+[ PASS ]    Staff advances status to ready with retention window (Status: 200)
+[ PASS ] 4. delete_after timestamp scheduled on order
+
+Step 4: Waiting past delete_after plus one interval (waiting 7s)...
+Step 5: Invoking POST /cron/cleanup with CRON_SECRET...
+[ PASS ] 5. POST /cron/cleanup executed successfully with valid CRON_SECRET (Status: 200)
+   Purged Orders: 1, Purged Files: 1
+
+Step 6: Verifying file is permanently purged from File Store...
+[ PASS ] 6. File is gone from File Store (GET /files/:cloudId returns 404 Not Found)
+
+Step 7: Verifying order data in Data Store shows filesDeletedAt...
+[ PASS ] 7. Order in Data Store reflects filesDeletedAt timestamp
+
+════════════════════════════════════════════════════════════════
+Retention Test Summary: 12 PASSED, 0 FAILED out of 12 assertions
+════════════════════════════════════════════════════════════════
+```
+
+### 2.3 End-to-End Staff Counter Smoke Test (`scripts/smoke-test.mjs`)
 Executed against live Catalyst URL: `https://printbk-60074625517.development.catalystserverless.in/server/api`
 
 ```
@@ -68,7 +117,7 @@ Executed against live Catalyst URL: `https://printbk-60074625517.development.cat
 ║       PrintBK Staff Counter End-to-End Smoke Test Suite        ║
 ╚════════════════════════════════════════════════════════════════╝
 Target Base URL: https://printbk-60074625517.development.catalystserverless.in/server/api
-Staff Token:     [PROVIDED (fafe...)]
+Staff Token:     provided
 ----------------------------------------------------------------
 
 [ PASS ] 1. GET /health responds with 200 OK
@@ -96,7 +145,7 @@ Smoke Test Summary: 19 PASSED, 0 FAILED
 ════════════════════════════════════════════════════════════════
 ```
 
-### 2.3 Single Source of Truth Pricing Verification (`packages/shared/src/pricing.test.ts`)
+### 2.4 Single Source of Truth Pricing Verification (`packages/shared/src/pricing.test.ts`)
 Executed against 110 distinct test vectors in `packages/shared/test-vectors/pricing.json`:
 
 ```
@@ -115,6 +164,15 @@ Test Files  1 passed (1)
   Duration  382ms
 ```
 
+### 2.5 Large File Upload Verification (20 MB & 25 MB) (`scripts/test-upload-sizes.mjs`)
+Executed on live Catalyst development environment:
+
+```
+[ PASS ] 20 MB PDF Upload: Status 200 OK (Uploaded in 18.7s, Cloud ID assigned)
+[ PASS ] 25 MB PDF Upload: Status 200 OK (Uploaded in 20.7s, Cloud ID assigned)
+[ PASS ] 26 MB PDF Upload: Status 413 Payload Too Large (Blocked by file size limit)
+```
+
 ---
 
 ## 3. Key Architectural Changes Delivered
@@ -123,7 +181,8 @@ Test Files  1 passed (1)
    - `timingSafeCompare` using `crypto.timingSafeEqual` prevents timing attacks on staff tokens.
    - Dual header support (`X-Staff-Token` and `X-Authorization: Bearer <token>`) prevents Catalyst API Gateway OAuth token interception.
    - Cryptographically random 192-bit access capability tokens (`X-Order-Token`) stored as SHA-256 hashes (`access_token_hash`) in Catalyst Data Store.
-   - Brute-force lockout: 5 failed attempts locks out the client IP for 5 minutes.
+   - Brute-force lockout & Exponential Backoff: Valid staff tokens are never blocked by the lockout; wrong-token lockout operates per IP and per token fingerprint with exponential backoff (starting at 30s, scaling to 15m).
+   - Scheduler Protection: `POST /cron/cleanup` is protected with constant-time verification against `CRON_SECRET` (`X-Cron-Secret` / `X-Cron-Token`).
 
 2. **Server-Authoritative Orders & Pickup Codes (`docs/data-model.md`)**:
    - Client-provided `pickupCode` is ignored; server generates a cryptographically randomized 4-digit code.

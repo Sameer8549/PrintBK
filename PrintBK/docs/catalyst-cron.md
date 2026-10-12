@@ -38,43 +38,56 @@ Follow these exact steps in the Zoho Catalyst Console to schedule automated file
 2. Select the **PrintBK** project.
 3. In the left sidebar, expand **Develop** and click **Cron** (or **Job Scheduling**).
 
-### 2. Create the Cleanup Job
-1. Click **Create Cron** (or **Add Job**).
-2. **Cron Details**:
-   - **Cron Name**: `file_cleanup_job`
+### 2. Add Environment Variables (`CRON_SECRET`)
+Before activating the cron job, make sure `CRON_SECRET` is added to your function environment:
+1. In the left navigation menu under **Serverless**, click **Functions**.
+2. Click on the function named **`api`**.
+3. In the top tab bar, click **Configuration**.
+4. Scroll down to **Environment Variables**.
+5. Set environment to **Development** (and repeat for **Production** upon launch).
+6. Click **Add Variable** (or **+**):
+   - **Key**: `CRON_SECRET`
+   - **Value**: Your high-entropy secret (e.g. 256-bit hex string).
+7. Click the blue **Save** button at the **bottom right of the page**.
+
+### 3. Create the Cleanup Job (Shortest 1-Minute Interval)
+1. In the left sidebar under **Develop**, click **Cron**.
+2. Click **Create Cron** (or **Add Job**).
+3. **Cron Details**:
+   - **Cron Name**: `printbk_file_cleanup`
    - **Description**: `Automated purge for expired print files`
-3. **Schedule Type**:
+4. **Schedule Type**:
    - Select **Recurring / Periodic**.
-   - Frequency: **Every 5 minutes** (Cron expression: `*/5 * * * *`).
+   - Frequency: **Every 1 minute** (the shortest interval supported in Catalyst; Cron expression: `* * * * *`).
    - Time Zone: `Asia/Kolkata` (IST) or `UTC`.
-4. **Execution Action**:
+5. **Execution Action**:
    - Select **URL Callback** (HTTP Request).
    - **HTTP Method**: `POST`
    - **Target URL**:
      - Development: `https://printbk-60074625517.development.catalystserverless.in/server/api/cron/cleanup`
      - Production: `https://<production-domain>/server/api/cron/cleanup`
    - **Headers**:
-     - Key: `Authorization`
-     - Value: `Bearer <STAFF_TOKEN>` (use the exact secret saved in your Environment Variables).
-5. Click **Create** and ensure the status is toggled to **Active**.
+     - Key: `X-Cron-Secret`
+     - Value: `<CRON_SECRET>` (use the exact secret saved in your Environment Variables).
+6. Click **Create** and ensure the status is toggled to **Active**.
 
 ---
 
 ## Manual / On-Demand Execution
 
-Counter staff or maintenance scripts can trigger an immediate retention sweep at any time:
+Automated test suites or scheduler jobs trigger retention sweeps using the `X-Cron-Secret` header:
 
 ```bash
 curl -X POST https://printbk-60074625517.development.catalystserverless.in/server/api/cron/cleanup \
-  -H "Authorization: Bearer $STAFF_TOKEN"
+  -H "X-Cron-Secret: $CRON_SECRET"
 ```
 
 ### Expected Response:
 ```json
 {
   "ok": true,
-  "purgedOrdersCount": 4,
-  "purgedFilesCount": 7
+  "purgedOrdersCount": 1,
+  "purgedFilesCount": 1
 }
 ```
 

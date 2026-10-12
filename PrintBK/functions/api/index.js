@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 // Fallback environment variable loader from local .env
 try {
@@ -41,23 +42,143 @@ app.use((req, res, next) => {
   next();
 });
 
-/* ─── Rate Limiter & Brute-Force Lockout ──────────────────────────── */
+/* ─── Constant-Time Token Comparison & Auth Helpers ─────────────── */
+function timingSafeCompare(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function extractToken(req, headerName = 'staff') {
+  const custom = req.headers[`x-${headerName}-token`] || req.headers['x-token'];
+  if (custom) return String(custom).trim();
+  const auth = req.headers['x-authorization'] || req.headers.authorization;
+  if (auth && typeof auth === 'string') {
+    if (auth.startsWith('Bearer ')) return auth.slice(7).trim();
+    return auth.trim();
+  }
+  return null;
+}
+
+function getTokenFingerprint(token) {
+  if (!token) return 'none';
+  return crypto.createHash('sha256').update(String(token)).digest('hex').slice(0, 16);
+}
+
+function hasValidStaffToken(req) {
+  const staffToken = process.env.STAFF_TOKEN;
+  if (!staffToken) return false;
+  const token = extractToken(req, 'staff');
+  if (!token) return false;
+  return timingSafeCompare(token, staffToken);
+}
+
+function isCronScheduler(req) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) return false;
+  const token = req.headers['x-cron-secret'] || extractToken(req, 'cron');
+  if (!token) return false;
+  return timingSafeCompare(String(token).trim(), cronSecret);
+}
+
+function isAgent(req) {
+  const agentToken = process.env.AGENT_TOKEN;
+  if (!agentToken) return false;
+  const token = extractToken(req, 'agent');
+  if (!token) return false;
+  return timingSafeCompare(token, agentToken);
+}
+
+/* ─── Rate Limiter & Exponential Backoff Lockout ─────────────────── */
 const ipRequests = new Map();
-const failedStaffLogins = new Map();
+const ipLockouts = new Map();       // key: ip -> { attempts, lockedUntil, lastAttempt }
+const tokenLockouts = new Map();    // key: `${ip}:${fp}` -> { attempts, lockedUntil, lastAttempt }
+
+function calculateBackoffMs(attempts) {
+  // Exponential backoff starting at attempt 3: 30s, 60s, 120s, 240s... max 15m
+  if (attempts < 3) return 0;
+  const exponent = attempts - 3;
+  const ms = 30 * 1000 * Math.pow(2, exponent);
+  return Math.min(ms, 15 * 60 * 1000);
+}
+
+function recordFailedStaffAttempt(ip, token) {
+  const now = Date.now();
+  const fp = getTokenFingerprint(token);
+  const targets = [
+    { key: ip, map: ipLockouts },
+    { key: `${ip}:${fp}`, map: tokenLockouts }
+  ];
+
+  for (const { key, map } of targets) {
+    const existing = map.get(key) || { attempts: 0, lockedUntil: 0, lastAttempt: now };
+    if (now - existing.lastAttempt > 15 * 60 * 1000) {
+      existing.attempts = 1;
+    } else {
+      existing.attempts += 1;
+    }
+    existing.lastAttempt = now;
+    const backoffMs = calculateBackoffMs(existing.attempts);
+    if (backoffMs > 0) {
+      existing.lockedUntil = now + backoffMs;
+    }
+    map.set(key, existing);
+  }
+}
+
+function checkStaffLockout(ip, token) {
+  const now = Date.now();
+  const fp = getTokenFingerprint(token);
+  const ipRec = ipLockouts.get(ip);
+  const tokenRec = tokenLockouts.get(`${ip}:${fp}`);
+
+  const rec = (tokenRec && tokenRec.lockedUntil > now)
+    ? tokenRec
+    : (ipRec && ipRec.lockedUntil > now ? ipRec : null);
+
+  if (rec && rec.lockedUntil > now) {
+    const retryAfter = Math.max(1, Math.ceil((rec.lockedUntil - now) / 1000));
+    return { locked: true, retryAfter, lockedUntil: rec.lockedUntil };
+  }
+  return { locked: false };
+}
+
+function isStaff(req) {
+  const staffToken = process.env.STAFF_TOKEN;
+  if (!staffToken) return false;
+  const token = extractToken(req, 'staff');
+  if (!token) return false;
+  const valid = timingSafeCompare(token, staffToken);
+  if (!valid) {
+    const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown-ip';
+    recordFailedStaffAttempt(ip, token);
+  }
+  return valid;
+}
 
 function rateLimiter(req, res, next) {
+  // 1. Valid staff token or cron scheduler is NEVER blocked by lockout or general rate limits
+  if (hasValidStaffToken(req) || isCronScheduler(req)) {
+    return next();
+  }
+
   const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown-ip';
   const now = Date.now();
+  const token = extractToken(req, 'staff');
 
-  // 1. Check if IP is locked out due to repeated failed staff logins
-  const failed = failedStaffLogins.get(ip);
-  if (failed && failed.count >= 5 && (now - failed.lastAttempt) < 5 * 60 * 1000) {
+  // 2. Check if locked out due to wrong-token attempts (per-IP and per-token-fingerprint)
+  const lockout = checkStaffLockout(ip, token);
+  if (lockout.locked) {
+    res.setHeader('Retry-After', String(lockout.retryAfter));
     return res.status(429).json({
-      error: 'Too many failed authentication attempts. Access locked for 5 minutes.'
+      error: 'Too many failed authentication attempts. Access locked with exponential backoff.',
+      retryAfter: lockout.retryAfter
     });
   }
 
-  // 2. Sliding window limit: 30 requests per 10 seconds per IP
+  // 3. Sliding window limit: 30 requests per 10 seconds per IP for general endpoints
   const windowMs = 10 * 1000;
   const maxRequests = 30;
   const record = ipRequests.get(ip) || { count: 0, resetTime: now + windowMs };
@@ -106,96 +227,88 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Order-Token', 'Accept']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Order-Token', 'X-Staff-Token', 'X-Cron-Secret', 'X-Authorization', 'Accept']
 }));
 
 app.use(express.json({ limit: '2mb' }));
 
-/* ─── Constant-Time Token Comparison Helpers ─────────────────────── */
-function timingSafeCompare(a, b) {
-  if (typeof a !== 'string' || typeof b !== 'string') return false;
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
-  return crypto.timingSafeEqual(bufA, bufB);
-}
-
-function extractToken(req, headerName = 'staff') {
-  const custom = req.headers[`x-${headerName}-token`] || req.headers['x-token'];
-  if (custom) return String(custom).trim();
-  const auth = req.headers['x-authorization'] || req.headers.authorization;
-  if (auth && typeof auth === 'string') {
-    if (auth.startsWith('Bearer ')) return auth.slice(7).trim();
-    return auth.trim();
-  }
-  return null;
-}
-
-function isStaff(req) {
-  const staffToken = process.env.STAFF_TOKEN;
-  if (!staffToken) return false;
-  const token = extractToken(req, 'staff');
-  if (!token) return false;
-  const valid = timingSafeCompare(token, staffToken);
-  if (!valid) {
-    const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown-ip';
-    const now = Date.now();
-    const failed = failedStaffLogins.get(ip) || { count: 0, lastAttempt: now };
-    if (now - failed.lastAttempt > 60 * 1000) failed.count = 1;
-    else failed.count++;
-    failed.lastAttempt = now;
-    failedStaffLogins.set(ip, failed);
-  }
-  return valid;
-}
-
-function isAgent(req) {
-  const agentToken = process.env.AGENT_TOKEN;
-  if (!agentToken) return false;
-  const token = extractToken(req, 'agent');
-  if (!token) return false;
-  return timingSafeCompare(token, agentToken);
-}
-
 /* ─── Multer & Magic Bytes File Inspection ───────────────────────── */
-function validateMagicBytes(buffer, mimetype, originalname) {
-  if (!buffer || buffer.length < 4) return false;
-  const ext = (originalname.split('.').pop() || '').toLowerCase();
-  
-  // Disallowed executable and script extensions
-  const dangerous = ['exe', 'bat', 'cmd', 'sh', 'php', 'js', 'vbs', 'ps1', 'msi', 'com', 'scr', 'dll', 'bin'];
-  if (dangerous.includes(ext)) return false;
-
-  // PDF magic bytes: %PDF (0x25, 0x50, 0x44, 0x46)
-  if (ext === 'pdf') {
-    return buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46;
-  }
-  // PNG: 89 50 4E 47
-  if (ext === 'png') {
-    return buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47;
-  }
-  // JPEG: FF D8 FF
-  if (ext === 'jpg' || ext === 'jpeg') {
-    return buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
-  }
-  // Office OpenXML (.docx, .pptx, .xlsx) are ZIP archives: 50 4B (PK)
-  if (['docx', 'pptx', 'xlsx'].includes(ext)) {
-    return buffer[0] === 0x50 && buffer[1] === 0x4B;
-  }
-  // Legacy Office (.doc, .ppt, .xls) are OLE2: D0 CF 11 E0
-  if (['doc', 'ppt', 'xls'].includes(ext)) {
-    return buffer[0] === 0xD0 && buffer[1] === 0xCF && buffer[2] === 0x11 && buffer[3] === 0xE0;
-  }
-  if (ext === 'txt') {
-    return true;
-  }
-  return false;
-}
+const uploadTmpDir = path.join(os.tmpdir(), 'printbk-uploads');
+try { fs.mkdirSync(uploadTmpDir, { recursive: true }); } catch (_) {}
 
 const upload = multer({
-  storage: multer.memoryStorage(),
+  dest: uploadTmpDir,
   limits: { fileSize: 25 * 1024 * 1024 } // 25MB limit
 });
+
+function validateFileMagicBytes(filePath, originalname) {
+  const ext = (originalname.split('.').pop() || '').toLowerCase();
+  const dangerous = ['exe', 'bat', 'cmd', 'sh', 'php', 'js', 'vbs', 'ps1', 'msi', 'com', 'scr', 'dll', 'bin'];
+  if (dangerous.includes(ext)) return false;
+  if (ext === 'txt') return true;
+
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    const buffer = Buffer.alloc(16);
+    const bytesRead = fs.readSync(fd, buffer, 0, 16, 0);
+    fs.closeSync(fd);
+
+    if (bytesRead < 4) return false;
+
+    // PDF magic bytes: %PDF (0x25, 0x50, 0x44, 0x46)
+    if (ext === 'pdf') {
+      return buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46;
+    }
+    // PNG: 89 50 4E 47
+    if (ext === 'png') {
+      return buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47;
+    }
+    // JPEG: FF D8 FF
+    if (ext === 'jpg' || ext === 'jpeg') {
+      return buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
+    }
+    // Office OpenXML (.docx, .pptx, .xlsx) are ZIP archives: 50 4B (PK)
+    if (['docx', 'pptx', 'xlsx'].includes(ext)) {
+      return buffer[0] === 0x50 && buffer[1] === 0x4B;
+    }
+    // Legacy Office (.doc, .ppt, .xls) are OLE2: D0 CF 11 E0
+    if (['doc', 'ppt', 'xls'].includes(ext)) {
+      return buffer[0] === 0xD0 && buffer[1] === 0xCF && buffer[2] === 0x11 && buffer[3] === 0xE0;
+    }
+    return false;
+  } catch (err) {
+    return false;
+  }
+}
+
+let cachedPrintFilesFolderId = null;
+async function getPrintFilesFolder(filestore) {
+  if (cachedPrintFilesFolderId) {
+    try {
+      return filestore.folder(cachedPrintFilesFolderId);
+    } catch (_) {
+      cachedPrintFilesFolderId = null;
+    }
+  }
+
+  try {
+    const folders = await filestore.getAllFolders();
+    const existing = (folders || []).find(f => {
+      const details = f._folderDetails || f;
+      return details.folder_name === 'print_files';
+    });
+    if (existing) {
+      cachedPrintFilesFolderId = (existing._folderDetails || existing).id;
+      return filestore.folder(cachedPrintFilesFolderId);
+    }
+
+    const newF = await filestore.createFolder('print_files');
+    cachedPrintFilesFolderId = (newF._folderDetails || newF).id;
+    return filestore.folder(cachedPrintFilesFolderId);
+  } catch (err) {
+    return filestore.folder('print_files');
+  }
+}
 
 /* ─── Single Source of Truth Pricing Configuration ──────────────── */
 const { priceOrder, defaultShopConfig } = require('./shared/pricing');
@@ -276,39 +389,37 @@ app.get('/shop/status', async (req, res) => {
   }
 });
 
-/* ─── FILE UPLOAD (Hardened with Magic Bytes & MIME Firewall) ───── */
-app.post('/upload', upload.single('file'), async (req, res) => {
+/* ─── FILE UPLOAD (Hardened with Magic Bytes, Multer Disk Streaming & 25MB Ceiling) ───── */
+app.post('/upload', (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'File size exceeds maximum allowed limit of 25 MB' });
+      }
+      return res.status(400).json({ error: `Upload error: ${err.message}` });
+    }
+    next();
+  });
+}, async (req, res) => {
+  let tempFilePath = null;
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    tempFilePath = req.file.path;
 
-    // Enforce Magic Byte Inspection against Extension & Content
-    const isValid = validateMagicBytes(req.file.buffer, req.file.mimetype, req.file.originalname);
+    // Enforce Magic Byte Inspection against Extension & Content on disk
+    const isValid = validateFileMagicBytes(tempFilePath, req.file.originalname);
     if (!isValid) {
       return res.status(400).json({ error: 'Invalid or disallowed file type. Content does not match extension.' });
     }
 
     const catalystApp = catalyst.initialize(req);
     const filestore = catalystApp.filestore();
-    
-    let folderId = null;
-    try {
-      const folders = await filestore.getAllFolders();
-      const existing = folders.find(f => f.folder_name === 'print_files');
-      if (existing) {
-        folderId = existing.id;
-      } else {
-        const newF = await filestore.createFolder('print_files');
-        folderId = newF.id;
-      }
-    } catch (err) {
-      folderId = 1;
-    }
+    const folder = await getPrintFilesFolder(filestore);
 
-    const folder = filestore.folder(folderId);
-    // Sanitize storage name using cryptographically secure random id
-    const storageName = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
+    const storageName = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}_${path.basename(req.file.originalname)}`;
+    const fileStream = fs.createReadStream(tempFilePath);
     const uploadedFile = await folder.uploadFile({
-      code: req.file.buffer,
+      code: fileStream,
       name: storageName
     });
 
@@ -319,6 +430,10 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: 'Upload failed' });
+  } finally {
+    if (tempFilePath) {
+      try { fs.unlinkSync(tempFilePath); } catch (_) {}
+    }
   }
 });
 
@@ -685,7 +800,7 @@ app.post('/orders/:id/cancel', async (req, res) => {
 
     // Immediate file purge on cancel
     const filestore = catalystApp.filestore();
-    const folder = filestore.folder('print_files');
+    const folder = await getPrintFilesFolder(filestore);
     for (const f of (b.files || [])) {
       if (f.cloudId) {
         try { await folder.deleteFile(f.cloudId); } catch(delErr) {}
@@ -759,7 +874,7 @@ app.post('/orders/:id/status', async (req, res) => {
   if (!isStaff(req) && !isAgent(req)) {
     return res.status(401).json({ error: 'Staff authentication required' });
   }
-  const { status } = req.body;
+  const { status, autoDeleteDelaySeconds } = req.body;
   if (!status) {
     return res.status(400).json({ error: 'Missing status' });
   }
@@ -781,7 +896,9 @@ app.post('/orders/:id/status', async (req, res) => {
     const now = nowSec();
     let query = `UPDATE orders SET status = '${esc(status)}', updated_at = ${now}`;
     if (status === 'ready') {
-      const delay = Number(defaultShopConfig.autoDeleteDelay || 5) * 60;
+      const delay = (Number.isFinite(autoDeleteDelaySeconds) && autoDeleteDelaySeconds >= 0)
+        ? Number(autoDeleteDelaySeconds)
+        : Number(process.env.AUTO_DELETE_DELAY_SECONDS || (defaultShopConfig.autoDeleteDelay || 5) * 60);
       query += `, delete_after = ${now + delay}`;
     }
     query += ` WHERE id = '${esc(req.params.id)}'`;
@@ -830,7 +947,7 @@ app.post('/orders/:id/reject', async (req, res) => {
     let b = {};
     try { b = JSON.parse(rows[0].orders.basket || '{}'); } catch(e) {}
     const filestore = catalystApp.filestore();
-    const folder = filestore.folder('print_files');
+    const folder = await getPrintFilesFolder(filestore);
     for (const f of (b.files || [])) {
       if (f.cloudId) {
         try { await folder.deleteFile(f.cloudId); } catch(delErr) {}
@@ -855,19 +972,24 @@ app.get('/files/:cloudId', async (req, res) => {
   try {
     const catalystApp = catalyst.initialize(req);
     const filestore = catalystApp.filestore();
-    const fileStream = await filestore.folder('print_files').downloadFile(req.params.cloudId);
+    const folder = await getPrintFilesFolder(filestore);
+    const fileStream = await folder.downloadFile(req.params.cloudId);
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.setHeader('Content-Type', 'application/octet-stream');
-    fileStream.pipe(res);
+    if (fileStream && typeof fileStream.pipe === 'function') {
+      fileStream.pipe(res);
+    } else {
+      res.send(fileStream);
+    }
   } catch (err) {
     res.status(404).json({ error: 'File not found' });
   }
 });
 
-// 6. Scheduled Cleanup / Cron Purge
+// 6. Scheduled Cleanup / Cron Purge (Protected by CRON_SECRET)
 app.post('/cron/cleanup', async (req, res) => {
-  if (!isStaff(req)) {
-    return res.status(401).json({ error: 'Authentication required for cleanup' });
+  if (!isCronScheduler(req)) {
+    return res.status(401).json({ error: 'Unauthorized: valid cron secret required' });
   }
   try {
     const catalystApp = catalyst.initialize(req);
@@ -884,7 +1006,7 @@ app.post('/cron/cleanup', async (req, res) => {
     }
 
     const filestore = catalystApp.filestore();
-    const folder = filestore.folder('print_files');
+    const folder = await getPrintFilesFolder(filestore);
     let purgedOrdersCount = 0;
     let purgedFilesCount = 0;
 
@@ -912,24 +1034,7 @@ app.post('/cron/cleanup', async (req, res) => {
   }
 });
 
-// 5. Staff Authenticated File Download
-app.get('/files/:cloudId', async (req, res) => {
-  if (!isStaff(req) && !isAgent(req)) {
-    return res.status(401).json({ error: 'Staff authentication required to download files' });
-  }
-  try {
-    const catalystApp = catalyst.initialize(req);
-    const filestore = catalystApp.filestore();
-    const fileStream = await filestore.folder('print_files').downloadFile(req.params.cloudId);
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.setHeader('Content-Type', 'application/octet-stream');
-    fileStream.pipe(res);
-  } catch (err) {
-    res.status(404).json({ error: 'File not found' });
-  }
-});
-
-// 6. Delete Files Now (Student with Order Token OR Staff)
+// 7. Delete Files Now (Student with Order Token OR Staff)
 app.post('/orders/:id/delete-files', async (req, res) => {
   try {
     const catalystApp = catalyst.initialize(req);
@@ -955,7 +1060,7 @@ app.post('/orders/:id/delete-files', async (req, res) => {
 
     // Delete files from Catalyst File Store
     const filestore = catalystApp.filestore();
-    const folder = filestore.folder('print_files');
+    const folder = await getPrintFilesFolder(filestore);
     for (const f of (b.files || [])) {
       if (f.cloudId) {
         try { await folder.deleteFile(f.cloudId); } catch(delErr) {}
