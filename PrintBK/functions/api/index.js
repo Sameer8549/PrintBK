@@ -361,12 +361,19 @@ async function getNextOrderNumber(zcql) {
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.get('/config', (_req, res) => {
-  const rzpEnabled = Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
+  const rzpEnabled = Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET && process.env.RAZORPAY_ENABLED === 'true');
+  const upiId = process.env.UPI_ID || 'Q098686787@ybl';
+  const upiPayee = process.env.UPI_PAYEE_NAME || 'PrintBK HKBK';
   res.json({
     ...defaultShopConfig,
     paymentMethods: {
       cash: true,
+      upi: true,
       razorpay: rzpEnabled
+    },
+    upi: {
+      enabled: true,
+      payeeName: upiPayee
     }
   });
 });
@@ -539,10 +546,27 @@ app.get('/orders/:id', async (req, res) => {
       }
     }
 
-    // Hide pickup code from students until order reaches processing
+    // Strict receipt & order gating rule:
+    // If order is in pending_payment, student has not chosen cash or initiated/claimed payment.
+    // Order number, pickup code, and basket details are withheld!
     const isStudent = !isStaff(req);
-    const isPrePayment = ['pending_payment', 'pending_cash', 'waiting_quote'].includes(o.status);
-    const exposedPickupCode = (isStudent && isPrePayment) ? null : (basketData.pickupCode || '');
+    if (isStudent && o.status === 'pending_payment') {
+      return res.json({
+        id: o.id,
+        status: 'pending_payment',
+        paymentRequired: true,
+        total: o.total,
+        orderNumber: null,
+        pickupCode: null,
+        basket: null,
+        fileNames: JSON.parse(o.file_names || '[]'),
+        createdAt: o.created_at
+      });
+    }
+
+    // Hide pickup code from students until order reaches processing or ready
+    const isPreProcessing = ['pending_payment', 'pending_cash', 'upi_started', 'upi_claimed', 'waiting_quote'].includes(o.status);
+    const exposedPickupCode = (isStudent && isPreProcessing) ? null : (basketData.pickupCode || '');
 
     res.json({
       id: o.id,
@@ -559,6 +583,208 @@ app.get('/orders/:id', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/* ─── CASH PAYMENT WORKFLOW ───────────────────────────────────────── */
+app.post('/orders/:id/choose-cash', async (req, res) => {
+  try {
+    const catalystApp = catalyst.initialize(req);
+    const zcql = catalystApp.zcql();
+    const rows = await zcql.executeZCQLQuery(
+      `SELECT id, order_number, status, total, basket, access_token_hash FROM orders WHERE id = '${esc(req.params.id)}'`
+    );
+    if (!rows || rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+    const o = rows[0].orders;
+
+    // Verify token
+    const clientToken = req.headers['x-order-token'] || req.query.token;
+    let b = {};
+    try { b = JSON.parse(o.basket || '{}'); } catch(e) {}
+    const storedHash = o.access_token_hash || b.accessTokenHash;
+    if (clientToken && storedHash) {
+      const clientHash = crypto.createHash('sha256').update(String(clientToken)).digest('hex');
+      if (!timingSafeCompare(clientHash, storedHash) && !isStaff(req)) {
+        return res.status(403).json({ error: 'Invalid order access token' });
+      }
+    }
+
+    if (o.status !== 'pending_payment' && o.status !== 'pending_cash') {
+      return res.status(409).json({ error: `Cannot choose cash for order in status "${o.status}"` });
+    }
+
+    const now = nowSec();
+    b.events = b.events || [];
+    b.events.push({
+      from_status: o.status,
+      to_status: 'pending_cash',
+      triggered_by: 'student',
+      timestamp: now,
+      method: 'cash'
+    });
+    const updatedBasket = esc(JSON.stringify(b));
+
+    await zcql.executeZCQLQuery(
+      `UPDATE orders SET status = 'pending_cash', basket = '${updatedBasket}', updated_at = ${now} WHERE id = '${esc(o.id)}'`
+    );
+
+    res.json({
+      ok: true,
+      status: 'pending_cash',
+      orderId: o.id,
+      orderNumber: o.order_number || b.orderNumber,
+      total: o.total
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to record cash selection' });
+  }
+});
+
+/* ─── DIRECT UPI INTENT (NPCI Canonical Spec & Platform Schemes) ───── */
+app.post('/orders/:id/start-upi', async (req, res) => {
+  try {
+    const catalystApp = catalyst.initialize(req);
+    const zcql = catalystApp.zcql();
+    const rows = await zcql.executeZCQLQuery(
+      `SELECT id, order_number, status, total, basket, access_token_hash FROM orders WHERE id = '${esc(req.params.id)}'`
+    );
+    if (!rows || rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+    const o = rows[0].orders;
+
+    // Verify token
+    const clientToken = req.headers['x-order-token'] || req.query.token;
+    let b = {};
+    try { b = JSON.parse(o.basket || '{}'); } catch(e) {}
+    const storedHash = o.access_token_hash || b.accessTokenHash;
+    if (clientToken && storedHash) {
+      const clientHash = crypto.createHash('sha256').update(String(clientToken)).digest('hex');
+      if (!timingSafeCompare(clientHash, storedHash) && !isStaff(req)) {
+        return res.status(403).json({ error: 'Invalid order access token' });
+      }
+    }
+
+    if (!['pending_payment', 'upi_started', 'pending_cash'].includes(o.status)) {
+      return res.status(409).json({ error: `Cannot start UPI for order in status "${o.status}"` });
+    }
+
+    const upiId = process.env.UPI_ID || 'Q098686787@ybl';
+    const payeeName = process.env.UPI_PAYEE_NAME || 'PrintBK HKBK';
+    const orderNum = o.order_number || b.orderNumber || 1001;
+    const amountStr = Number(o.total).toFixed(2);
+    const tr = o.id.replace(/-/g, '').slice(0, 32);
+    const note = `PrintBK Order #${orderNum}`;
+
+    // NPCI Canonical UPI URI with parameter encoding
+    const queryParams = `pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(amountStr)}&tn=${encodeURIComponent(note)}&tr=${encodeURIComponent(tr)}&cu=INR`;
+    const canonicalIntent = `upi://pay?${queryParams}`;
+
+    // Documented platform-specific URL schemes
+    const gpayUrl = `tez://upi/pay?${queryParams}`;
+    const phonepeUrl = `phonepe://pay?${queryParams}`;
+    const paytmUrl = `paytmmp://pay?${queryParams}`;
+
+    const now = nowSec();
+    b.events = b.events || [];
+    b.events.push({
+      from_status: o.status,
+      to_status: 'upi_started',
+      triggered_by: 'student',
+      timestamp: now,
+      upiId,
+      tr
+    });
+    const updatedBasket = esc(JSON.stringify(b));
+
+    await zcql.executeZCQLQuery(
+      `UPDATE orders SET status = 'upi_started', basket = '${updatedBasket}', updated_at = ${now} WHERE id = '${esc(o.id)}'`
+    );
+
+    res.json({
+      ok: true,
+      status: 'upi_started',
+      orderId: o.id,
+      orderNumber: orderNum,
+      amount: Number(amountStr),
+      upiId,
+      payeeName,
+      intentUrl: canonicalIntent,
+      gpayUrl,
+      phonepeUrl,
+      paytmUrl,
+      tr
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to start UPI flow' });
+  }
+});
+
+/* ─── UPI RETURN HOOK (Student Payment Claim) ──────────────────────── */
+app.post('/orders/:id/upi-return', async (req, res) => {
+  try {
+    const catalystApp = catalyst.initialize(req);
+    const zcql = catalystApp.zcql();
+    const rows = await zcql.executeZCQLQuery(
+      `SELECT id, order_number, status, total, basket, access_token_hash FROM orders WHERE id = '${esc(req.params.id)}'`
+    );
+    if (!rows || rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+    const o = rows[0].orders;
+
+    // Verify token
+    const clientToken = req.headers['x-order-token'] || req.query.token;
+    let b = {};
+    try { b = JSON.parse(o.basket || '{}'); } catch(e) {}
+    const storedHash = o.access_token_hash || b.accessTokenHash;
+    if (clientToken && storedHash) {
+      const clientHash = crypto.createHash('sha256').update(String(clientToken)).digest('hex');
+      if (!timingSafeCompare(clientHash, storedHash) && !isStaff(req)) {
+        return res.status(403).json({ error: 'Invalid order access token' });
+      }
+    }
+
+    if (!['upi_started', 'pending_payment'].includes(o.status)) {
+      if (['upi_claimed', 'processing', 'ready', 'completed'].includes(o.status)) {
+        return res.json({
+          ok: true,
+          status: o.status,
+          orderId: o.id,
+          orderNumber: o.order_number || b.orderNumber
+        });
+      }
+      return res.status(409).json({ error: `Cannot record UPI claim for order in status "${o.status}"` });
+    }
+
+    const utr = req.body.utr ? String(req.body.utr).trim().slice(0, 32) : null;
+    const now = nowSec();
+
+    b.events = b.events || [];
+    b.events.push({
+      from_status: o.status,
+      to_status: 'upi_claimed',
+      triggered_by: 'student',
+      timestamp: now,
+      utr
+    });
+    b.upiClaim = {
+      claimedAt: now,
+      utr
+    };
+    const updatedBasket = esc(JSON.stringify(b));
+
+    await zcql.executeZCQLQuery(
+      `UPDATE orders SET status = 'upi_claimed', basket = '${updatedBasket}', updated_at = ${now} WHERE id = '${esc(o.id)}'`
+    );
+
+    res.json({
+      ok: true,
+      status: 'upi_claimed',
+      orderId: o.id,
+      orderNumber: o.order_number || b.orderNumber,
+      total: o.total,
+      claimedAt: now,
+      pickupCode: null
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to record UPI return claim' });
   }
 });
 
@@ -821,9 +1047,13 @@ app.post('/orders/:id/cancel', async (req, res) => {
 
 // Order State Machine Allowed Transitions
 const VALID_TRANSITIONS = {
-  pending_payment: ['processing', 'cancelled', 'expired'],
+  pending_payment: ['pending_cash', 'upi_started', 'cancelled', 'expired'],
   pending_cash: ['processing', 'cancelled', 'expired'],
-  waiting_quote: ['processing', 'cancelled', 'rejected'],
+  upi_started: ['upi_claimed', 'cancelled', 'expired'],
+  upi_claimed: ['processing', 'cancelled', 'expired', 'rejected'],
+  waiting_quote: ['quote_sent', 'cancelled', 'rejected'],
+  quote_sent: ['accepted', 'declined', 'cancelled'],
+  accepted: ['pending_payment', 'pending_cash', 'processing', 'cancelled'],
   processing: ['printing', 'cancelled', 'rejected'],
   printing: ['ready', 'cancelled', 'failed'],
   ready: ['completed', 'cancelled'],

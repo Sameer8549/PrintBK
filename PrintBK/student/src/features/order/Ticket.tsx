@@ -48,8 +48,10 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
   }, [order?.id, order?.status, order?.accessToken]);
 
   const status = order?.status ?? 'pending_cash';
-  const orderNumber = order?.orderNumber ? `#${order.orderNumber}` : order?.id ? `#${order.id.slice(-6).toUpperCase()}` : '#——';
-  const pickupCode = (['pending_payment', 'pending_cash', 'waiting_quote'].includes(status) || !order?.pickupCode || order.pickupCode === '——')
+  const orderNumber = (status === 'pending_payment' || (!order?.orderNumber && !order?.id))
+    ? '#——'
+    : order?.orderNumber ? `#${order.orderNumber}` : `#${order.id.slice(-6).toUpperCase()}`;
+  const pickupCode = (['pending_payment', 'pending_cash', 'waiting_quote', 'upi_started', 'upi_claimed'].includes(status) || !order?.pickupCode || order.pickupCode === '——')
     ? '——'
     : order.pickupCode;
   const total = order?.total ?? 0;
@@ -117,8 +119,16 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
 
   // Status message based on server status
   let statusMessage = "Your job is queued — we'll print it shortly";
-  if (status === 'pending_cash') {
+  if (status === 'pending_payment') {
+    statusMessage = 'Payment method not selected yet. Please complete checkout to start printing.';
+  } else if (status === 'pending_cash') {
     statusMessage = `Show order ${orderNumber} at counter to pay ₹${total.toFixed(2)} and start printing`;
+  } else if (status === 'upi_started') {
+    statusMessage = 'Awaiting UPI app payment. Tap "I Have Paid" once completed.';
+  } else if (status === 'upi_claimed') {
+    statusMessage = 'UPI Payment Claimed · Shopkeeper will verify payment & print.';
+  } else if (status === 'processing') {
+    statusMessage = 'Order approved! Preparing documents for printing.';
   } else if (status === 'printing') {
     statusMessage = 'Printing now — almost ready!';
   } else if (status === 'ready') {
@@ -165,6 +175,44 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
       <Topbar title="Order Ticket" back onBack={() => go('entry')} />
 
       <div style={{ maxWidth: 580, margin: '0 auto' }}>
+        {/* ── Pending Payment Warning Banner ── */}
+        {status === 'pending_payment' && (
+          <div style={{
+            margin: '16px 16px 0',
+            background: '#fffbeb',
+            border: '2px solid #f59e0b',
+            borderRadius: 16,
+            padding: '18px 20px',
+            textAlign: 'center',
+            boxShadow: '0 4px 16px rgba(245, 158, 11, 0.15)'
+          }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#b45309' }}>
+              ⚠️ Payment Method Not Selected
+            </div>
+            <p style={{ margin: '6px 0 14px', fontSize: 13, color: '#92400e', lineHeight: 1.4 }}>
+              This order has not been confirmed yet. Order details, receipt, and pickup code are withheld until you choose UPI or Cash at counter.
+            </p>
+            <button
+              onClick={() => go('checkout')}
+              style={{
+                background: '#0b1020',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 12,
+                padding: '12px 24px',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8
+              }}
+            >
+              Select Payment Method (₹{total.toFixed(2)}) →
+            </button>
+          </div>
+        )}
+
         {/* ── High-visibility Ready Alert Banner ── */}
         {status === 'ready' && (
           <div style={{
@@ -359,7 +407,13 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
               gap: 8,
               color: '#0f172a'
             }}
-            onClick={() => setSheet('receipt')}
+            onClick={() => {
+              if (status === 'pending_payment') {
+                notify('⚠️ Choose a payment method first to view receipt');
+                return;
+              }
+              setSheet('receipt');
+            }}
           >
             <Icon name="download" size={16} /> View Receipt
           </button>
@@ -380,6 +434,10 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
               color: '#0f172a'
             }}
             onClick={() => {
+              if (status === 'pending_payment') {
+                notify('⚠️ Complete payment selection first');
+                return;
+              }
               const text = `PrintBK order ${orderNumber} — Pickup code ${pickupCode}`;
               if (navigator.share) navigator.share({ title: 'PrintBK', text }).catch(() => {});
               else { navigator.clipboard?.writeText(text); notify('Copied to clipboard'); }

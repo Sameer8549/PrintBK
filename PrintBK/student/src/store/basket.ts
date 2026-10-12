@@ -79,6 +79,8 @@ export function fileFromRaw(raw: File): PrintFile {
       paper: 'A4',
       orientation: 'auto',
       nUp: 1,
+      layout: 'standard',
+      pageRotations: {},
       booklet: false,
       range: 'all',
     },
@@ -94,6 +96,7 @@ export interface OrderRecord {
   total: number;
   pickupCode: string;
   status: string;
+  paymentMethod?: string;
   accessToken?: string;
   deleteAfter?: number;
   filesDeletedAt?: number;

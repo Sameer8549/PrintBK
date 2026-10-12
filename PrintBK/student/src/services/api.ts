@@ -77,4 +77,47 @@ export const api = {
     }
     return res.json();
   },
+
+  async chooseCash(orderId: string, token?: string): Promise<any> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['X-Order-Token'] = token;
+    const res = await fetch(`${API_BASE}/orders/${orderId}/choose-cash`, {
+      method: 'POST',
+      headers
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to select cash payment');
+    }
+    return res.json();
+  },
+
+  async startUpi(orderId: string, token?: string): Promise<any> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['X-Order-Token'] = token;
+    const res = await fetch(`${API_BASE}/orders/${orderId}/start-upi`, {
+      method: 'POST',
+      headers
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to initiate UPI payment');
+    }
+    return res.json();
+  },
+
+  async upiReturn(orderId: string, token?: string, utr?: string): Promise<any> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['X-Order-Token'] = token;
+    const res = await fetch(`${API_BASE}/orders/${orderId}/upi-return`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ utr })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to claim UPI payment');
+    }
+    return res.json();
+  },
 };

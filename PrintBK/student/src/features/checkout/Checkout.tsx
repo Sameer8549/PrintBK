@@ -10,8 +10,8 @@ function Checkout({ go, setSheet, services }: {
   setSheet: (sheet: Sheet) => void;
   services: any[];
 }) {
-  const [payment, setPayment] = useState<'Cash' | 'Razorpay'>('Cash');
-  const [enabledMethods, setEnabledMethods] = useState<{ cash: boolean; razorpay: boolean }>({ cash: true, razorpay: false });
+  const [payment, setPayment] = useState<'UPI' | 'Cash' | 'Razorpay'>('UPI');
+  const [enabledMethods, setEnabledMethods] = useState<{ cash: boolean; upi: boolean; razorpay: boolean }>({ cash: true, upi: true, razorpay: false });
   const [phone, setPhone] = useState(() => localStorage.getItem('printbk-phone') || '');
   const basket = useBasket();
   const pricing = usePricing();
@@ -24,7 +24,11 @@ function Checkout({ go, setSheet, services }: {
   useEffect(() => {
     api.getConfig().then(cfg => {
       if (cfg?.paymentMethods) {
-        setEnabledMethods(cfg.paymentMethods);
+        setEnabledMethods({
+          cash: cfg.paymentMethods.cash !== false,
+          upi: true,
+          razorpay: Boolean(cfg.paymentMethods.razorpay)
+        });
       }
     }).catch(() => {});
   }, []);
@@ -39,11 +43,12 @@ function Checkout({ go, setSheet, services }: {
     if (phone) localStorage.setItem('printbk-phone', phone);
 
     try {
+      const isCash = payment === 'Cash';
       const result = await api.createOrder({
         files: basket.files,
         services: basket.services,
         rush: false,
-        payment: 'Cash',
+        payment: isCash ? 'Cash' : 'UPI',
         phone: phone.trim() || undefined
       } as any);
 
@@ -54,13 +59,19 @@ function Checkout({ go, setSheet, services }: {
         files: basket.files.map(f => f.name),
         total,
         pickupCode: result.pickupCode || '——',
-        status: result.status || 'pending_cash',
+        status: result.status || (isCash ? 'pending_cash' : 'pending_payment'),
         accessToken: result.accessToken
       });
 
       basket.clear();
-      notify('Order reserved. Pay at the counter.');
-      go(`/order/${result.orderId}`);
+
+      if (isCash) {
+        notify('Order reserved. Pay cash at the counter.');
+        go(`/order/${result.orderId}`);
+      } else {
+        // Direct UPI Intent / QR payment page
+        go(`/pay/${result.orderId}`);
+      }
     } catch (err: any) {
       setError(err?.message || 'Failed to place order. Please try again.');
     } finally {
@@ -95,10 +106,30 @@ function Checkout({ go, setSheet, services }: {
           )}
         </div>
 
-        {/* Payment options (shows ONLY enabled methods) */}
+        {/* Payment options */}
         <div style={{ padding: '20px 24px 8px' }}>
-          <h2 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 700 }}>Pay with</h2>
+          <h2 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 700 }}>Choose payment method</h2>
 
+          {/* 1. UPI Intent / QR (Primary) */}
+          <label style={{
+            display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', marginBottom: 10,
+            background: payment === 'UPI' ? '#eff6ff' : '#fff',
+            border: `2px solid ${payment === 'UPI' ? '#3b82f6' : '#e2e8f0'}`,
+            borderRadius: 14, cursor: 'pointer'
+          }}>
+            <input type="radio" name="pay" value="UPI" checked={payment === 'UPI'} onChange={() => setPayment('UPI')} style={{ accentColor: '#3b82f6' }} />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 6 }}>
+                ⚡ Pay with UPI
+                <span style={{ fontSize: 10, background: '#dbeafe', color: '#1d4ed8', padding: '1px 6px', borderRadius: 4, fontWeight: 800 }}>Fastest</span>
+              </div>
+              <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
+                GPay, PhonePe, Paytm, or scan QR
+              </div>
+            </div>
+          </label>
+
+          {/* 2. Cash at counter */}
           {enabledMethods.cash && (
             <label style={{
               display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', marginBottom: 10,
@@ -110,12 +141,13 @@ function Checkout({ go, setSheet, services }: {
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15 }}>💵 Cash at counter</div>
                 <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
-                  Pay at counter when your order is called
+                  Pay cash when your order is called at the shop
                 </div>
               </div>
             </label>
           )}
 
+          {/* 3. Dormant Razorpay (only shown if configured) */}
           {enabledMethods.razorpay && (
             <label style={{
               display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', marginBottom: 10,
@@ -125,9 +157,9 @@ function Checkout({ go, setSheet, services }: {
             }}>
               <input type="radio" name="pay" value="Razorpay" checked={payment === 'Razorpay'} onChange={() => setPayment('Razorpay')} style={{ accentColor: '#3b82f6' }} />
               <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>💳 Online Payment (Razorpay)</div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>💳 Online Gateway (Razorpay)</div>
                 <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
-                  UPI, Cards, Netbanking
+                  Cards, Netbanking
                 </div>
               </div>
             </label>
@@ -152,7 +184,7 @@ function Checkout({ go, setSheet, services }: {
       <div style={{ padding: '12px 24px 32px', background: '#fff', borderTop: '1px solid #e2e8f0' }}>
         <button className="primary full" style={{ width: '100%', padding: 16, fontSize: 17, fontWeight: 700, borderRadius: 14 }}
           onClick={placeOrder} disabled={loading || (basket.files.length === 0 && basket.services.length === 0)}>
-          {loading ? 'Placing order…' : hasQuote ? 'Send for quote' : `✓ Confirm cash order`}
+          {loading ? 'Processing…' : hasQuote ? 'Send for quote' : (payment === 'Cash' ? '✓ Confirm & Pay Cash at Counter' : '⚡ Continue to UPI Payment')}
         </button>
       </div>
     </main>

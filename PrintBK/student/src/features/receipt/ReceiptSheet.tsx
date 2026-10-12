@@ -19,23 +19,74 @@ function ReceiptSheet({
   paidAt?: number;
   paymentMethod?: string;
 }) {
-  // Pull last order from history
+  // Pull order from history
   const { orders } = useHistory();
-  const lastOrder = orders[0];
+  const targetOrder = orderId ? (orders.find(o => o.id === orderId) ?? orders[0]) : orders[0];
+
+  if (targetOrder?.status === 'pending_payment') {
+    return (
+      <SheetShell tall onClose={() => setSheet(null)}>
+        <div style={{ textAlign: 'center', padding: '36px 16px' }}>
+          <div style={{ fontSize: 44, marginBottom: 12 }}>🔒</div>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0b1020', margin: '0 0 8px' }}>Order Not Confirmed</h2>
+          <p style={{ fontSize: 14, color: '#64748b', lineHeight: 1.5, margin: '0 0 24px' }}>
+            Receipt is not available because this order is still awaiting payment selection. Please choose Cash or UPI at checkout.
+          </p>
+          <button
+            onClick={() => setSheet(null)}
+            style={{
+              padding: '12px 24px',
+              borderRadius: 12,
+              background: '#0b1020',
+              color: '#fff',
+              border: 'none',
+              fontWeight: 700,
+              fontSize: 14,
+              cursor: 'pointer'
+            }}
+          >
+            Back to Order
+          </button>
+        </div>
+      </SheetShell>
+    );
+  }
 
   const displayId = orderId
     ? `#${orderId.slice(-6).toUpperCase()}`
-    : lastOrder
-      ? `#${lastOrder.id.slice(-6).toUpperCase()}`
-      : '#——';
+    : targetOrder?.orderNumber
+      ? `#${targetOrder.orderNumber}`
+      : targetOrder
+        ? `#${targetOrder.id.slice(-6).toUpperCase()}`
+        : '#——';
 
-  const code = pickupCode ?? lastOrder?.pickupCode ?? '——';
-  const total = lastOrder?.total ?? 0;
-  const files = lastOrder?.files ?? [];
-  const dateStr = lastOrder
-    ? new Date(lastOrder.date).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const code = (['pending_payment', 'pending_cash', 'waiting_quote', 'upi_started', 'upi_claimed'].includes(targetOrder?.status ?? '') || !targetOrder?.pickupCode || targetOrder.pickupCode === '——')
+    ? '——'
+    : targetOrder.pickupCode;
+  const total = targetOrder?.total ?? 0;
+  const files = targetOrder?.files ?? [];
+  const dateStr = targetOrder
+    ? new Date(targetOrder.date).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '——';
-  const method = paymentMethod ?? 'UPI';
+  const method = paymentMethod ?? (targetOrder?.paymentMethod === 'cash' ? 'Cash at Counter' : 'UPI');
+
+  let badgeText = '✓ PAID';
+  let badgeBg = '#ecfdf5';
+  let badgeColor = '#059669';
+
+  if (targetOrder?.status === 'pending_cash') {
+    badgeText = '💵 CASH AT COUNTER';
+    badgeBg = '#fef3c7';
+    badgeColor = '#b45309';
+  } else if (targetOrder?.status === 'upi_claimed') {
+    badgeText = '⚡ UPI CLAIMED';
+    badgeBg = '#e0e7ff';
+    badgeColor = '#4338ca';
+  } else if (targetOrder?.status === 'upi_started') {
+    badgeText = '⚡ UPI PENDING';
+    badgeBg = '#fef3c7';
+    badgeColor = '#b45309';
+  }
 
   const saveAsPDF = () => {
     const popup = window.open('', '_blank', 'width=460,height=760');
@@ -79,8 +130,8 @@ ${rows}
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: '#718096', textTransform: 'uppercase' }}>Official Receipt</span>
           <h2 style={{ fontSize: 22, fontWeight: 800, margin: '2px 0 0', color: '#0b1020' }}>Order {displayId}</h2>
         </div>
-        <span style={{ background: '#ecfdf5', color: '#059669', padding: '6px 12px', borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
-          ✓ PAID
+        <span style={{ background: badgeBg, color: badgeColor, padding: '6px 12px', borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
+          {badgeText}
         </span>
       </div>
 
@@ -169,7 +220,9 @@ ${rows}
           <b style={{ display: 'block', fontSize: 42, fontWeight: 900, letterSpacing: 12, color: '#0f172a', margin: '6px 0 2px' }}>
             {code}
           </b>
-          <small style={{ fontSize: 12, color: '#64748b', fontWeight: 500 }}>Present this 4-digit code at the counter</small>
+          <small style={{ fontSize: 12, color: '#64748b', fontWeight: 500 }}>
+            {code !== '——' ? 'Present this 4-digit code at the counter' : 'Pickup code issued once order is approved at counter'}
+          </small>
         </div>
 
         <footer style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', lineHeight: 1.5, marginTop: 4 }}>
