@@ -40,7 +40,7 @@ export function priceOrder(basket: Basket, config: ShopConfig = defaultShopConfi
     const s = file.settings || ({} as any);
     const copies = s.copies ?? 1;
     const nUp = s.nUp ?? 1;
-    const colorMode = s.colorMode ?? 'bw';
+    const colorMode = s.colorPlan?.mode ?? s.colorMode ?? 'bw';
     const sided = s.sided ?? 'single';
     const range = s.range ?? 'all';
     const paper = s.paper ?? 'A4';
@@ -63,10 +63,33 @@ export function priceOrder(basket: Basket, config: ShopConfig = defaultShopConfi
     let colorPages = 0;
     let bwPages = 0;
     
-    if (colorMode === 'color') {
+    if (colorMode === 'color' || colorMode === 'colour') {
       colorPages = physicalPages;
+      bwPages = 0;
     } else if (colorMode === 'bw') {
+      colorPages = 0;
       bwPages = physicalPages;
+    } else if (colorMode === 'custom') {
+      const colorSet = new Set(s.colorPlan?.colorPages || []);
+      if (s.booklet) {
+        for (let i = 0; i < pages.length; i += 2) {
+          const slot = pages.slice(i, i + 2);
+          if (slot.some(p => colorSet.has(p))) {
+            colorPages++;
+          } else {
+            bwPages++;
+          }
+        }
+      } else {
+        for (let i = 0; i < pages.length; i += nUp) {
+          const slot = pages.slice(i, i + nUp);
+          if (slot.some(p => colorSet.has(p))) {
+            colorPages++;
+          } else {
+            bwPages++;
+          }
+        }
+      }
     } else {
       const ratio = pages.length > 0 ? ((file.colorPages || 0) / (file.pages || 1)) : 0;
       colorPages = Math.ceil(physicalPages * ratio);
@@ -90,13 +113,17 @@ export function priceOrder(basket: Basket, config: ShopConfig = defaultShopConfi
     const roundedTotal = Math.round(fileTotal * 100) / 100;
 
     let formulaStr = '';
-    if (colorMode === 'bw') {
-      formulaStr = `${bwPages} pgs × ₹${pricePerPageBW.toFixed(2)} (${sided === 'double' ? '2-sided' : '1-sided'}) × ${copies} cop${copies > 1 ? 'ies' : 'y'}`;
-    } else if (colorMode === 'color') {
-      formulaStr = `${colorPages} pgs × ₹${pricePerPageColor.toFixed(2)} (Colour) × ${copies} cop${copies > 1 ? 'ies' : 'y'}`;
+    if (colorPages > 0 && bwPages > 0) {
+      formulaStr = `${colorPages * copies} colour pgs × ₹${pricePerPageColor.toFixed(2)} + ${bwPages * copies} B&W pgs × ₹${pricePerPageBW.toFixed(2)}`;
+    } else if (colorPages > 0) {
+      formulaStr = `${colorPages * copies} pgs × ₹${pricePerPageColor.toFixed(2)} (Colour) × ${copies} cop${copies > 1 ? 'ies' : 'y'}`;
     } else {
-      formulaStr = `(${bwPages} BW @ ₹${pricePerPageBW.toFixed(2)} + ${colorPages} Col @ ₹${pricePerPageColor.toFixed(2)}) × ${copies}`;
+      formulaStr = `${bwPages * copies} pgs × ₹${pricePerPageBW.toFixed(2)} (${sided === 'double' ? '2-sided' : '1-sided'}) × ${copies} cop${copies > 1 ? 'ies' : 'y'}`;
     }
+
+    const detailStr = (colorPages > 0 && bwPages > 0)
+      ? `${physicalPages} pages (${colorPages * copies} colour, ${bwPages * copies} B&W) · ${sided === 'double' ? 'Double-sided' : 'Single-sided'}${nUp > 1 ? ` · ${nUp}-up` : ''}`
+      : `${physicalPages} pages · ${colorPages > 0 ? 'Colour' : 'B&W'} · ${sided === 'double' ? 'Double-sided' : 'Single-sided'}${nUp > 1 ? ` · ${nUp}-up` : ''}`;
 
     lines.push({
       id: file.id,
@@ -104,7 +131,7 @@ export function priceOrder(basket: Basket, config: ShopConfig = defaultShopConfi
       qty: copies,
       unitPrice: Math.round((roundedTotal / copies) * 100) / 100,
       total: roundedTotal,
-      detail: `${physicalPages} pages · ${colorMode === 'bw' ? 'B&W' : 'Colour'} · ${sided === 'double' ? 'Double-sided' : 'Single-sided'}${nUp > 1 ? ` · ${nUp}-up` : ''}`,
+      detail: detailStr,
       formula: formulaStr
     });
     subtotal += roundedTotal;
@@ -161,5 +188,70 @@ export function priceOrder(basket: Basket, config: ShopConfig = defaultShopConfi
     total,
     savingsTip,
     quotePending
+  };
+}
+
+export interface FilePrintDetails {
+  colorPlan: {
+    mode: 'bw' | 'colour' | 'color' | 'auto' | 'custom';
+    colorPages: number[];
+  };
+  colorPrintedPages: number[];
+  bwPrintedPages: number[];
+  colorSheetCount: number;
+  bwSheetCount: number;
+  totalSheetCount: number;
+}
+
+export function computeFilePrintDetails(file: PrintFile): FilePrintDetails {
+  const s = file.settings || ({} as any);
+  const nUp = s.nUp ?? 1;
+  const copies = s.copies ?? 1;
+  const sided = s.sided ?? 'single';
+  const range = s.range ?? 'all';
+  const colorMode = s.colorPlan?.mode ?? s.colorMode ?? 'bw';
+
+  const { pages } = parsePageRange(range, file.pages || 1);
+  const colorSet = new Set(s.colorPlan?.colorPages || []);
+
+  const colorPrintedPages: number[] = [];
+  const bwPrintedPages: number[] = [];
+  let colorFaces = 0;
+  let bwFaces = 0;
+
+  for (let i = 0; i < pages.length; i += nUp) {
+    const slot = pages.slice(i, i + nUp);
+    const isSlotColor = (colorMode === 'color' || colorMode === 'colour')
+      ? true
+      : colorMode === 'bw'
+        ? false
+        : colorMode === 'custom'
+          ? slot.some(p => colorSet.has(p))
+          : (file.colorPages ? slot.some(p => p <= file.colorPages) : false);
+
+    if (isSlotColor) {
+      colorFaces++;
+      slot.forEach(p => colorPrintedPages.push(p));
+    } else {
+      bwFaces++;
+      slot.forEach(p => bwPrintedPages.push(p));
+    }
+  }
+
+  const totalFaces = colorFaces + bwFaces;
+  const totalSheetCount = sided === 'double' ? Math.ceil(totalFaces / 2) * copies : totalFaces * copies;
+  const colorSheetCount = sided === 'double' ? Math.ceil(colorFaces / 2) * copies : colorFaces * copies;
+  const bwSheetCount = Math.max(0, totalSheetCount - colorSheetCount);
+
+  return {
+    colorPlan: {
+      mode: colorMode as any,
+      colorPages: Array.from(colorSet)
+    },
+    colorPrintedPages,
+    bwPrintedPages,
+    colorSheetCount,
+    bwSheetCount,
+    totalSheetCount
   };
 }

@@ -178,9 +178,11 @@ function PrintPreview({
               );
             }
 
-            const isCustomColour = activeFile.settings.colorMode === 'custom';
+            const isCustomColour = activeFile.settings.colorMode === 'custom' || activeFile.settings.colorPlan?.mode === 'custom';
+            const customPages = activeFile.settings.colorPlan?.colorPages || [];
             const isColourPage = activeFile.settings.colorMode === 'color' ||
-              (isCustomColour && (activeFile as any).colorPages?.includes?.(p.pageNumber));
+              (isCustomColour && customPages.includes(p.pageNumber)) ||
+              (activeFile.settings.colorMode === 'auto' && p.pageNumber <= (activeFile.colorPages || 0));
 
             return (
               <div

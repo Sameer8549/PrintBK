@@ -33,6 +33,12 @@ export const ShopConfigSchema = z.object({
 export type ShopConfig = z.infer<typeof ShopConfigSchema>;
 
 
+export const ColorPlanSchema = z.object({
+  mode: z.enum(['bw', 'colour', 'color', 'auto', 'custom']).default('bw'),
+  colorPages: z.array(z.number()).default([])
+});
+export type ColorPlan = z.infer<typeof ColorPlanSchema>;
+
 export const PrintFileSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -50,6 +56,7 @@ export const PrintFileSchema = z.object({
   settings: z.object({
     copies: z.number().default(1),
     colorMode: z.enum(['bw', 'color', 'colour', 'auto', 'custom']).default('bw'),
+    colorPlan: ColorPlanSchema.optional(),
     sided: z.enum(['single', 'double']).default('single'),
     paper: z.enum(['A4', 'A3', 'Legal']).default('A4'),
     orientation: z.enum(['portrait', 'landscape', 'auto']).default('auto'),

@@ -4,13 +4,14 @@ import { Screen, Sheet } from '../../lib/types';
 import { notify } from '../../lib/store';
 import { useBasket, usePricing, fileFromRaw, rawFileMap } from '../../store/basket';
 import { browseAndAddFiles } from '../../lib/filePicker';
-import type { PrintFile } from '@printbk/shared';
+import { type PrintFile, parsePageRange } from '@printbk/shared';
 
 /* ─── Option arrays ─────────────────────────────── */
-const colorOptions: { value: PrintFile['settings']['colorMode']; label: string; sub: string }[] = [
-  { value: 'bw',    label: 'B&W',        sub: '₹1.50/p' },
-  { value: 'color', label: 'Colour',     sub: '₹8.00/p' },
-  { value: 'auto',  label: 'Auto',       sub: 'detect'  },
+const colorOptions: { value: 'bw' | 'color' | 'auto' | 'custom'; label: string; sub: string }[] = [
+  { value: 'bw',     label: 'B&W',        sub: '₹1.50/p' },
+  { value: 'color',  label: 'Colour',     sub: '₹8.00/p' },
+  { value: 'auto',   label: 'Auto',       sub: 'detect'  },
+  { value: 'custom', label: 'Custom',     sub: 'pick pgs' },
 ];
 const sidedOptions: { value: PrintFile['settings']['sided']; label: string }[] = [
   { value: 'single', label: '1-Sided (₹1.50)' },
@@ -55,7 +56,16 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
 
   const raw = rawFileMap.get(file.id);
   const s = file.settings;
-  const isBW = s.colorMode === 'bw';
+  const isCustom = s.colorMode === 'custom' || s.colorPlan?.mode === 'custom';
+  const customColorPages = s.colorPlan?.colorPages || [];
+  const isCurrentPageColor = (s.colorMode === 'color' || s.colorMode === 'colour')
+    ? true
+    : s.colorMode === 'bw'
+      ? false
+      : isCustom
+        ? customColorPages.includes(page)
+        : (file.colorPages ? page <= file.colorPages : false);
+  const isBW = !isCurrentPageColor;
   const isDouble = s.sided === 'double';
   const nUp = s.nUp ?? 1;
 
@@ -475,8 +485,20 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
             fontSize: 10,
             fontWeight: 800
           }}>
-            {isBW ? 'B&W Active' : 'Colour Active'}
+            {isBW ? '⬛ B&W Active' : '🎨 Colour Active'}
           </span>
+          {isCustom && (
+            <span style={{
+              background: '#f3e8ff',
+              color: '#7e22ce',
+              padding: '2px 8px',
+              borderRadius: 6,
+              fontSize: 10,
+              fontWeight: 800
+            }}>
+              Custom ({customColorPages.length} colour)
+            </span>
+          )}
           {isDouble && (
             <span style={{ background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 800 }}>
               Double-Sided
@@ -721,6 +743,40 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
         >
           ⟳ Rotate {currentRot > 0 ? `(${currentRot}°)` : ''}
         </button>
+
+        {isCustom && (
+          <button
+            onClick={() => {
+              const curSet = new Set(s.colorPlan?.colorPages || []);
+              if (curSet.has(page)) curSet.delete(page);
+              else curSet.add(page);
+              const updated = Array.from(curSet).sort((a, b) => a - b);
+              useBasket.getState().updateFile(file.id, {
+                settings: {
+                  ...s,
+                  colorMode: 'custom',
+                  colorPlan: { mode: 'custom', colorPages: updated }
+                }
+              });
+            }}
+            title={isCurrentPageColor ? "Switch this page to B&W" : "Switch this page to Colour"}
+            style={{
+              padding: '6px 10px',
+              borderRadius: 8,
+              border: isCurrentPageColor ? '1.5px solid #2563eb' : '1.5px solid #cbd5e1',
+              background: isCurrentPageColor ? '#eff6ff' : '#fff',
+              color: isCurrentPageColor ? '#1d4ed8' : '#0f172a',
+              cursor: 'pointer',
+              fontSize: 11,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4
+            }}
+          >
+            {isCurrentPageColor ? '🎨 Colour Page' : '⬛ Set Colour'}
+          </button>
+        )}
       </div>
 
       {/* Button to open Full Sheet Print Preview */}
@@ -750,7 +806,12 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
 
       {/* Live mode info text */}
       <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center' }}>
-        Previewing in <b>{isBW ? 'B&W (₹1.50/p single, ₹0.85/p double)' : 'Full Colour (₹8.00/p)'}</b>
+        Previewing in <b>{
+          s.colorMode === 'bw' ? 'B&W (₹1.50/p single, ₹0.85/p double)' :
+          s.colorMode === 'color' ? 'Full Colour (₹8.00/p)' :
+          isCustom ? `Custom Plan (${customColorPages.length} Colour @ ₹8.00, ${(file.pages || 1) - customColorPages.length} B&W)` :
+          'Auto Detection'
+        }</b>
       </div>
     </div>
   );
@@ -772,8 +833,51 @@ function FileCard({
   const s = file.settings;
   const upd = (patch: Partial<typeof s>) => onUpdate({ ...file, settings: { ...s, ...patch } });
 
+  const [customRangeText, setCustomRangeText] = useState((s.colorPlan?.colorPages || []).join(', '));
+  const [customRangeError, setCustomRangeError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (s.colorPlan?.colorPages) {
+      setCustomRangeText(s.colorPlan.colorPages.join(', '));
+    }
+  }, [s.colorPlan?.colorPages]);
+
+  const handleCustomRangeInput = (val: string) => {
+    setCustomRangeText(val);
+    if (!val.trim()) {
+      setCustomRangeError(null);
+      upd({ colorMode: 'custom', colorPlan: { mode: 'custom', colorPages: [] } });
+      return;
+    }
+    const maxP = file.pages || 1;
+    const parsed = parsePageRange(val, maxP);
+    const valid = parsed.pages.filter(p => p >= 1 && p <= maxP);
+    if (valid.length === 0 && val.trim() !== '') {
+      setCustomRangeError(`Please enter pages between 1 and ${maxP}`);
+    } else {
+      setCustomRangeError(null);
+      upd({ colorMode: 'custom', colorPlan: { mode: 'custom', colorPages: valid } });
+    }
+  };
+
+  const applyColorPreset = (pages: number[]) => {
+    setCustomRangeText(pages.join(', '));
+    setCustomRangeError(null);
+    upd({ colorMode: 'custom', colorPlan: { mode: 'custom', colorPages: pages } });
+  };
+
   const sel = (v: boolean) => ({ border: `2px solid ${v ? '#0b1020' : '#e2e8f0'}`, background: v ? '#0b1020' : '#fff', color: v ? '#fff' : '#0b1020' });
   const btn = { cursor: 'pointer' as const, borderRadius: 10, fontWeight: 600 as const, fontSize: 13 };
+  const presetBtn: React.CSSProperties = {
+    padding: '5px 9px',
+    borderRadius: 7,
+    border: '1px solid #cbd5e1',
+    background: '#ffffff',
+    color: '#334155',
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: 'pointer'
+  };
 
   return (
     <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #e2e8f0', marginBottom: 10, position: 'relative', overflow: open ? 'visible' : 'hidden' }}>
@@ -783,7 +887,12 @@ function FileCard({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</div>
           <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
-            {file.pages} page{file.pages !== 1 ? 's' : ''} · {s.colorMode === 'bw' ? 'B&W' : s.colorMode === 'color' ? 'Colour' : 'Auto'} · {s.sided === 'double' ? '2-sided' : '1-sided'} · ×{s.copies}
+            {file.pages} page{file.pages !== 1 ? 's' : ''} · {
+              s.colorMode === 'bw' ? 'B&W' :
+              s.colorMode === 'color' ? 'Colour' :
+              s.colorMode === 'custom' ? `Custom (${(s.colorPlan?.colorPages || []).length} col)` :
+              'Auto'
+            } · {s.sided === 'double' ? '2-sided' : '1-sided'} · ×{s.copies}
           </div>
         </div>
         <button
@@ -811,6 +920,54 @@ function FileCard({
                 </button>
               ))}
             </div>
+
+            {/* Custom Colour Configuration */}
+            {s.colorMode === 'custom' && (
+              <div style={{ background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>CUSTOM COLOUR PAGES</span>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#2563eb', background: '#dbeafe', padding: '2px 8px', borderRadius: 6 }}>
+                    {(s.colorPlan?.colorPages || []).length} of {file.pages || 1} pages colour
+                  </span>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>
+                    Colour pages (e.g. 1, 5-7):
+                  </label>
+                  <input
+                    type="text"
+                    value={customRangeText}
+                    placeholder="e.g. 1, 5-7"
+                    onChange={e => handleCustomRangeInput(e.target.value)}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #cbd5e1', fontSize: 13, boxSizing: 'border-box' }}
+                  />
+                  {customRangeError && (
+                    <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>
+                      ⚠️ {customRangeError}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', marginBottom: 6, letterSpacing: 0.5 }}>QUICK PRESETS</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button type="button" onClick={() => applyColorPreset([1])} style={presetBtn}>
+                      First page colour only
+                    </button>
+                    <button type="button" onClick={() => applyColorPreset([1, file.pages || 1])} style={presetBtn}>
+                      First & last page colour
+                    </button>
+                    <button type="button" onClick={() => applyColorPreset(Array.from({ length: file.colorPages || 1 }, (_, i) => i + 1))} style={presetBtn}>
+                      Pages detected as colour
+                    </button>
+                    <button type="button" onClick={() => applyColorPreset([])} style={presetBtn}>
+                      Clear (All B&W)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Orientation */}

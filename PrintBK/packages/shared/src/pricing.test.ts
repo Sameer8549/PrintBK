@@ -57,4 +57,44 @@ describe('priceOrder - Golden Vectors & Edge Cases', () => {
     // 100 sheets * 0.80 = 80.00
     expect(res.total).toBe(80);
   });
+
+  it('correctly prices custom per-page colour with breakdown formula', () => {
+    const basket = {
+      files: [{
+        id: 'f1', name: 'thesis.pdf', pages: 30,
+        settings: {
+          copies: 1,
+          colorMode: 'custom',
+          colorPlan: { mode: 'custom', colorPages: [1, 2] },
+          sided: 'single',
+          paper: 'A4'
+        }
+      }],
+      services: [], rush: false
+    };
+    const res = priceOrder(basket as any, defaultShopConfig);
+    // 2 colour pages * ₹8.00 + 28 B&W pages * ₹1.50 = 16.00 + 42.00 = 58.00
+    expect(res.total).toBe(58.0);
+    expect(res.lines[0].formula).toContain('2 colour pgs × ₹8.00 + 28 B&W pgs × ₹1.50');
+  });
+
+  it('correctly prices custom colour in 2-up imposition', () => {
+    const basket = {
+      files: [{
+        id: 'f1', name: 'slides.pptx', pages: 10,
+        settings: {
+          copies: 1,
+          nUp: 2,
+          colorMode: 'custom',
+          colorPlan: { mode: 'custom', colorPages: [1] }, // Face 1 has [1, 2], so Face 1 is colour. Faces 2..5 are B&W
+          sided: 'single',
+          paper: 'A4'
+        }
+      }],
+      services: [], rush: false
+    };
+    const res = priceOrder(basket as any, defaultShopConfig);
+    // 1 colour face * 8.00 + 4 B&W faces * 1.50 = 8.00 + 6.00 = 14.00
+    expect(res.total).toBe(14.0);
+  });
 });

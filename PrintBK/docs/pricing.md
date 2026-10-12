@@ -54,6 +54,14 @@ $$\text{colorPages} = \left\lceil \text{physicalPages} \times \frac{\text{detect
 $$\text{bwPages} = \text{physicalPages} - \text{colorPages}$$
 $$\text{cost} = (\text{bwPages} \times \text{rate}_{\text{BW}} + \text{colorPages} \times \text{rate}_{\text{Color}}) \times \text{copies}$$
 
+### 5. Custom Per-Page Colour Mode (`colorPlan`)
+Students can specify an exact subset of pages to be printed in color using `colorPlan = { mode: 'custom', colorPages: number[] }`.
+- **1-up Standard**: Each page in `colorPages` is charged at the Color rate (₹8.00/page). All other pages in the selected range are charged at the B&W rate (₹1.50/page for 1-sided, ₹0.85/page for 2-sided).
+- **N-up Imposition (2-up, 4-up, 6-up)**: Pages are grouped into physical sheet faces in slots of size $N$. If **any** document page placed on a sheet face is specified in `colorPages`, that entire physical sheet face must be processed by the printer's color engine and is charged at the Color rate (₹8.00). Faces containing strictly B&W document pages are charged at the B&W rate.
+- **Booklet Imposition**: Pages are grouped into 2-page face pairs. If either page on the face is color, that face is charged as Color; otherwise B&W.
+- **Copies**: Both color face count and B&W face count scale proportionally by $\times \text{copies}$.
+- **Breakdown Presentation**: The breakdown sheet displays both items explicitly (e.g. `2 colour pgs × ₹8.00 + 28 B&W pgs × ₹1.50`).
+
 ---
 
 ## Golden Test Vectors Suite
