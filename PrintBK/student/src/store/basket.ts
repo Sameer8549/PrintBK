@@ -31,10 +31,16 @@ export const useBasket = create<BasketState>()(
       isProcessing: false,
       setProcessing: (isProcessing) => set({ isProcessing }),
       addFile: (file) => set((state) => ({ files: [...state.files, file], activeFileId: file.id })),
-      removeFile: (id) => set((state) => ({
-        files: state.files.filter(f => f.id !== id),
-        activeFileId: state.activeFileId === id ? (state.files.find(f => f.id !== id)?.id || null) : state.activeFileId
-      })),
+      removeFile: (id) => {
+        try { rawFileMap.delete(id); } catch (_) {}
+        set((state) => {
+          const remaining = state.files.filter(f => f.id !== id);
+          return {
+            files: remaining,
+            activeFileId: state.activeFileId === id ? (remaining[0]?.id || null) : state.activeFileId
+          };
+        });
+      },
       updateFile: (id, updates) => set((state) => ({
         files: state.files.map(f => f.id === id ? { ...f, ...updates } : f)
       })),

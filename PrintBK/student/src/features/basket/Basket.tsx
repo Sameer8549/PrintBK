@@ -1625,6 +1625,18 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
 
 
 
+  const lastFileRef = useRef<HTMLDivElement | null>(null);
+  const prevCount = useRef(files.length);
+
+  useEffect(() => {
+    if (files.length > prevCount.current) {
+      setTimeout(() => {
+        lastFileRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+    }
+    prevCount.current = files.length;
+  }, [files.length]);
+
   /* ── 2. Empty Basket Screen ── */
   if (files.length === 0 && services.length === 0) {
     return (
@@ -1639,18 +1651,6 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
       </main>
     );
   }
-
-  const lastFileRef = useRef<HTMLDivElement | null>(null);
-  const prevCount = useRef(files.length);
-
-  useEffect(() => {
-    if (files.length > prevCount.current) {
-      setTimeout(() => {
-        lastFileRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 150);
-    }
-    prevCount.current = files.length;
-  }, [files.length]);
 
   const totalPages = files.reduce((s, f) => s + f.pages * (f.settings.copies ?? 1), 0);
 
