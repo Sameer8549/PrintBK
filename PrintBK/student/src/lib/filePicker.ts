@@ -18,46 +18,57 @@ export function browseAndAddFiles(
     fileInputRef.style.display = 'none';
     document.body.appendChild(fileInputRef);
   }
-  fileInputRef.onchange = async () => {
+  fileInputRef.onchange = () => {
     if (!fileInputRef?.files?.length) return;
     const files = Array.from(fileInputRef.files);
     fileInputRef.value = '';
 
-    // 1. Immediately switch screen with processing status
-    useBasket.getState().setProcessing(true);
-    go('basket');
-    notify(`Processing ${files.length} file(s)…`);
-
-    try {
-      // 2. Count pages in parallel (super fast locally)
-      await Promise.all(
-        files.map(async (raw) => {
-          try {
-            const pages = await countPages(raw);
-            const pFile = fileFromRaw(raw);
-            pFile.pages = pages;
-            addFile(pFile);
-
-            // 3. Silent background cloud upload (never blocks the student)
-            api.uploadFile(raw).then((res) => {
-              if (res?.cloudId) {
-                (pFile as any).cloudId = res.cloudId;
-                useBasket.getState().updateFile(pFile.id, { cloudId: res.cloudId } as any);
-              }
-            }).catch((err) => {
-              console.warn('Background cloud backup skipped:', err);
-            });
-          } catch (err) {
-            console.warn('Failed to parse pages for', raw.name, err);
-            addFile(fileFromRaw(raw)); // graceful 1-page fallback
-          }
-        })
-      );
-    } finally {
-      useBasket.getState().setProcessing(false);
+    // 1. Immediately create and add all files to basket so user gets instant UI
+    const createdFiles: PrintFile[] = [];
+    for (const raw of files) {
+      const pFile = fileFromRaw(raw);
+      // Fast heuristic for images
+      if (raw.type.startsWith('image/') || /\.(jpe?g|png|webp|gif)$/i.test(raw.name)) {
+        pFile.pages = 1;
+      }
+      addFile(pFile);
+      createdFiles.push(pFile);
     }
 
-    notify(`${files.length} file(s) ready`);
+    if (createdFiles.length > 0) {
+      useBasket.getState().setActiveFileId(createdFiles[createdFiles.length - 1].id);
+    }
+
+    // 2. Instantly navigate to basket — zero blocking delay
+    go('basket');
+    notify(`${files.length} file(s) added`);
+
+    // 3. Count exact pages & background cloud backup asynchronously
+    for (let i = 0; i < files.length; i++) {
+      const raw = files[i];
+      const pFile = createdFiles[i];
+
+      countPages(raw)
+        .then((pages) => {
+          if (pages && pages > 0 && pages !== pFile.pages) {
+            useBasket.getState().updateFile(pFile.id, { pages });
+          }
+        })
+        .catch((err) => {
+          console.warn('Background page count failed for', raw.name, err);
+        });
+
+      api.uploadFile(raw)
+        .then((res) => {
+          if (res?.cloudId) {
+            (pFile as any).cloudId = res.cloudId;
+            useBasket.getState().updateFile(pFile.id, { cloudId: res.cloudId } as any);
+          }
+        })
+        .catch((err) => {
+          console.warn('Background cloud backup skipped:', err);
+        });
+    }
   };
   fileInputRef.click();
 }

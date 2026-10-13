@@ -6,7 +6,7 @@ import { useBasket, usePricing, fileFromRaw, rawFileMap } from '../../store/bask
 import { browseAndAddFiles } from '../../lib/filePicker';
 import { api } from '../../services/api';
 import { type PrintFile, parsePageRange } from '@printbk/shared';
-import { DocumentPageSlot } from '../preview/DocumentPageSlot';
+import { DocumentPageSlot, getPdfJsLib } from '../preview/DocumentPageSlot';
 
 
 /* ─── Option arrays ─────────────────────────────── */
@@ -142,10 +142,10 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
       setLoading(true);
       try {
         await withTimeout((async () => {
-          const buffer = await raw!.arrayBuffer();
-          if (!active) return;
-          const pdfjs = (window as any).pdfjsLib;
-          if (pdfjs) {
+          const pdfjs = await getPdfJsLib();
+          if (pdfjs && active) {
+            const buffer = await raw!.arrayBuffer();
+            if (!active) return;
             const doc = await pdfjs.getDocument({ data: buffer }).promise;
             if (!active) return;
             setPdfDoc(doc);
@@ -888,7 +888,165 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
             </div>
           </div>
         ) : (
-          renderSlot(page)
+          <div style={{
+            width: '100%',
+            height: '100%',
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+            background: '#ffffff'
+          }}>
+            {/* 1. PDF Canvas Preview */}
+            {isPdf && (
+              <canvas
+                ref={canvasRef}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  width: '100%',
+                  height: 'auto',
+                  display: 'block',
+                  objectFit: 'contain',
+                  filter: filterStyle,
+                  transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
+                  transition: 'transform 0.2s ease'
+                }}
+              />
+            )}
+
+            {/* 2. Real Image Preview */}
+            {isImage && previewImageUrl && (
+              <img
+                src={previewImageUrl}
+                alt="Document preview"
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  width: '100%',
+                  height: 'auto',
+                  display: 'block',
+                  objectFit: 'contain',
+                  filter: filterStyle,
+                  transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
+                  transition: 'transform 0.2s ease'
+                }}
+              />
+            )}
+
+            {/* 3. Real PPTX / PPT Slide Preview */}
+            {isPpt && (
+              <div style={{
+                width: '100%',
+                height: '100%',
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                filter: filterStyle,
+                transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
+                transition: 'transform 0.2s ease'
+              }}>
+                <div
+                  ref={pptxContainerRef}
+                  style={{
+                    width: '100%',
+                    display: hasPptxRendered ? 'block' : 'none',
+                    overflow: 'hidden',
+                    borderRadius: 8
+                  }}
+                />
+                {!hasPptxRendered && (
+                  <div style={{
+                    width: '94%',
+                    aspectRatio: isPageLandscape ? '16/9' : '3/4',
+                    background: isBW ? '#ffffff' : 'linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%)',
+                    border: '1.5px solid #cbd5e1',
+                    borderRadius: 8,
+                    padding: '14px 16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    boxSizing: 'border-box'
+                  }}>
+                    {officeThumb && page === 1 ? (
+                      <img src={officeThumb} alt="Slide 1" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 4 }} />
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1.5px solid #e2e8f0', paddingBottom: 6, marginBottom: 6 }}>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
+                            {officeSlides[page - 1]?.title || `Slide ${page}`}
+                          </div>
+                          <span style={{ fontSize: 10, fontWeight: 700, background: '#e2e8f0', padding: '2px 6px', borderRadius: 4, color: '#475569' }}>
+                            {page}/{totalPages}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, padding: '4px 0' }}>
+                          {(officeSlides[page - 1]?.bullets || ['Presentation slide notes and key points']).slice(0, 5).map((bullet, idx) => (
+                            <div key={idx} style={{ fontSize: 11, color: '#334155', display: 'flex', gap: 6, lineHeight: 1.3 }}>
+                              <span style={{ color: isBW ? '#64748b' : '#2563eb' }}>•</span>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bullet}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 9, color: '#94a3b8', textAlign: 'right' }}>
+                          {file.name}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 4. Real DOCX Document Preview */}
+            {isDoc && (
+              <div style={{
+                width: '92%',
+                minHeight: 220,
+                background: '#ffffff',
+                border: '1.5px solid #cbd5e1',
+                borderRadius: 6,
+                padding: '14px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                boxSizing: 'border-box',
+                filter: filterStyle,
+                transform: currentRot ? `rotate(${currentRot}deg)` : undefined
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: '#0f172a' }}>{file.name}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: 4 }}>P.{page}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, padding: '8px 0' }}>
+                  {(officePages[page - 1] || ['Document text content preview']).map((p, idx) => (
+                    <p key={idx} style={{ margin: 0, fontSize: 10, color: '#334155', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                      {p}
+                    </p>
+                  ))}
+                </div>
+                <div style={{ fontSize: 8, color: '#94a3b8', textAlign: 'right' }}>PrintBK Document</div>
+              </div>
+            )}
+
+            {/* 5. Loading overlay */}
+            {loading && (
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.85)', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid #e2e8f0', borderTopColor: '#0f172a', animation: 'spin 0.8s linear infinite' }} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>Loading preview…</span>
+              </div>
+            )}
+
+            {/* 6. Fallback if not PDF/Image/PPT/DOC or file restored without raw buffer */}
+            {!isPdf && !isImage && !isPpt && !isDoc && !loading && (
+              <div style={{ padding: 20, textAlign: 'center', color: '#64748b', fontSize: 12 }}>
+                📄 {file.name} · {file.pages} page{file.pages !== 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -1465,28 +1623,7 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
     browseAndAddFiles(go, addFile);
   };
 
-  /* ── 1. Processing Screen (Prevents showing empty basket during upload) ── */
-  if (basket.isProcessing || (files.length === 0 && basket.isProcessing)) {
-    return (
-      <main className="page" style={{ display: 'flex', flexDirection: 'column', background: '#f7f4ee', minHeight: '100dvh' }}>
-        <Topbar title="Processing Documents" back onBack={() => go('entry')} />
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', textAlign: 'center' }}>
-          <div style={{ position: 'relative', width: 72, height: 72, marginBottom: 24 }}>
-            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '4px solid #e2e8f0', borderTopColor: '#ef4444', animation: 'spin 1s linear infinite' }} />
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>
-              ⚡
-            </div>
-          </div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 8px', color: '#0f172a' }}>
-            Processing your documents…
-          </h2>
-          <p style={{ fontSize: 14, color: '#64748b', margin: 0, maxWidth: 300, lineHeight: 1.5 }}>
-            Reading pages, analyzing slide layouts, and preparing your live preview.
-          </p>
-        </div>
-      </main>
-    );
-  }
+
 
   /* ── 2. Empty Basket Screen ── */
   if (files.length === 0 && services.length === 0) {

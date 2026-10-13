@@ -2,6 +2,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import { PrintFile } from '@printbk/shared';
 import { rawFileMap } from '../../store/basket';
 
+export async function getPdfJsLib(): Promise<any> {
+  if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
+    return (window as any).pdfjsLib;
+  }
+  for (let i = 0; i < 40; i++) {
+    await new Promise(r => setTimeout(r, 100));
+    if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
+      return (window as any).pdfjsLib;
+    }
+  }
+  return null;
+}
+
 // Global in-memory caches to prevent redundant parsing and memory bloat
 export const pdfDocCache = new Map<string, any>();
 export const officeContentCache = new Map<string, {
@@ -66,8 +79,8 @@ export function DocumentPageSlot({
 
     async function renderPdfPage() {
       try {
-        const pdfjs = (window as any).pdfjsLib;
-        if (!pdfjs) return;
+        const pdfjs = await getPdfJsLib();
+        if (!pdfjs || !active) return;
 
         let doc = pdfDocCache.get(file.id);
         if (!doc) {
