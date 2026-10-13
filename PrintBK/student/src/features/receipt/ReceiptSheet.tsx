@@ -19,9 +19,14 @@ function ReceiptSheet({
   paidAt?: number;
   paymentMethod?: string;
 }) {
-  // Pull order from history
+  // Pull order from history (check props or active URL route)
   const { orders } = useHistory();
-  const targetOrder = orderId ? (orders.find(o => o.id === orderId) ?? orders[0]) : orders[0];
+  const urlOrderId = (() => {
+    if (orderId) return orderId;
+    const match = window.location.hash.match(/\/order\/([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : undefined;
+  })();
+  const targetOrder = urlOrderId ? (orders.find(o => o.id === urlOrderId) ?? orders[0]) : orders[0];
 
   if (targetOrder?.status === 'pending_payment') {
     return (
@@ -143,6 +148,7 @@ function ReceiptSheet({
 </style></head><body><div class="receipt">
 <header><div><div class="brand">PrintBK</div><small>HKBK Student Point · Bengaluru</small></div><div style="text-align:right"><small>${dateStr}</small></div></header>
 <div class="row"><span>Order Reference</span><b>${displayId}</b></div>
+<div class="row"><span>Payment Method</span><b>${method}</b></div>
 ${paySectionHtml}
 <div class="dash"></div>
 <div style="font-size:11px;font-weight:800;letter-spacing:1px;color:#94a3b8;margin-bottom:8px">ITEMS & PRINTS</div>

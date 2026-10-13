@@ -60,16 +60,16 @@ function Checkout({ go, setSheet, services }: {
         total,
         pickupCode: result.pickupCode || '——',
         status: result.status || (isCash ? 'pending_cash' : 'pending_payment'),
-        accessToken: result.accessToken
+        accessToken: result.accessToken,
+        paymentMethod: isCash ? 'cash' : 'upi'
       });
 
-      basket.clear();
-
       if (isCash) {
+        basket.clear();
         notify('Order reserved. Pay cash at the counter.');
         go(`/order/${result.orderId}`);
       } else {
-        // Direct UPI Intent / QR payment page
+        // Direct UPI Intent / QR payment page (Keep basket intact so back button does not lose documents)
         go(`/pay/${result.orderId}`);
       }
     } catch (err: any) {

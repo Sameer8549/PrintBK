@@ -6,6 +6,7 @@ import { useBasket, usePricing, fileFromRaw, rawFileMap } from '../../store/bask
 import { browseAndAddFiles } from '../../lib/filePicker';
 import { api } from '../../services/api';
 import { type PrintFile, parsePageRange } from '@printbk/shared';
+import { DocumentPageSlot } from '../preview/DocumentPageSlot';
 
 /* ─── Option arrays ─────────────────────────────── */
 const colorOptions: { value: 'bw' | 'color' | 'auto' | 'custom'; label: string; sub: string }[] = [
@@ -16,17 +17,17 @@ const colorOptions: { value: 'bw' | 'color' | 'auto' | 'custom'; label: string; 
 ];
 const sidedOptions: { value: PrintFile['settings']['sided']; label: string; sub: string; icon: string }[] = [
   { value: 'single', label: '1-Sided', sub: '₹1.50/sheet', icon: '📄' },
-  { value: 'double', label: '2-Sided', sub: '₹0.85/side · Eco', icon: '🔄' },
+  { value: 'double', label: '2-Sided', sub: '₹0.85/side · Eco', icon: '⇌' },
 ];
 const nUpOptions: { value: number; label: string; sub: string; icon: string }[] = [
-  { value: 1, label: '1-up', sub: 'Full page', icon: '📄' },
-  { value: 2, label: '2-up', sub: 'Save 50% paper', icon: '📑' },
-  { value: 4, label: '4-up', sub: 'Compact grid', icon: '🗂️' },
+  { value: 1, label: '1-up', sub: 'Full page', icon: '■' },
+  { value: 2, label: '2-up', sub: 'Save 50% paper', icon: '◫' },
+  { value: 4, label: '4-up', sub: 'Compact grid', icon: '⊞' },
 ];
 const orientationOptions: { value: 'auto' | 'portrait' | 'landscape'; label: string; sub: string; icon: string }[] = [
   { value: 'auto', label: 'Auto', sub: 'Smart fit', icon: '⚡' },
-  { value: 'portrait', label: 'Portrait', sub: 'Upright', icon: '📄' },
-  { value: 'landscape', label: 'Landscape', sub: 'Wide', icon: '🖼️' },
+  { value: 'portrait', label: 'Portrait', sub: 'Upright', icon: '▯' },
+  { value: 'landscape', label: 'Landscape', sub: 'Wide', icon: '▭' },
 ];
 const layoutModeOptions: { value: 'standard' | 'handout' | 'booklet'; label: string; sub: string; icon: string }[] = [
   { value: 'standard', label: 'Standard', sub: 'Full sheet', icon: '📄' },
@@ -555,124 +556,50 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
     ? 'grayscale(100%) contrast(140%) brightness(102%)'
     : 'none';
 
-  const renderPageContent = () => {
-    if (isPdf) {
-      return (
-        <canvas
-          ref={canvasRef}
-          style={{
-            maxWidth: '100%',
-            maxHeight: '100%',
-            width: '100%',
-            height: 'auto',
-            display: 'block',
-            objectFit: 'contain',
-            transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
-            transition: 'transform 0.2s ease'
-          }}
-        />
-      );
-    }
-    if (isImage && previewImageUrl) {
-      return (
-        <img
-          src={previewImageUrl}
-          alt="Preview"
-          style={{
-            maxWidth: '100%',
-            maxHeight: '100%',
-            width: '100%',
-            height: 'auto',
-            display: 'block',
-            objectFit: 'contain',
-            transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
-            transition: 'transform 0.2s ease'
-          }}
-        />
-      );
-    }
-    if (isPpt) {
+  const renderSlot = (slotPageNum: number) => {
+    if (slotPageNum > totalPages) {
       return (
         <div style={{
           width: '100%',
-          position: 'relative',
+          height: '100%',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
-          transition: 'transform 0.2s ease'
+          justifyContent: 'center',
+          background: '#f8fafc',
+          borderRadius: 4,
+          color: '#94a3b8',
+          fontSize: 10,
+          fontWeight: 600,
+          border: '1px dashed #cbd5e1'
         }}>
-          <div
-            ref={pptxContainerRef}
-            style={{
-              width: '100%',
-              display: hasPptxRendered ? 'block' : 'none',
-              overflow: 'hidden',
-              borderRadius: 6
-            }}
-          />
-          {!hasPptxRendered && (
-            <div style={{
-              width: '100%',
-              aspectRatio: isPageLandscape ? '16/9' : '3/4',
-              background: isBW ? '#ffffff' : 'linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%)',
-              border: '1.5px solid #cbd5e1',
-              borderRadius: 6,
-              padding: '10px 12px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              boxSizing: 'border-box'
-            }}>
-              {officeThumb && page === 1 ? (
-                <img src={officeThumb} alt="Slide 1" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 4 }} />
-              ) : (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #e2e8f0', paddingBottom: 4, marginBottom: 4 }}>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
-                      📊 {officeSlides[page - 1]?.title || `Slide ${page}`}
-                    </div>
-                    <span style={{ fontSize: 9, fontWeight: 700, background: '#e2e8f0', color: '#475569', padding: '1px 4px', borderRadius: 3 }}>
-                      {page}/{totalPages}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, overflowY: 'hidden' }}>
-                    {(officeSlides[page - 1]?.bullets || []).slice(0, 4).map((b, idx) => (
-                      <div key={idx} style={{ fontSize: 10, color: '#334155', display: 'flex', gap: 4, lineHeight: 1.2 }}>
-                        <span style={{ color: '#3b82f6', fontWeight: 700 }}>•</span>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ fontSize: 8, color: '#94a3b8', textAlign: 'right' }}>
-                    {file.name}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+          Empty slot
         </div>
       );
     }
-    if (isDoc) {
-      return (
-        <div style={{ width: '100%', padding: '12px', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 220 }}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: 4 }}>
-            📝 {file.name} (P.{page})
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 10, color: '#334155', lineHeight: 1.3 }}>
-            {(officePages[page - 1] || []).map((para, idx) => (
-              <p key={idx} style={{ margin: 0 }}>{para}</p>
-            ))}
-          </div>
-        </div>
-      );
-    }
+    const isSlotColor = (s.colorMode === 'color' || s.colorMode === 'colour')
+      ? true
+      : s.colorMode === 'bw'
+        ? false
+        : isCustom
+          ? customColorPages.includes(slotPageNum)
+          : (file.colorPages ? slotPageNum <= file.colorPages : false);
+
+    const slotMetric = file.pageMetrics?.[slotPageNum - 1];
+    const slotRot = ((file.settings.pageRotations?.[slotPageNum] ?? slotMetric?.rotation ?? 0) % 360 + 360) % 360;
+
     return (
-      <div style={{ padding: 20, textAlign: 'center' }}>
-        <div style={{ fontSize: 36, marginBottom: 6 }}>📄</div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>{file.name}</div>
-      </div>
+      <DocumentPageSlot
+        file={file}
+        pageNumber={slotPageNum}
+        rotation={slotRot}
+        isColour={isSlotColor}
+        onPageCountDiscovered={(discoveredCount) => {
+          if (discoveredCount > 0 && discoveredCount !== totalPages) {
+            setTotalPages(discoveredCount);
+          }
+        }}
+      />
     );
   };
 
@@ -796,40 +723,6 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
         </div>
       )}
 
-      {/* Blank page warning */}
-      {isBlankPage && (
-        <div style={{
-          fontSize: 11,
-          background: '#fffbeb',
-          color: '#b45309',
-          padding: '6px 10px',
-          borderRadius: 6,
-          border: '1px solid #fde68a',
-          width: '100%',
-          boxSizing: 'border-box',
-          lineHeight: 1.4
-        }}>
-          ⚠️ This page appears to be blank. Check page range if unintentional.
-        </div>
-      )}
-
-      {/* Low DPI image warning */}
-      {isLowDpiImage && (
-        <div style={{
-          fontSize: 11,
-          background: '#fffbeb',
-          color: '#b45309',
-          padding: '6px 10px',
-          borderRadius: 6,
-          border: '1px solid #fde68a',
-          width: '100%',
-          boxSizing: 'border-box',
-          lineHeight: 1.4
-        }}>
-          ⚠️ Low resolution image detected — may look blurry when printed.
-        </div>
-      )}
-
       {/* Main Preview Screen (Dynamically adjusts aspect ratio to reflect Orientation & Layout) */}
       <div style={{
         position: 'relative',
@@ -845,16 +738,9 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        filter: filterStyle,
         transition: 'all 0.25s ease',
         boxSizing: 'border-box'
       }}>
-        {loading && (
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.85)', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
-            Loading preview…
-          </div>
-        )}
-
         {/* ── Imposition Rendering based on Layout Mode ── */}
         {selectedLayout === 'handout' ? (
           <div style={{
@@ -879,7 +765,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
               overflow: 'hidden',
               padding: 4
             }}>
-              {renderPageContent()}
+              {renderSlot(page)}
             </div>
             <div style={{
               flex: '1',
@@ -943,26 +829,19 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
               overflow: 'hidden',
               padding: 4
             }}>
-              {renderPageContent()}
+              {renderSlot(page)}
             </div>
             <div style={{
               flex: 1,
-              border: '1px dashed #cbd5e1',
+              border: '1px solid #e2e8f0',
               borderRadius: 6,
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              background: '#f8fafc',
-              padding: 8,
-              textAlign: 'center'
+              overflow: 'hidden',
+              padding: 4
             }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>
-                Page {page + 1 <= totalPages ? page + 1 : '—'}
-              </span>
-              <span style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>
-                Booklet spread
-              </span>
+              {renderSlot(page + 1)}
             </div>
           </div>
         ) : (s.nUp ?? 1) === 2 ? (
@@ -977,13 +856,10 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
             background: '#ffffff'
           }}>
             <div style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', height: '90%', padding: 4 }}>
-              {renderPageContent()}
+              {renderSlot(page)}
             </div>
-            <div style={{ flex: 1, border: '1px dashed #cbd5e1', borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', height: '90%', padding: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>
-                Page {page + 1 <= totalPages ? page + 1 : '—'}
-              </span>
-              <span style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>2-up slot</span>
+            <div style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', height: '90%', padding: 4 }}>
+              {renderSlot(page + 1)}
             </div>
           </div>
         ) : (s.nUp ?? 1) === 4 ? (
@@ -997,20 +873,20 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
             boxSizing: 'border-box'
           }}>
             <div style={{ border: '1px solid #cbd5e1', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 2 }}>
-              {renderPageContent()}
+              {renderSlot(page)}
             </div>
-            <div style={{ border: '1px dashed #cbd5e1', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', fontSize: 10, fontWeight: 700, color: '#94a3b8' }}>
-              P{page + 1 <= totalPages ? page + 1 : '—'}
+            <div style={{ border: '1px solid #cbd5e1', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 2 }}>
+              {renderSlot(page + 1)}
             </div>
-            <div style={{ border: '1px dashed #cbd5e1', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', fontSize: 10, fontWeight: 700, color: '#94a3b8' }}>
-              P{page + 2 <= totalPages ? page + 2 : '—'}
+            <div style={{ border: '1px solid #cbd5e1', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 2 }}>
+              {renderSlot(page + 2)}
             </div>
-            <div style={{ border: '1px dashed #cbd5e1', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', fontSize: 10, fontWeight: 700, color: '#94a3b8' }}>
-              P{page + 3 <= totalPages ? page + 3 : '—'}
+            <div style={{ border: '1px solid #cbd5e1', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 2 }}>
+              {renderSlot(page + 3)}
             </div>
           </div>
         ) : (
-          renderPageContent()
+          renderSlot(page)
         )}
       </div>
 
@@ -1116,25 +992,29 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
       {/* Button to open Full Sheet Print Preview */}
       {go && (
         <button
-          onClick={() => go('preview')}
+          onClick={() => {
+            useBasket.getState().setActiveFileId(file.id);
+            go('preview');
+          }}
           style={{
             width: '100%',
             maxWidth: 320,
-            padding: '8px 12px',
-            borderRadius: 8,
+            padding: '10px 14px',
+            borderRadius: 10,
             border: '1.5px solid #0f172a',
             background: '#0f172a',
             color: '#fff',
             fontWeight: 700,
-            fontSize: 12,
+            fontSize: 13,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 6
+            gap: 8,
+            boxShadow: '0 2px 8px rgba(15, 23, 42, 0.15)'
           }}
         >
-          🔍 Full Sheet Print Preview
+          <span>🔍</span> Full Sheet Print Preview
         </button>
       )}
 
@@ -1176,11 +1056,14 @@ function FileCard({
   const [customRangeText, setCustomRangeText] = useState((s.colorPlan?.colorPages || []).join(', '));
   const [customRangeError, setCustomRangeError] = useState<string | null>(null);
 
+  // Sync only if file id changes
+  const prevFileId = useRef(file.id);
   useEffect(() => {
-    if (s.colorPlan?.colorPages) {
-      setCustomRangeText(s.colorPlan.colorPages.join(', '));
+    if (prevFileId.current !== file.id) {
+      prevFileId.current = file.id;
+      setCustomRangeText((s.colorPlan?.colorPages || []).join(', '));
     }
-  }, [s.colorPlan?.colorPages]);
+  }, [file.id]);
 
   const handleCustomRangeInput = (val: string) => {
     setCustomRangeText(val);
@@ -1190,13 +1073,29 @@ function FileCard({
       return;
     }
     const maxP = file.pages || 1;
+    // Don't show error if ending in separator while actively typing (e.g. "1,")
+    const isTypingSeparator = /[,\-\s]$/.test(val);
     const parsed = parsePageRange(val, maxP);
     const valid = parsed.pages.filter(p => p >= 1 && p <= maxP);
-    if (valid.length === 0 && val.trim() !== '') {
+    if (valid.length === 0 && !isTypingSeparator && val.trim() !== '') {
       setCustomRangeError(`Please enter pages between 1 and ${maxP}`);
     } else {
       setCustomRangeError(null);
+      if (valid.length > 0) {
+        upd({ colorMode: 'custom', colorPlan: { mode: 'custom', colorPages: valid } });
+      }
+    }
+  };
+
+  const handleCustomRangeBlur = () => {
+    const maxP = file.pages || 1;
+    if (!customRangeText.trim()) {
+      upd({ colorMode: 'custom', colorPlan: { mode: 'custom', colorPages: [] } });
+    } else {
+      const parsed = parsePageRange(customRangeText, maxP);
+      const valid = parsed.pages.filter(p => p >= 1 && p <= maxP);
       upd({ colorMode: 'custom', colorPlan: { mode: 'custom', colorPages: valid } });
+      setCustomRangeText(valid.join(', '));
     }
   };
 
@@ -1343,6 +1242,7 @@ function FileCard({
                     value={customRangeText}
                     placeholder="e.g. 1, 5-7"
                     onChange={e => handleCustomRangeInput(e.target.value)}
+                    onBlur={handleCustomRangeBlur}
                     style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #cbd5e1', fontSize: 13, boxSizing: 'border-box' }}
                   />
                   {customRangeError && (
@@ -1385,11 +1285,20 @@ function FileCard({
                 </button>
               ))}
             </div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-              💡 {
-                (s.orientation ?? 'auto') === 'auto' ? 'Auto adapts sheet rotation to match your document slides/pages.' :
-                s.orientation === 'portrait' ? 'Forces sheets to print upright vertically.' :
-                'Forces sheets to print horizontally (rotated 90°).'
+            <div style={{
+              fontSize: 11,
+              color: '#334155',
+              background: '#f8fafc',
+              border: '1px solid #cbd5e1',
+              borderRadius: 8,
+              padding: '7px 10px',
+              marginTop: 6,
+              lineHeight: 1.4
+            }}>
+              <b>Live Preview Effect:</b> {
+                (s.orientation ?? 'auto') === 'auto' ? 'Adapts sheet rotation automatically to best fit your document.' :
+                s.orientation === 'portrait' ? 'Sheet displays upright vertically (Portrait).' :
+                'Sheet displays rotated horizontally (Landscape).'
               }
             </div>
           </div>
@@ -1406,11 +1315,20 @@ function FileCard({
                 </button>
               ))}
             </div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-              💡 {
-                (s.layout ?? 'standard') === 'standard' ? 'Standard prints 1 full page or slide per sheet.' :
-                s.layout === 'handout' ? 'Handout places slide on left with ruled lines on right for lecture notes.' :
-                'Booklet arranges pages as a center-folded booklet spread.'
+            <div style={{
+              fontSize: 11,
+              color: '#334155',
+              background: '#f8fafc',
+              border: '1px solid #cbd5e1',
+              borderRadius: 8,
+              padding: '7px 10px',
+              marginTop: 6,
+              lineHeight: 1.4
+            }}>
+              <b>Live Preview Effect:</b> {
+                (s.layout ?? 'standard') === 'standard' ? 'Standard 1 page per sheet filling full printable area.' :
+                s.layout === 'handout' ? 'Handout displays your slide on the left with ruled note lines on the right.' :
+                'Booklet displays a 2-page center-folded spread with a staple fold line.'
               }
             </div>
           </div>
@@ -1444,11 +1362,20 @@ function FileCard({
                 </button>
               ))}
             </div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-              💡 {
-                (s.nUp ?? 1) === 1 ? '1 page per sheet — standard full reading size.' :
-                (s.nUp ?? 1) === 2 ? '2 pages per sheet side-by-side — saves 50% paper and reduces your print total!' :
-                '4 pages per sheet in a 2×2 grid — best for quick review.'
+            <div style={{
+              fontSize: 11,
+              color: '#334155',
+              background: '#f8fafc',
+              border: '1px solid #cbd5e1',
+              borderRadius: 8,
+              padding: '7px 10px',
+              marginTop: 6,
+              lineHeight: 1.4
+            }}>
+              <b>Live Preview Effect:</b> {
+                (s.nUp ?? 1) === 1 ? '1 full page per sheet.' :
+                (s.nUp ?? 1) === 2 ? '2 real pages placed side-by-side on each sheet (saves 50% paper).' :
+                '4 real pages placed in a 2×2 grid on each sheet.'
               }
             </div>
           </div>
@@ -1503,21 +1430,21 @@ function FileCard({
               style={{
                 flex: 2,
                 padding: '15px 16px',
-                background: '#ef4444',
+                background: '#0f172a',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: 14,
                 fontWeight: 700,
                 fontSize: 15,
                 cursor: 'pointer',
-                boxShadow: '0 4px 14px rgba(239, 68, 68, 0.35)',
+                boxShadow: '0 4px 14px rgba(15, 23, 42, 0.25)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 6
               }}
             >
-              ✕ Close Settings
+              ✓ Done · Close Settings
             </button>
           </div>
         </div>
@@ -1574,6 +1501,18 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
     );
   }
 
+  const lastFileRef = useRef<HTMLDivElement | null>(null);
+  const prevCount = useRef(files.length);
+
+  useEffect(() => {
+    if (files.length > prevCount.current) {
+      setTimeout(() => {
+        lastFileRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+    }
+    prevCount.current = files.length;
+  }, [files.length]);
+
   const totalPages = files.reduce((s, f) => s + f.pages * (f.settings.copies ?? 1), 0);
 
   return (
@@ -1585,17 +1524,37 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
         {files.length > 0 && (
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: '#718096', margin: '4px 2px 8px' }}>FILES</div>
-            {files.map(f => (
-              <FileCard
-                key={f.id}
-                file={f}
-                onUpdate={updated => updateFile(updated.id, updated)}
-                onRemove={() => removeFile(f.id)}
-                go={go}
-              />
+            {files.map((f, idx) => (
+              <div key={f.id} ref={idx === files.length - 1 ? lastFileRef : undefined}>
+                <FileCard
+                  file={f}
+                  onUpdate={updated => updateFile(updated.id, updated)}
+                  onRemove={() => removeFile(f.id)}
+                  go={go}
+                />
+              </div>
             ))}
-            <button onClick={handleAddMore} style={{ width: '100%', padding: 12, borderRadius: 12, border: '1.5px dashed #c0b8a8', background: 'none', color: '#718096', fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>
-              + Add more files
+            <button
+              onClick={handleAddMore}
+              style={{
+                width: '100%',
+                padding: '14px 16px',
+                borderRadius: 14,
+                border: '1.5px solid #0f172a',
+                background: '#0f172a',
+                color: '#ffffff',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer',
+                marginBottom: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                boxShadow: '0 4px 12px rgba(15, 23, 42, 0.18)'
+              }}
+            >
+              <span style={{ fontSize: 18, lineHeight: 1 }}>+</span> Add more files
             </button>
           </div>
         )}

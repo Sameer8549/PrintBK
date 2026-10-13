@@ -3,7 +3,7 @@ import { Topbar } from '../../components/ui';
 import { Screen } from '../../lib/types';
 import { useParams } from 'react-router-dom';
 import { api } from '../../services/api';
-import { useHistory } from '../../store/basket';
+import { useHistory, useBasket } from '../../store/basket';
 import { notify } from '../../lib/store';
 
 function PaymentState({
@@ -94,9 +94,12 @@ function PaymentState({
       const res = await api.upiReturn(id, order?.accessToken, utrInput.trim() || undefined);
       updateOrder(id, {
         status: res.status || 'upi_claimed',
-        orderNumber: res.orderNumber || order?.orderNumber
+        orderNumber: res.orderNumber || order?.orderNumber,
+        paymentMethod: 'upi'
       });
-      notify('Payment claimed! Shop will verify and approve print.');
+      // Clear basket now that payment has been claimed
+      useBasket.getState().clear();
+      notify('Payment recorded! Shop will verify and release your print.');
       go(`/order/${id}`);
     } catch (err: any) {
       notify(err?.message || 'Could not record claim. Please try again.');
@@ -111,8 +114,11 @@ function PaymentState({
       const res = await api.chooseCash(id, order?.accessToken);
       updateOrder(id, {
         status: res.status || 'pending_cash',
-        orderNumber: res.orderNumber || order?.orderNumber
+        orderNumber: res.orderNumber || order?.orderNumber,
+        paymentMethod: 'cash'
       });
+      // Clear basket now that order is confirmed as cash
+      useBasket.getState().clear();
       notify('Switched to Cash at counter.');
       go(`/order/${id}`);
     } catch (err: any) {
@@ -213,7 +219,7 @@ function PaymentState({
           </div>
         </div>
 
-        {/* ── 1-Tap App Launch Section ── */}
+        {/* ── 1-Tap App Launch Section: Only Pay with Installed UPI Apps ── */}
         <div style={{
           background: '#ffffff',
           borderRadius: 20,
@@ -222,120 +228,39 @@ function PaymentState({
           marginBottom: 16,
           boxShadow: '0 4px 16px rgba(0,0,0,0.03)'
         }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span>⚡</span>
-            <span>{isAndroid ? 'Pay with your installed UPI app:' : isIOS ? 'Choose your UPI app:' : 'Pay using phone or QR code:'}</span>
-          </div>
-
-          {/* Branded 1-tap app buttons */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {/* Google Pay */}
-            <a
-              href={upiData.gpayUrl || upiData.intentUrl}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 16px',
-                borderRadius: 12,
-                border: '1.5px solid #e2e8f0',
-                background: '#ffffff',
-                color: '#1a73e8',
-                fontWeight: 800,
-                fontSize: 14,
-                textDecoration: 'none',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 20 }}>⚡</span>
-                <span style={{ color: '#1f2937' }}>Google Pay</span>
-              </div>
-              <span style={{ fontSize: 12, color: '#1a73e8', fontWeight: 700 }}>Open app →</span>
-            </a>
-
-            {/* PhonePe */}
-            <a
-              href={upiData.phonepeUrl || upiData.intentUrl}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 16px',
-                borderRadius: 12,
-                border: '1.5px solid #e2e8f0',
-                background: '#ffffff',
-                color: '#5f259f',
-                fontWeight: 800,
-                fontSize: 14,
-                textDecoration: 'none',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 20 }}>🟣</span>
-                <span style={{ color: '#1f2937' }}>PhonePe</span>
-              </div>
-              <span style={{ fontSize: 12, color: '#5f259f', fontWeight: 700 }}>Open app →</span>
-            </a>
-
-            {/* Paytm */}
-            <a
-              href={upiData.paytmUrl || upiData.intentUrl}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 16px',
-                borderRadius: 12,
-                border: '1.5px solid #e2e8f0',
-                background: '#ffffff',
-                color: '#002970',
-                fontWeight: 800,
-                fontSize: 14,
-                textDecoration: 'none',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 20 }}>🔵</span>
-                <span style={{ color: '#1f2937' }}>Paytm</span>
-              </div>
-              <span style={{ fontSize: 12, color: '#002970', fontWeight: 700 }}>Open app →</span>
-            </a>
-
-            {/* Generic Intent / Any UPI App */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Primary Action Button: Pay with Installed UPI Apps */}
             <a
               href={upiData.intentUrl}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 8,
-                padding: '13px',
-                borderRadius: 12,
-                background: '#0f172a',
+                gap: 10,
+                padding: '16px 20px',
+                borderRadius: 14,
+                background: '#2563eb',
                 color: '#ffffff',
                 fontWeight: 800,
-                fontSize: 14,
+                fontSize: 16,
                 textDecoration: 'none',
-                boxShadow: '0 4px 12px rgba(15,23,42,0.15)'
+                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
+                textAlign: 'center'
               }}
             >
-              <span>🚀 Open Any Other UPI App</span>
+              <span>⚡ Pay with Installed UPI Apps</span>
             </a>
 
             {/* QR Toggle Button */}
             <button
               onClick={() => setShowQR(!showQR)}
               style={{
-                padding: '10px',
-                marginTop: 2,
-                borderRadius: 10,
+                padding: '11px',
+                borderRadius: 12,
                 border: '1.5px solid #cbd5e1',
                 background: showQR ? '#f1f5f9' : '#ffffff',
                 color: '#475569',
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: 700,
                 cursor: 'pointer',
                 display: 'flex',
@@ -365,6 +290,7 @@ function PaymentState({
             </div>
           )}
         </div>
+
 
         {/* ── Return-From-UPI Claim Card ── */}
         <div style={{

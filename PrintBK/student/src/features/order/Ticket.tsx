@@ -85,9 +85,19 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
     } catch (_) {}
   };
 
-  const savedPhone = localStorage.getItem('printbk-phone') || '';
+  const [phone, setPhone] = useState(() => localStorage.getItem('printbk-phone') || '');
+  const [phoneInput, setPhoneInput] = useState('');
 
-  // Fire sound/vibration and notification when order transitions to ready
+  const handleSavePhone = () => {
+    const cleaned = phoneInput.trim().replace(/\D/g, '');
+    if (cleaned.length < 10) {
+      notify('Please enter a valid 10-digit mobile number');
+      return;
+    }
+    localStorage.setItem('printbk-phone', cleaned);
+    setPhone(cleaned);
+    notify(`✓ Pickup alert active for +91 ${cleaned}!`);
+  };
   useEffect(() => {
     if (status === 'ready' && !alertFired) {
       setAlertFired(true);
@@ -163,8 +173,8 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
 
   const shareWhatsApp = () => {
     const text = `PrintBK Order ${orderNumber} · Pickup Code: ${pickupCode} · Amount: ₹${total.toFixed(2)} · Location: HKBK Student Point`;
-    if (savedPhone) {
-      window.open(`https://wa.me/91${savedPhone}?text=${encodeURIComponent(text)}`, '_blank');
+    if (phone) {
+      window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(text)}`, '_blank');
     } else {
       window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
     }
@@ -371,9 +381,9 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
             <p style={{ margin: '6px 0 10px', fontSize: 13, color: '#065f46', lineHeight: 1.4 }}>
               Present pickup code <b>{pickupCode}</b> at the HKBK Student Point counter to receive your documents.
             </p>
-            {savedPhone && (
+            {phone && (
               <div style={{ fontSize: 12, fontWeight: 600, color: '#047857', marginBottom: 12 }}>
-                🔔 Registered mobile: +91 {savedPhone}
+                🔔 Registered mobile: +91 {phone}
               </div>
             )}
             <button
@@ -392,7 +402,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
                 gap: 6
               }}
             >
-              💬 {savedPhone ? `Send Code to WhatsApp (+91 ${savedPhone})` : 'Share Pickup Code to WhatsApp'}
+              💬 {phone ? `Send Code to WhatsApp (+91 ${phone})` : 'Share Pickup Code to WhatsApp'}
             </button>
           </div>
         )}
@@ -470,6 +480,97 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
             </div>
           )}
         </section>
+
+        {/* ── Real-Time Phone / SMS Pickup Alert ── */}
+        <div style={{
+          margin: '0 16px 16px',
+          background: '#ffffff',
+          borderRadius: 16,
+          border: '1.5px solid #e2e8f0',
+          padding: '16px 18px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 10, background: '#f0fdf4', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
+              🔔
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                Pickup Notifications & Alerts
+              </div>
+              <div style={{ fontSize: 11, color: '#64748b' }}>
+                Receive instant alert when your prints are completed
+              </div>
+            </div>
+          </div>
+
+          {phone ? (
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: 10,
+              padding: '10px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginTop: 12
+            }}>
+              <div>
+                <span style={{ fontSize: 11, color: '#64748b' }}>Active Alert Phone: </span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>+91 {phone}</span>
+              </div>
+              <button
+                onClick={() => { setPhone(''); localStorage.removeItem('printbk-phone'); notify('Phone alert cleared'); }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#2563eb',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: '2px 6px'
+                }}
+              >
+                Change
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <input
+                type="tel"
+                placeholder="Enter 10-digit mobile number"
+                value={phoneInput}
+                onChange={e => setPhoneInput(e.target.value)}
+                maxLength={10}
+                style={{
+                  flex: 1,
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  border: '1.5px solid #cbd5e1',
+                  fontSize: 13,
+                  outline: 'none',
+                  fontWeight: 600
+                }}
+              />
+              <button
+                onClick={handleSavePhone}
+                style={{
+                  background: '#0f172a',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '10px 16px',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Get Alert
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* ── File Deletion Confirmation / On-Demand Delete ── */}
         {isDeleted ? (

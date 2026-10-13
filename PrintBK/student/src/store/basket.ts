@@ -9,6 +9,8 @@ export type { PrintFile };
 interface BasketState {
   files: PrintFile[];
   services: ServiceLine[];
+  activeFileId: string | null;
+  setActiveFileId: (id: string | null) => void;
   isProcessing: boolean;
   setProcessing: (val: boolean) => void;
   addFile: (file: PrintFile) => void;
@@ -24,16 +26,21 @@ export const useBasket = create<BasketState>()(
     (set, get) => ({
       files: [],
       services: [],
+      activeFileId: null,
+      setActiveFileId: (activeFileId) => set({ activeFileId }),
       isProcessing: false,
       setProcessing: (isProcessing) => set({ isProcessing }),
-      addFile: (file) => set((state) => ({ files: [...state.files, file] })),
-      removeFile: (id) => set((state) => ({ files: state.files.filter(f => f.id !== id) })),
+      addFile: (file) => set((state) => ({ files: [...state.files, file], activeFileId: file.id })),
+      removeFile: (id) => set((state) => ({
+        files: state.files.filter(f => f.id !== id),
+        activeFileId: state.activeFileId === id ? (state.files.find(f => f.id !== id)?.id || null) : state.activeFileId
+      })),
       updateFile: (id, updates) => set((state) => ({
         files: state.files.map(f => f.id === id ? { ...f, ...updates } : f)
       })),
       addService: (service) => set((state) => ({ services: [...state.services, service] })),
       removeService: (id) => set((state) => ({ services: state.services.filter(s => s.id !== id) })),
-      clear: () => set({ files: [], services: [], isProcessing: false }),
+      clear: () => set({ files: [], services: [], activeFileId: null, isProcessing: false }),
     }),
     { name: 'printbk-basket-v4' }
   )

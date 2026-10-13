@@ -1,171 +1,35 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Topbar, Icon } from '../../components/ui';
 import { Screen } from '../../lib/types';
-import { useBasket, rawFileMap } from '../../store/basket';
+import { useBasket } from '../../store/basket';
 import { layoutSheets, type LayoutSheetsResult, type SheetLayout, type PlacedPage } from '@printbk/shared';
-
-function SheetPageSlot({
-  file,
-  pageNumber,
-  rotation,
-  isColour
-}: {
-  file: any;
-  pageNumber: number;
-  rotation?: number;
-  isColour: boolean;
-}) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [rendered, setRendered] = useState(false);
-  const raw = rawFileMap.get(file.id);
-  const fileName = (raw?.name || file.name || '').toLowerCase();
-  const isPdf = fileName.endsWith('.pdf');
-  const isImage = raw?.type?.startsWith('image/') || /\.(jpe?g|png|webp|gif)$/i.test(fileName);
-
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!raw || !isImage) return;
-    const url = URL.createObjectURL(raw);
-    setImageUrl(url);
-    return () => {
-      URL.revokeObjectURL(url);
-    };
-  }, [raw, isImage]);
-
-  useEffect(() => {
-    if (!raw || !isPdf) return;
-    let active = true;
-    let renderTask: any = null;
-
-    async function renderPage() {
-      try {
-        const pdfjs = (window as any).pdfjsLib;
-        if (!pdfjs) return;
-        const buf = await raw!.arrayBuffer();
-        if (!active) return;
-        const doc = await pdfjs.getDocument({ data: buf }).promise;
-        if (!active || pageNumber > doc.numPages) return;
-        const pageObj = await doc.getPage(pageNumber);
-        if (!active || !canvasRef.current) return;
-
-        const canvas = canvasRef.current;
-        const baseVp = pageObj.getViewport({ scale: 1.0 });
-        const scale = Math.min(320 / baseVp.width, 420 / baseVp.height, 1.2);
-        const viewport = pageObj.getViewport({ scale: Math.max(scale, 0.45) });
-
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        renderTask = pageObj.render({ canvasContext: ctx, viewport });
-        await renderTask.promise;
-        if (active) setRendered(true);
-      } catch (e: any) {
-        if (e?.name !== 'RenderingCancelledException') {
-          console.warn('Preview slot render error:', e);
-        }
-      }
-    }
-
-    renderPage();
-    return () => {
-      active = false;
-      if (renderTask) renderTask.cancel();
-    };
-  }, [raw, isPdf, pageNumber]);
-
-  const filterStyle = isColour
-    ? 'none'
-    : 'grayscale(100%) contrast(140%) brightness(102%)';
-
-  return (
-    <div style={{
-      width: '100%',
-      height: '100%',
-      position: 'relative',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden',
-      background: '#ffffff'
-    }}>
-      {/* 1. PDF Canvas */}
-      {isPdf && (
-        <canvas
-          ref={canvasRef}
-          style={{
-            maxWidth: '100%',
-            maxHeight: '100%',
-            objectFit: 'contain',
-            display: rendered ? 'block' : 'none',
-            filter: filterStyle,
-            transform: rotation ? `rotate(${rotation}deg)` : undefined
-          }}
-        />
-      )}
-
-      {/* 2. Image Render */}
-      {isImage && imageUrl && (
-        <img
-          src={imageUrl}
-          alt={`Page ${pageNumber}`}
-          style={{
-            maxWidth: '100%',
-            maxHeight: '100%',
-            objectFit: 'contain',
-            display: 'block',
-            filter: filterStyle,
-            transform: rotation ? `rotate(${rotation}deg)` : undefined
-          }}
-        />
-      )}
-
-      {/* 3. Document Representation while loading or for Office files */}
-      {(!rendered || (!isPdf && !isImage)) && (
-        <div style={{
-          width: '90%',
-          height: '86%',
-          background: isColour ? 'linear-gradient(135deg, #f0fdf4 0%, #dbeafe 100%)' : '#f8fafc',
-          borderRadius: 4,
-          border: '1px solid #cbd5e1',
-          padding: '8px',
-          boxSizing: 'border-box',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          filter: filterStyle
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 9, fontWeight: 800, color: '#475569' }}>PAGE {pageNumber}</span>
-            <span style={{ fontSize: 8, background: '#e2e8f0', padding: '1px 4px', borderRadius: 3, fontWeight: 700 }}>
-              {isColour ? '🎨 Colour' : '⬛ B&W'}
-            </span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <div style={{ height: 3, background: isColour ? '#2563eb' : '#64748b', borderRadius: 2, width: '55%' }} />
-            <div style={{ height: 2, background: isColour ? '#93c5fd' : '#cbd5e1', borderRadius: 1 }} />
-            <div style={{ height: 2, background: isColour ? '#93c5fd' : '#cbd5e1', borderRadius: 1 }} />
-            <div style={{ height: 2, background: isColour ? '#93c5fd' : '#cbd5e1', borderRadius: 1, width: '75%' }} />
-          </div>
-          <div style={{ fontSize: 8, color: '#94a3b8', textAlign: 'right' }}>
-            {file.name}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+import { DocumentPageSlot } from './DocumentPageSlot';
 
 function PrintPreview({
   go
 }: {
   go: (screen: Screen) => void;
 }) {
-  const { files } = useBasket();
-  const [selectedFileIdx, setSelectedFileIdx] = useState(0);
+  const { files, activeFileId } = useBasket();
+  
+  // Default to activeFileId if present, else latest uploaded file
+  const initialIndex = useMemo(() => {
+    if (activeFileId) {
+      const idx = files.findIndex(f => f.id === activeFileId);
+      if (idx !== -1) return idx;
+    }
+    return Math.max(0, files.length - 1);
+  }, [files, activeFileId]);
+
+  const [selectedFileIdx, setSelectedFileIdx] = useState(initialIndex);
   const [currentSheetIdx, setCurrentSheetIdx] = useState(0);
+
+  // Keep selectedFileIdx valid if files change
+  useEffect(() => {
+    if (selectedFileIdx >= files.length && files.length > 0) {
+      setSelectedFileIdx(files.length - 1);
+    }
+  }, [files.length, selectedFileIdx]);
 
   const activeFile = files[selectedFileIdx] || files[0];
 
@@ -392,8 +256,8 @@ function PrintPreview({
                   overflow: 'hidden'
                 }}
               >
-                {/* Real document preview rendering via SheetPageSlot */}
-                <SheetPageSlot
+                {/* Real document preview rendering via DocumentPageSlot */}
+                <DocumentPageSlot
                   file={activeFile}
                   pageNumber={p.pageNumber}
                   rotation={p.rotation}
