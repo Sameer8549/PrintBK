@@ -7,7 +7,7 @@ import { browseAndAddFiles } from '../../lib/filePicker';
 import { api } from '../../services/api';
 import { type PrintFile, parsePageRange } from '@printbk/shared';
 import { DocumentPageSlot } from '../preview/DocumentPageSlot';
-import { ErrorBoundary } from '../../components/ErrorBoundary';
+
 
 /* ─── Option arrays ─────────────────────────────── */
 const colorOptions: { value: 'bw' | 'color' | 'auto' | 'custom'; label: string; sub: string }[] = [
@@ -511,8 +511,9 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
   }, [page, hasPptxRendered]);
 
   // Calculate current page metric & rotation
+  const settings = file.settings || ({} as any);
   const currentMetric = file.pageMetrics?.[page - 1];
-  const currentRot = ((file.settings.pageRotations?.[page] ?? currentMetric?.rotation ?? 0) % 360 + 360) % 360;
+  const currentRot = (((settings.pageRotations?.[page] ?? currentMetric?.rotation ?? 0) % 360) + 360) % 360;
   const isPageLandscape = currentMetric
     ? ((currentRot === 90 || currentRot === 270) ? currentMetric.width <= currentMetric.height : currentMetric.width >= currentMetric.height)
     : isPpt;
@@ -538,7 +539,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
 
   // Detect mixed slide sizes
   const portraitPages = (file.pageMetrics || []).filter(m => {
-    const rot = ((file.settings.pageRotations?.[m.pageNumber] ?? m.rotation ?? 0) % 360 + 360) % 360;
+    const rot = (((settings.pageRotations?.[m.pageNumber] ?? m.rotation ?? 0) % 360) + 360) % 360;
     const isWider = m.width >= m.height;
     return (rot === 90 || rot === 270) ? isWider : !isWider;
   }).map(m => m.pageNumber);
@@ -546,9 +547,9 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
 
   const handleRotateCurrentPage = () => {
     const nextRot = (currentRot + 90) % 360;
-    const nextRotations = { ...(file.settings.pageRotations || {}), [page]: nextRot };
+    const nextRotations = { ...(settings.pageRotations || {}), [page]: nextRot };
     useBasket.getState().updateFile(file.id, {
-      settings: { ...file.settings, pageRotations: nextRotations }
+      settings: { ...settings, pageRotations: nextRotations }
     });
   };
 
@@ -1210,13 +1211,7 @@ function FileCard({
       {open && (
         <div style={{ borderTop: '1.5px solid #e2e8f0', padding: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Live Document Preview (PDF / Images / PPTX / DOCX) */}
-          <ErrorBoundary fallback={
-            <div style={{ padding: '16px', background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: 12, textAlign: 'center', color: '#64748b', fontSize: 12 }}>
-              📄 Preview temporarily unavailable for this file · Document will print properly
-            </div>
-          }>
-            <DocumentPreview file={file} go={go} />
-          </ErrorBoundary>
+          <DocumentPreview file={file} go={go} />
 
           {/* Colour */}
           <div>
@@ -1533,20 +1528,12 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: '#718096', margin: '4px 2px 8px' }}>FILES</div>
             {files.map((f, idx) => (
               <div key={f.id} ref={idx === files.length - 1 ? lastFileRef : undefined}>
-                <ErrorBoundary fallback={
-                  <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #fee2e2', padding: 14, marginBottom: 10 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: '#dc2626' }}>{f.name || 'Document'}</div>
-                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>Notice: Settings display glitch for this file. It will still print correctly.</div>
-                    <button onClick={() => removeFile(f.id)} style={{ marginTop: 8, background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Remove</button>
-                  </div>
-                }>
-                  <FileCard
-                    file={f}
-                    onUpdate={updated => updateFile(updated.id, updated)}
-                    onRemove={() => removeFile(f.id)}
-                    go={go}
-                  />
-                </ErrorBoundary>
+                <FileCard
+                  file={f}
+                  onUpdate={updated => updateFile(updated.id, updated)}
+                  onRemove={() => removeFile(f.id)}
+                  go={go}
+                />
               </div>
             ))}
             <button
