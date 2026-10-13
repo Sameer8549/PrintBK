@@ -65,8 +65,10 @@ export const rawFileMap = new Map<string, File>();
  * The raw File is stored in rawFileMap so live previews and sliders can render it.
  */
 export function fileFromRaw(raw: File): PrintFile {
-  const ext = raw.name.split('.').pop()?.toLowerCase() ?? '';
-  const id = crypto.randomUUID();
+  const ext = (raw.name || '').split('.').pop()?.toLowerCase() ?? '';
+  const id = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+    ? crypto.randomUUID()
+    : 'f-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
 
   // Cache File object in memory
   rawFileMap.set(id, raw);

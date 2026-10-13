@@ -34,7 +34,7 @@ function Uploading({ go }: { go: (screen: Screen) => void }) {
             <section key={file.id} className="upload-card complete">
               <span className="file-thumb">
                 <Icon name="file" />
-                <b>{file.type.toUpperCase()}</b>
+                <b>{(file.type || 'FILE').toUpperCase()}</b>
               </span>
               <div>
                 <strong>{file.name}</strong>

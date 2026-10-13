@@ -7,6 +7,7 @@ import { browseAndAddFiles } from '../../lib/filePicker';
 import { api } from '../../services/api';
 import { type PrintFile, parsePageRange } from '@printbk/shared';
 import { DocumentPageSlot } from '../preview/DocumentPageSlot';
+import { ErrorBoundary } from '../../components/ErrorBoundary';
 
 /* ─── Option arrays ─────────────────────────────── */
 const colorOptions: { value: 'bw' | 'color' | 'auto' | 'custom'; label: string; sub: string }[] = [
@@ -90,7 +91,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
   const [hasPptxRendered, setHasPptxRendered] = useState(false);
 
   const raw = rawFileMap.get(file.id);
-  const s = file.settings;
+  const s = file.settings || ({} as any);
   const isCustom = s.colorMode === 'custom' || s.colorPlan?.mode === 'custom';
   const customColorPages = s.colorPlan?.colorPages || [];
   const isCurrentPageColor = (s.colorMode === 'color' || s.colorMode === 'colour')
@@ -104,11 +105,11 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
   const isDouble = s.sided === 'double';
   const nUp = s.nUp ?? 1;
 
-  const fileName = (raw?.name || file.name).toLowerCase();
+  const fileName = (raw?.name || file.name || '').toLowerCase();
   const isPdf = fileName.endsWith('.pdf');
   const isPpt = fileName.endsWith('.pptx') || fileName.endsWith('.ppt') || fileName.endsWith('.odp');
   const isDoc = fileName.endsWith('.docx') || fileName.endsWith('.doc') || fileName.endsWith('.odt');
-  const isImage = raw?.type.startsWith('image/') || /\.(jpe?g|png|webp|gif)$/i.test(fileName);
+  const isImage = Boolean(raw?.type?.startsWith('image/')) || /\.(jpe?g|png|webp|gif)$/i.test(fileName);
 
   // 1. Check Image DPI for printing quality
   useEffect(() => {
@@ -1209,7 +1210,13 @@ function FileCard({
       {open && (
         <div style={{ borderTop: '1.5px solid #e2e8f0', padding: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Live Document Preview (PDF / Images / PPTX / DOCX) */}
-          <DocumentPreview file={file} go={go} />
+          <ErrorBoundary fallback={
+            <div style={{ padding: '16px', background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: 12, textAlign: 'center', color: '#64748b', fontSize: 12 }}>
+              📄 Preview temporarily unavailable for this file · Document will print properly
+            </div>
+          }>
+            <DocumentPreview file={file} go={go} />
+          </ErrorBoundary>
 
           {/* Colour */}
           <div>
@@ -1526,12 +1533,20 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: '#718096', margin: '4px 2px 8px' }}>FILES</div>
             {files.map((f, idx) => (
               <div key={f.id} ref={idx === files.length - 1 ? lastFileRef : undefined}>
-                <FileCard
-                  file={f}
-                  onUpdate={updated => updateFile(updated.id, updated)}
-                  onRemove={() => removeFile(f.id)}
-                  go={go}
-                />
+                <ErrorBoundary fallback={
+                  <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #fee2e2', padding: 14, marginBottom: 10 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: '#dc2626' }}>{f.name || 'Document'}</div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>Notice: Settings display glitch for this file. It will still print correctly.</div>
+                    <button onClick={() => removeFile(f.id)} style={{ marginTop: 8, background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Remove</button>
+                  </div>
+                }>
+                  <FileCard
+                    file={f}
+                    onUpdate={updated => updateFile(updated.id, updated)}
+                    onRemove={() => removeFile(f.id)}
+                    go={go}
+                  />
+                </ErrorBoundary>
               </div>
             ))}
             <button

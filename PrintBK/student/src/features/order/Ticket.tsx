@@ -85,7 +85,13 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
     } catch (_) {}
   };
 
-  const [phone, setPhone] = useState(() => localStorage.getItem('printbk-phone') || '');
+  const [phone, setPhone] = useState(() => {
+    try {
+      return localStorage.getItem('printbk-phone') || '';
+    } catch {
+      return '';
+    }
+  });
   const [phoneInput, setPhoneInput] = useState('');
 
   const handleSavePhone = () => {
@@ -94,7 +100,9 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
       notify('Please enter a valid 10-digit mobile number');
       return;
     }
-    localStorage.setItem('printbk-phone', cleaned);
+    try {
+      localStorage.setItem('printbk-phone', cleaned);
+    } catch (_) {}
     setPhone(cleaned);
     notify(`✓ Pickup alert active for +91 ${cleaned}!`);
   };

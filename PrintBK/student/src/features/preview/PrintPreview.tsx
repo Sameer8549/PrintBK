@@ -39,9 +39,9 @@ function PrintPreview({
       return layoutSheets({ pages: [{ pageNumber: 1, width: 210, height: 297, rotation: 0 }] });
     }
 
-    const s = activeFile.settings;
+    const s = activeFile.settings || ({} as any);
     const pageRotationsMap: Record<number, number> = {};
-    if (s.pageRotations) {
+    if (s?.pageRotations) {
       Object.entries(s.pageRotations).forEach(([k, v]) => {
         pageRotationsMap[parseInt(k, 10)] = Number(v);
       });

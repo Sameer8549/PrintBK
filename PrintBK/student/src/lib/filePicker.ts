@@ -15,6 +15,8 @@ export function browseAndAddFiles(
     fileInputRef.type = 'file';
     fileInputRef.multiple = true;
     fileInputRef.accept = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png';
+    fileInputRef.style.display = 'none';
+    document.body.appendChild(fileInputRef);
   }
   fileInputRef.onchange = async () => {
     if (!fileInputRef?.files?.length) return;

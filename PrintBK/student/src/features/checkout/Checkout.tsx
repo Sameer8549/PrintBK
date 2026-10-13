@@ -12,7 +12,13 @@ function Checkout({ go, setSheet, services }: {
 }) {
   const [payment, setPayment] = useState<'UPI' | 'Cash' | 'Razorpay'>('UPI');
   const [enabledMethods, setEnabledMethods] = useState<{ cash: boolean; upi: boolean; razorpay: boolean }>({ cash: true, upi: true, razorpay: false });
-  const [phone, setPhone] = useState(() => localStorage.getItem('printbk-phone') || '');
+  const [phone, setPhone] = useState(() => {
+    try {
+      return localStorage.getItem('printbk-phone') || '';
+    } catch {
+      return '';
+    }
+  });
   const basket = useBasket();
   const pricing = usePricing();
   const { addOrder } = useHistory();
@@ -40,7 +46,9 @@ function Checkout({ go, setSheet, services }: {
     }
     setLoading(true);
     setError(null);
-    if (phone) localStorage.setItem('printbk-phone', phone);
+    try {
+      if (phone) localStorage.setItem('printbk-phone', phone);
+    } catch (_) {}
 
     try {
       const isCash = payment === 'Cash';

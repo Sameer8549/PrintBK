@@ -6,7 +6,13 @@ import { useBasket, useHistory } from '../../store/basket';
 
 function Settings({ go }: { go: (screen: Screen) => void }) {
   const [cleared, setCleared] = useState(false);
-  const [phone, setPhone] = useState(() => localStorage.getItem('printbk-phone') || '');
+  const [phone, setPhone] = useState(() => {
+    try {
+      return localStorage.getItem('printbk-phone') || '';
+    } catch {
+      return '';
+    }
+  });
   const [editingPhone, setEditingPhone] = useState(false);
   const [tempPhone, setTempPhone] = useState(phone);
   const [pushStatus, setPushStatus] = useState<NotificationPermission | 'unsupported'>(() => {
@@ -24,7 +30,7 @@ function Settings({ go }: { go: (screen: Screen) => void }) {
     const cleaned = digits.length >= 10 ? digits.slice(-10) : digits;
 
     if (!cleaned) {
-      localStorage.removeItem('printbk-phone');
+      try { localStorage.removeItem('printbk-phone'); } catch (_) {}
       setPhone('');
       setEditingPhone(false);
       notify('Phone number removed');
@@ -36,7 +42,7 @@ function Settings({ go }: { go: (screen: Screen) => void }) {
       return;
     }
 
-    localStorage.setItem('printbk-phone', cleaned);
+    try { localStorage.setItem('printbk-phone', cleaned); } catch (_) {}
     setPhone(cleaned);
     setEditingPhone(false);
 
