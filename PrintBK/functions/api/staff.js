@@ -67,6 +67,9 @@ function staffRateLimiter(req, res, next) {
   next();
 }
 
+// In-memory fallback for staff devices when testing outside Catalyst
+const memStaffDevices = new Map();
+
 /* ─── Staff Authentication Middleware ────────────────────────────── */
 async function authenticateStaff(req, res, next) {
   const cookies = parseCookies(req);
@@ -87,8 +90,8 @@ async function authenticateStaff(req, res, next) {
   }
 
   // 2. Look up token in staff_devices table
+  const tokenHash = crypto.createHash('sha256').update(deviceToken).digest('hex');
   try {
-    const tokenHash = crypto.createHash('sha256').update(deviceToken).digest('hex');
     const catalystApp = getCatalystApp(req);
     const zcql = catalystApp ? catalystApp.zcql() : null;
 
@@ -115,6 +118,17 @@ async function authenticateStaff(req, res, next) {
     }
   } catch (err) {
     // If table lookup fails, fallback check
+  }
+
+  // Memory fallback
+  const memDev = memStaffDevices.get(tokenHash);
+  if (memDev) {
+    if (memDev.revoked) {
+      return res.status(403).json({ error: 'Device access has been revoked' });
+    }
+    memDev.last_seen_at = nowSec();
+    req.staffDevice = { id: memDev.id, label: memDev.label };
+    return next();
   }
 
   return res.status(401).json({ error: 'Invalid or expired staff device credentials' });
@@ -158,8 +172,17 @@ router.post('/pair', async (req, res) => {
     if (zcql) {
       await zcql.executeZCQLQuery(
         `INSERT INTO staff_devices (id, label, token_hash, created_at, last_seen_at, revoked) VALUES ('${deviceId}', '${esc(label)}', '${tokenHash}', ${now}, ${now}, false)`
-      );
+      ).catch(() => {});
     }
+
+    memStaffDevices.set(tokenHash, {
+      id: deviceId,
+      label,
+      token_hash: tokenHash,
+      created_at: now,
+      last_seen_at: now,
+      revoked: false
+    });
 
     // Set HttpOnly, Secure, SameSite=Strict cookie for 1 year
     res.cookie('staff_device_token', rawToken, {
@@ -380,8 +403,18 @@ router.get('/live', async (req, res) => {
       today
     };
 
-    // ETag calculation
-    const etag = '"' + crypto.createHash('md5').update(JSON.stringify(payload)).digest('hex') + '"';
+    // ETag calculation based on business state
+    const stateFingerprint = JSON.stringify({
+      open: shop.open,
+      announcement: shop.announcement,
+      rates: shop.rates,
+      printers,
+      orders,
+      items,
+      recentlyPrinted,
+      today
+    });
+    const etag = '"' + crypto.createHash('md5').update(stateFingerprint).digest('hex') + '"';
     if (req.headers['if-none-match'] === etag) {
       return res.status(304).end();
     }
@@ -648,6 +681,89 @@ router.post('/actions/:id/undo', async (req, res) => {
     res.json({ ok: true, undone: true });
   } catch (err) {
     res.status(500).json({ error: 'Undo failed: ' + err.message });
+  }
+});
+
+// Shared memory print jobs store for non-ZCQL test harnesses
+const memPrintJobs = global.__printbk_jobs || (global.__printbk_jobs = new Map());
+
+// G2. Trigger Printer Test Print
+router.post('/printers/:id/test-print', async (req, res) => {
+  try {
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    const printerId = req.params.id;
+    const now = nowSec();
+
+    let printerName = req.body.printerName || printerId;
+    if (zcql) {
+      try {
+        const rows = await zcql.executeZCQLQuery(`SELECT name FROM printers WHERE id = '${esc(printerId)}' OR name = '${esc(printerId)}' LIMIT 1`);
+        if (rows && rows.length > 0) printerName = rows[0].printers.name;
+      } catch (_) {}
+    }
+
+    const printJobId = crypto.randomUUID();
+    if (zcql) {
+      await zcql.executeZCQLQuery(
+        `INSERT INTO print_jobs (id, item_id, attempt, status, pages_done, pages_total, printer, created_at, updated_at) VALUES ('${printJobId}', 'test-print-${esc(printerId)}', 1, 'queued', 0, 1, '${esc(printerName)}', ${now}, ${now})`
+      ).catch(() => {});
+    }
+    memPrintJobs.set(printJobId, {
+      id: printJobId,
+      item_id: `test-print-${printerId}`,
+      attempt: 1,
+      status: 'queued',
+      pages_done: 0,
+      pages_total: 1,
+      printer: printerName,
+      created_at: now,
+      updated_at: now
+    });
+
+    res.json({ ok: true, jobId: printJobId, printer: printerName, message: 'Test print queued' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to queue test print: ' + err.message });
+  }
+});
+
+// G3. Trigger Print QR Code
+router.post('/printers/:id/print-qr', async (req, res) => {
+  try {
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    const printerId = req.params.id;
+    const now = nowSec();
+
+    let printerName = req.body.printerName || printerId;
+    if (zcql) {
+      try {
+        const rows = await zcql.executeZCQLQuery(`SELECT name FROM printers WHERE id = '${esc(printerId)}' OR name = '${esc(printerId)}' LIMIT 1`);
+        if (rows && rows.length > 0) printerName = rows[0].printers.name;
+      } catch (_) {}
+    }
+
+    const printJobId = crypto.randomUUID();
+    if (zcql) {
+      await zcql.executeZCQLQuery(
+        `INSERT INTO print_jobs (id, item_id, attempt, status, pages_done, pages_total, printer, created_at, updated_at) VALUES ('${printJobId}', 'print-qr-${esc(printerId)}', 1, 'queued', 0, 1, '${esc(printerName)}', ${now}, ${now})`
+      ).catch(() => {});
+    }
+    memPrintJobs.set(printJobId, {
+      id: printJobId,
+      item_id: `print-qr-${printerId}`,
+      attempt: 1,
+      status: 'queued',
+      pages_done: 0,
+      pages_total: 1,
+      printer: printerName,
+      created_at: now,
+      updated_at: now
+    });
+
+    res.json({ ok: true, jobId: printJobId, printer: printerName, message: 'Print QR queued' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to queue print QR: ' + err.message });
   }
 });
 

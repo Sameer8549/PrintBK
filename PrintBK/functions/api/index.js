@@ -238,6 +238,11 @@ const staffRouter = require('./staff');
 app.use('/server/api/staff', staffRouter);
 app.use('/staff', staffRouter);
 
+/* ─── Mount Agent API Router ─────────────────────────────────────── */
+const agentRouter = require('./agent');
+app.use('/server/api/agent', agentRouter);
+app.use('/agent', agentRouter);
+
 /* ─── Multer & Magic Bytes File Inspection ───────────────────────── */
 const uploadTmpDir = path.join(os.tmpdir(), 'printbk-uploads');
 try { fs.mkdirSync(uploadTmpDir, { recursive: true }); } catch (_) {}
