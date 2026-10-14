@@ -10,7 +10,9 @@
 
 | Variable Name | Description | Environment | Sensitive? | Purpose |
 | :--- | :--- | :--- | :--- | :--- |
-| `STAFF_TOKEN` | Pre-shared secret token for staff counter operations | Dev & Prod | **Yes** | Protects `/orders`, `/orders/:id/approve-cash`, `/orders/:id/status`, `/files/:cloudId` |
+| `STAFF_TOKEN` | Pre-shared secret token for staff counter operations (fallback) | Dev & Prod | **Yes** | Protects `/orders`, `/orders/:id/approve-cash`, `/orders/:id/status`, `/files/:cloudId` |
+| `STAFF_SETUP_CODE` | One-time/rotatable setup code for first-run staff pairing | Dev & Prod | **Yes** | Exchanged at `POST /staff/pair` for long-lived staff device token |
+| `AGENT_TOKEN` | Authentication secret for the Windows print agent on shop PC | Dev & Prod | **Yes** | Authenticates outbound print agent polling and status updates |
 | `CRON_SECRET` | Pre-shared constant-time secret for scheduled tasks | Dev & Prod | **Yes** | Protects `POST /cron/cleanup` scheduler endpoint |
 | `UPI_ID` | Virtual Payment Address (VPA) for direct UPI transfers | Dev & Prod | **Yes** (Server-only) | Server builds NPCI `upi://pay` payload; never exposed in client bundle |
 | `UPI_PAYEE_NAME` | Business / Shop Payee Name displayed in UPI apps | Dev & Prod | No | NPCI `pn` parameter (e.g. `PrintBK HKBK`) |

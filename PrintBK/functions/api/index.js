@@ -227,10 +227,16 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Order-Token', 'X-Staff-Token', 'X-Cron-Secret', 'X-Authorization', 'Accept']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Order-Token', 'X-Staff-Token', 'X-Staff-Device-Token', 'X-Agent-Token', 'X-Cron-Secret', 'X-Authorization', 'Accept', 'If-None-Match'],
+  exposedHeaders: ['ETag']
 }));
 
 app.use(express.json({ limit: '2mb' }));
+
+/* ─── Mount Staff API Router ─────────────────────────────────────── */
+const staffRouter = require('./staff');
+app.use('/server/api/staff', staffRouter);
+app.use('/staff', staffRouter);
 
 /* ─── Multer & Magic Bytes File Inspection ───────────────────────── */
 const uploadTmpDir = path.join(os.tmpdir(), 'printbk-uploads');
@@ -565,6 +571,25 @@ app.post('/orders', async (req, res) => {
       await zcql.executeZCQLQuery(
         `INSERT INTO orders (id, status, basket, file_names, quote_pending, total, created_at, updated_at) VALUES ('${orderId}', '${status}', '${basketJson}', '${filesJson}', ${quotePending}, ${total}, ${now}, ${now})`
       );
+    }
+
+    // Populate order_items table for real-time staff counters
+    for (const item of typedItems) {
+      const itemId = crypto.randomUUID();
+      const kind = item.type;
+      const itemStatus = (status === 'pending_cash' || status === 'upi_claimed') ? 'ready_to_print' : (status === 'pending_payment' ? 'waiting_payment' : 'preparing');
+      const payloadStr = esc(JSON.stringify(item.specifications || {}));
+      const price = Number(item.computedPricing?.lineTotal || 0);
+      const fileRefs = esc(JSON.stringify(item.specifications?.fileId ? [item.specifications.fileId] : []));
+      const printerRole = kind.includes('colour') ? 'colour' : (kind.includes('photo') ? 'photo' : (kind.includes('bw') ? 'bw' : 'none'));
+
+      try {
+        await zcql.executeZCQLQuery(
+          `INSERT INTO order_items (id, order_id, kind, status, payload, price, file_refs, printer_role, created_at) VALUES ('${itemId}', '${orderId}', '${kind}', '${itemStatus}', '${payloadStr}', ${price}, '${fileRefs}', '${printerRole}', ${now})`
+        );
+      } catch (itemErr) {
+        // Resilience: if order_items table has transient schema delay, basket JSON still holds typedItems
+      }
     }
 
     // Hide pickup code until processing is approved
