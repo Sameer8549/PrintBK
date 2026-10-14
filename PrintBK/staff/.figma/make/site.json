@@ -1,0 +1,10 @@
+{
+  "description": "PrintBK counter app for HKBK Student Point: collect cash, approve and print, with live orders from the student app.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

@@ -1,5 +1,6 @@
 packages:
   - 'student'
+  - 'staff'
   - 'backend'
   - 'agent'
   - 'packages/*'
