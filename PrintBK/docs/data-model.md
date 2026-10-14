@@ -42,9 +42,9 @@ One row per physical or service deliverable in an order.
 | `order_id` | VarChar(50) | Yes | Foreign key to `orders.id` |
 | `kind` | VarChar(30) | Yes | `document_bw`, `document_colour`, `photo`, `binding`, `lamination`, `scanning`, `photocopy`, `typing_request` |
 | `status` | VarChar(30) | Yes | Item status (see Section 2.2) |
-| `payload` | VarChar(5000) | Yes | JSON string of item specifications (pages, copies, sides, layout, colourPlan, etc.) |
+| `payload` | Text | Yes | JSON string of item specifications (pages, copies, sides, layout, colourPlan, etc.) |
 | `price` | Double | Yes | Computed line total price in INR |
-| `file_refs` | VarChar(1000) | No | JSON string array of file storage IDs |
+| `file_refs` | Text | No | JSON string array of file storage IDs |
 | `printer_role` | VarChar(20) | Yes | Target role: `bw`, `colour`, `photo`, `none` |
 | `created_at` | BigInt | Yes | Item creation epoch timestamp |
 | `printed_at` | BigInt | No | Timestamp when printing was finished |
@@ -66,7 +66,7 @@ Execution attempts dispatched to the local PC print agent.
 | `pages_total` | Int | Yes | Total physical pages to output |
 | `printer` | VarChar(100) | No | Windows printer name assigned |
 | `error_code` | VarChar(50) | No | Error classification code (`paper_jam`, `out_of_paper`, `offline`, etc.) |
-| `error_message` | VarChar(500) | No | Plain human-readable error description |
+| `error_message` | Text | No | Plain human-readable error description |
 | `created_at` | BigInt | Yes | Creation timestamp |
 | `updated_at` | BigInt | Yes | Last progress update timestamp |
 
@@ -110,8 +110,8 @@ Printers reported by the print agent from Windows print spooler.
 | `role` | VarChar(20) | Yes | `bw`, `colour`, `photo`, `both`, `none` |
 | `online` | Boolean | Yes | Spooler online status |
 | `status` | VarChar(50) | Yes | Status summary (`ready`, `paper_out`, `jam`, `offline`) |
-| `paper_info` | VarChar(1000) | No | JSON supported paper sizes and trays |
-| `tray_info` | VarChar(1000) | No | JSON tray status |
+| `paper_info` | Text | No | JSON supported paper sizes and trays |
+| `tray_info` | Text | No | JSON tray status |
 | `last_seen` | BigInt | Yes | Last heartbeat from agent |
 
 ---
@@ -122,14 +122,14 @@ Single-row shop operational and pricing configuration.
 | Column Name | Data Type | Mandatory | Description |
 | :--- | :--- | :---: | :--- |
 | `id` | VarChar(50) | Yes | Fixed key (`default`) |
-| `rates` | VarChar(2000) | Yes | JSON rates: `{ bw, colour, duplex, bulk, a3, legal, ... }` |
-| `services` | VarChar(1000) | Yes | JSON service availability flags |
-| `payments` | VarChar(1000) | Yes | JSON payment options: `{ cash, upi, upiId, payeeName, razorpay }` |
-| `shop_info` | VarChar(1000) | Yes | JSON shop metadata: `{ name, address, hours, phone, delete_delay_minutes }` |
+| `rates` | Text | Yes | JSON rates: `{ bw, colour, duplex, bulk, a3, legal, ... }` |
+| `services` | Text | Yes | JSON service availability flags |
+| `payments` | Text | Yes | JSON payment options: `{ cash, upi, upiId, payeeName, razorpay }` |
+| `shop_info` | Text | Yes | JSON shop metadata: `{ name, address, hours, phone, delete_delay_minutes }` |
 | `delete_delay_minutes` | Int | Yes | Auto-delete delay in minutes (default 5, max 30) |
 | `mixed_colour_mode` | VarChar(20) | Yes | `split` or `colour` |
 | `open` | Boolean | Yes | Counter open/closed toggle |
-| `announcement` | VarChar(500) | No | Optional broadcast banner |
+| `announcement` | Text | No | Optional broadcast banner |
 | `updated_at` | BigInt | Yes | Last updated timestamp |
 
 ---
@@ -160,7 +160,7 @@ Undo window storage for counter actions (5-second grace period).
 | `action_type` | VarChar(30) | Yes | `collect_cash`, `reject`, `approve_print` |
 | `order_id` | VarChar(50) | Yes | Target order ID |
 | `item_id` | VarChar(50) | No | Target item ID |
-| `payload` | VarChar(2000) | Yes | JSON snapshot of previous state for restoration |
+| `payload` | Text | Yes | JSON snapshot of previous state for restoration |
 | `expires_at` | BigInt | Yes | Epoch timestamp when undo window expires (`created_at + 5s`) |
 | `undone` | Boolean | Yes | True if undone |
 | `created_at` | BigInt | Yes | Action timestamp |
