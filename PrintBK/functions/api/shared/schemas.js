@@ -1,6 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.OrderItemSchema = exports.OrderItemPricingSchema = exports.TypingCustomSpecsSchema = exports.PhotocopySpecsSchema = exports.ScanningSpecsSchema = exports.LaminationSpecsSchema = exports.BindingSpecsSchema = exports.PhotoSpecsSchema = exports.DocumentColourSpecsSchema = exports.DocumentBwSpecsSchema = exports.OrderItemTypeSchema = exports.OrderStatusSchema = exports.BasketSchema = exports.ServiceLineSchema = exports.PrintFileSchema = exports.ColorPlanSchema = exports.ShopConfigSchema = void 0;
+exports.StaffActionRecordSchema = exports.OrderEventRecordSchema = exports.ShopSettingsRecordSchema = exports.PrinterRecordSchema = exports.AgentDeviceRecordSchema = exports.StaffDeviceRecordSchema = exports.PrintJobRecordSchema = exports.OrderItemRecordSchema = exports.OrderItemSchema = exports.OrderItemPricingSchema = exports.TypingCustomSpecsSchema = exports.PhotocopySpecsSchema = exports.ScanningSpecsSchema = exports.LaminationSpecsSchema = exports.BindingSpecsSchema = exports.PhotoSpecsSchema = exports.DocumentColourSpecsSchema = exports.DocumentBwSpecsSchema = exports.ItemStatusSchema = exports.OrderItemTypeSchema = exports.OrderStatusSchema = exports.BasketSchema = exports.ServiceLineSchema = exports.PrintFileSchema = exports.ColorPlanSchema = exports.ShopConfigSchema = void 0;
+exports.isStaffVisibleOrder = isStaffVisibleOrder;
+exports.canApprovePrint = canApprovePrint;
+exports.canCollectCash = canCollectCash;
+exports.canMarkServiceDone = canMarkServiceDone;
 const zod_1 = require("zod");
 exports.ShopConfigSchema = zod_1.z.object({
     rates: zod_1.z.object({
@@ -80,7 +84,7 @@ exports.BasketSchema = zod_1.z.object({
     rush: zod_1.z.boolean().default(false)
 });
 exports.OrderStatusSchema = zod_1.z.enum([
-    'pending_payment', 'pending_cash', 'upi_started', 'upi_claimed', 'waiting_quote', 'quote_sent', 'accepted', 'declined',
+    'pending_payment', 'pending_cash', 'upi_started', 'upi_claimed', 'cash_collected', 'waiting_quote', 'quote_sent', 'accepted', 'declined',
     'paid', 'processing', 'printing', 'ready', 'completed', 'cancelled', 'rejected', 'failed', 'refunded', 'expired'
 ]);
 /* ─── Typed Order Items for Staff App Tables ──────────────────────── */
@@ -92,7 +96,26 @@ exports.OrderItemTypeSchema = zod_1.z.enum([
     'lamination',
     'scanning',
     'photocopy',
+    'typing_request',
     'typing_custom'
+]);
+exports.ItemStatusSchema = zod_1.z.enum([
+    'waiting_payment',
+    'preparing',
+    'ready_to_print',
+    'sending',
+    'printing',
+    'printed',
+    'failed',
+    'waiting_for_print',
+    'ready_to_bind',
+    'done',
+    'quote_waiting',
+    'quote_sent',
+    'quote_accepted',
+    'expired',
+    'cancelled',
+    'rejected'
 ]);
 exports.DocumentBwSpecsSchema = zod_1.z.object({
     pages: zod_1.z.number(),
@@ -164,3 +187,136 @@ exports.OrderItemSchema = zod_1.z.object({
     computedPricing: exports.OrderItemPricingSchema,
     printInstructions: zod_1.z.string()
 });
+/* ─── ZCQL Table Schemas & Record Types ──────────────────────────── */
+exports.OrderItemRecordSchema = zod_1.z.object({
+    id: zod_1.z.string(),
+    order_id: zod_1.z.string(),
+    kind: exports.OrderItemTypeSchema,
+    status: exports.ItemStatusSchema,
+    payload: zod_1.z.string(), // JSON string of specs & options
+    price: zod_1.z.number(),
+    file_refs: zod_1.z.string(), // JSON string array of file ids
+    printer_role: zod_1.z.enum(['bw', 'colour', 'photo', 'none']).default('none'),
+    created_at: zod_1.z.number(),
+    printed_at: zod_1.z.number().nullable().optional(),
+    delete_after: zod_1.z.number().nullable().optional(),
+    files_deleted_at: zod_1.z.number().nullable().optional()
+});
+exports.PrintJobRecordSchema = zod_1.z.object({
+    id: zod_1.z.string(),
+    item_id: zod_1.z.string(),
+    attempt: zod_1.z.number().default(1),
+    status: zod_1.z.enum(['queued', 'sending', 'printing', 'completed', 'failed']).default('queued'),
+    pages_done: zod_1.z.number().default(0),
+    pages_total: zod_1.z.number().default(0),
+    printer: zod_1.z.string().default(''),
+    error_code: zod_1.z.string().nullable().optional(),
+    error_message: zod_1.z.string().nullable().optional(),
+    created_at: zod_1.z.number(),
+    updated_at: zod_1.z.number()
+});
+exports.StaffDeviceRecordSchema = zod_1.z.object({
+    id: zod_1.z.string(),
+    label: zod_1.z.string(),
+    token_hash: zod_1.z.string(),
+    created_at: zod_1.z.number(),
+    last_seen_at: zod_1.z.number(),
+    revoked: zod_1.z.boolean().default(false)
+});
+exports.AgentDeviceRecordSchema = zod_1.z.object({
+    id: zod_1.z.string(),
+    label: zod_1.z.string(),
+    token_hash: zod_1.z.string(),
+    created_at: zod_1.z.number(),
+    last_seen_at: zod_1.z.number(),
+    revoked: zod_1.z.boolean().default(false)
+});
+exports.PrinterRecordSchema = zod_1.z.object({
+    id: zod_1.z.string(),
+    name: zod_1.z.string(),
+    role: zod_1.z.enum(['bw', 'colour', 'photo', 'both', 'none']).default('both'),
+    online: zod_1.z.boolean().default(true),
+    status: zod_1.z.string().default('ready'),
+    paper_info: zod_1.z.string().default('{}'), // JSON
+    tray_info: zod_1.z.string().default('{}'), // JSON
+    last_seen: zod_1.z.number()
+});
+exports.ShopSettingsRecordSchema = zod_1.z.object({
+    id: zod_1.z.string().default('default'),
+    rates: zod_1.z.record(zod_1.z.string(), zod_1.z.any()),
+    services: zod_1.z.record(zod_1.z.string(), zod_1.z.any()),
+    payments: zod_1.z.record(zod_1.z.string(), zod_1.z.any()),
+    shop_info: zod_1.z.record(zod_1.z.string(), zod_1.z.any()),
+    delete_delay_minutes: zod_1.z.number().default(5),
+    mixed_colour_mode: zod_1.z.enum(['split', 'colour']).default('split'),
+    open: zod_1.z.boolean().default(true),
+    announcement: zod_1.z.string().default(''),
+    updated_at: zod_1.z.number()
+});
+exports.OrderEventRecordSchema = zod_1.z.object({
+    id: zod_1.z.string(),
+    order_id: zod_1.z.string(),
+    item_id: zod_1.z.string().nullable().optional(),
+    actor_type: zod_1.z.enum(['student', 'staff', 'agent', 'system']),
+    actor_label: zod_1.z.string(),
+    action: zod_1.z.string(),
+    from_status: zod_1.z.string(),
+    to_status: zod_1.z.string(),
+    timestamp: zod_1.z.number()
+});
+exports.StaffActionRecordSchema = zod_1.z.object({
+    id: zod_1.z.string(),
+    action_type: zod_1.z.enum(['collect_cash', 'reject', 'approve_print', 'done', 'send_quote']),
+    order_id: zod_1.z.string(),
+    item_id: zod_1.z.string().nullable().optional(),
+    payload: zod_1.z.string(), // JSON string of snapshot for UNDO
+    expires_at: zod_1.z.number(),
+    undone: zod_1.z.boolean().default(false),
+    created_at: zod_1.z.number()
+});
+/* ─── State Machine & Transition Rules ───────────────────────────── */
+/**
+ * Orders visible on the staff counter page:
+ * Only orders whose payment path is chosen and not completed/cancelled/draft.
+ */
+function isStaffVisibleOrder(status) {
+    return [
+        'pending_cash',
+        'upi_claimed',
+        'cash_collected',
+        'processing',
+        'printing',
+        'ready',
+        'waiting_quote',
+        'quote_sent'
+    ].includes(status);
+}
+/**
+ * APPROVE & PRINT on an item is allowed only when:
+ * 1. The order's payment state is verified (cash_collected, upi_claimed, or paid)
+ * 2. The item status allows printing (ready_to_print, preparing, or retry after failed)
+ */
+function canApprovePrint(orderStatus, itemStatus) {
+    const isPaidOrVerified = ['cash_collected', 'upi_claimed', 'paid'].includes(orderStatus);
+    const isPrintable = ['ready_to_print', 'preparing', 'failed'].includes(itemStatus);
+    return isPaidOrVerified && isPrintable;
+}
+/**
+ * COLLECT CASH is allowed only when order is in pending_cash.
+ */
+function canCollectCash(orderStatus) {
+    return orderStatus === 'pending_cash';
+}
+/**
+ * Physical service DONE is allowed only when:
+ * - Its linked print item is already 'printed' (or it has no linked print item)
+ * - The item is not already done or cancelled
+ */
+function canMarkServiceDone(itemKind, itemStatus, linkedPrintStatus) {
+    if (['done', 'cancelled', 'rejected'].includes(itemStatus))
+        return false;
+    if (linkedPrintStatus && linkedPrintStatus !== 'printed') {
+        return false;
+    }
+    return true;
+}
