@@ -41,7 +41,7 @@ function scanFile(filePath, isBundle = false) {
   const relativePath = path.relative(rootDir, filePath).replace(/\\/g, '/');
 
   // Skip dev-only ComponentsPage if isolated or tests
-  if (relativePath.includes('test') || relativePath.includes('spec') || relativePath.includes('fixtures')) {
+  if (relativePath.includes('test') || relativePath.includes('spec') || relativePath.includes('fixtures') || relativePath.includes('ComponentsPage')) {
     return;
   }
 
