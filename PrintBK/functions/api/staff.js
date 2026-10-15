@@ -67,8 +67,12 @@ function staffRateLimiter(req, res, next) {
   next();
 }
 
-// In-memory fallback for staff devices when testing outside Catalyst
+// In-memory fallback stores when testing outside Catalyst or syncing across endpoints
 const memStaffDevices = new Map();
+const memOrders = global.__printbk_orders || (global.__printbk_orders = new Map());
+const memOrderItems = global.__printbk_order_items || (global.__printbk_order_items = new Map());
+const memPrintJobs = global.__printbk_jobs || (global.__printbk_jobs = new Map());
+const memStaffActions = global.__printbk_staff_actions || (global.__printbk_staff_actions = new Map());
 
 /* ─── Staff Authentication Middleware ────────────────────────────── */
 async function authenticateStaff(req, res, next) {
@@ -197,6 +201,7 @@ router.post('/pair', async (req, res) => {
       ok: true,
       deviceId,
       token: rawToken,
+      deviceToken: rawToken,
       label
     });
   } catch (err) {
@@ -276,18 +281,30 @@ router.get('/live', async (req, res) => {
     const deleteCutoff = now - (shop.delete_delay_minutes * 60);
     const activeStatuses = "'pending_cash', 'upi_claimed', 'cash_collected', 'processing', 'printing', 'ready', 'waiting_quote', 'quote_sent'";
     
-    let orderRows = [];
+    const ordersMap = new Map();
     if (zcql) {
       try {
-        orderRows = await zcql.executeZCQLQuery(
+        const orderRows = await zcql.executeZCQLQuery(
           `SELECT id, order_number, status, total, quote_pending, basket, created_at, updated_at FROM orders WHERE status IN (${activeStatuses}) ORDER BY created_at ASC`
         );
+        for (const r of (orderRows || [])) {
+          ordersMap.set(r.orders.id, r.orders);
+        }
       } catch (e) {
         try {
-          orderRows = await zcql.executeZCQLQuery(`SELECT * FROM orders ORDER BY created_at DESC LIMIT 50`);
-        } catch (_) {
-          orderRows = [];
-        }
+          const orderRows = await zcql.executeZCQLQuery(`SELECT * FROM orders ORDER BY created_at DESC LIMIT 50`);
+          for (const r of (orderRows || [])) {
+            ordersMap.set(r.orders.id, r.orders);
+          }
+        } catch (_) {}
+      }
+    }
+
+    // Merge in-memory orders
+    for (const [id, o] of memOrders) {
+      const activeList = ['pending_cash', 'upi_claimed', 'cash_collected', 'processing', 'printing', 'ready', 'waiting_quote', 'quote_sent'];
+      if (activeList.includes(o.status) && !ordersMap.has(id)) {
+        ordersMap.set(id, o);
       }
     }
 
@@ -295,51 +312,92 @@ router.get('/live', async (req, res) => {
     const items = [];
     const recentlyPrinted = [];
 
-    for (const r of (orderRows || [])) {
-      const o = r.orders;
+    for (const o of ordersMap.values()) {
       let b = {};
-      try { b = JSON.parse(o.basket || '{}'); } catch (_) {}
+      try { b = typeof o.basket === 'string' ? JSON.parse(o.basket || '{}') : (o.basket || {}); } catch (_) {}
 
       const orderObj = {
         id: o.id,
+        orderId: o.id,
+        order_id: o.id,
         orderNumber: Number(o.order_number || 1000),
+        order_number: Number(o.order_number || 1000),
         status: o.status,
         total: Number(o.total || 0),
         quotePending: !!o.quote_pending,
         pickupCode: b.pickupCode || String(o.order_number || '0000').slice(-4),
+        pickup_code: b.pickupCode || String(o.order_number || '0000').slice(-4),
         payment: o.status === 'cash_collected' ? 'cash_collected' : (o.status === 'pending_cash' ? 'cash_due' : (o.status === 'upi_claimed' ? 'upi' : 'paid')),
+        payment_status: o.status,
         createdAt: Number(o.created_at || now),
         updatedAt: Number(o.updated_at || now)
       };
 
       orders.push(orderObj);
 
-      // Extract typed items
-      const typed = b.typedItems || [];
-      for (const item of typed) {
-        items.push({
-          id: item.id || crypto.randomUUID(),
-          orderId: o.id,
-          orderNumber: orderObj.orderNumber,
-          kind: item.type,
-          title: item.title,
-          quantity: item.quantity || 1,
-          price: item.computedPricing?.lineTotal || 0,
-          status: o.status === 'cash_collected' ? 'ready_to_print' : (o.status === 'pending_cash' ? 'preparing' : (o.status === 'upi_claimed' ? 'ready_to_print' : 'waiting_payment')),
-          specifications: item.specifications || {},
-          printInstructions: item.printInstructions || ''
-        });
+      // Extract items: check memOrderItems first
+      const orderMemItems = [];
+      for (const it of memOrderItems.values()) {
+        if (it.order_id === o.id) orderMemItems.push(it);
+      }
+
+      if (orderMemItems.length > 0) {
+        for (const it of orderMemItems) {
+          const specObj = typeof it.payload === 'string' ? JSON.parse(it.payload || '{}') : (it.payload || {});
+          items.push({
+            id: it.id,
+            orderId: o.id,
+            order_id: o.id,
+            orderNumber: orderObj.orderNumber,
+            order_number: orderObj.orderNumber,
+            pickup_code: orderObj.pickupCode,
+            pickupCode: orderObj.pickupCode,
+            kind: it.kind,
+            type: it.kind,
+            title: it.kind.includes('colour') ? 'Colour Document' : (it.kind.includes('photo') ? 'Photo Print' : (it.kind.includes('bw') ? 'B&W Document' : (it.kind.includes('binding') ? 'Spiral binding' : (it.kind.includes('lamination') ? 'Lamination' : 'Service Document')))),
+            quantity: 1,
+            price: Number(it.price || 0),
+            status: it.status,
+            payment_status: o.status,
+            pages_done: 0,
+            pages_total: 1,
+            created_at: new Date(orderObj.createdAt * 1000).toISOString(),
+            specifications: specObj,
+            payload: specObj,
+            printInstructions: ''
+          });
+        }
+      } else {
+        // Fallback to typedItems in basket
+        const typed = b.typedItems || [];
+        for (const item of typed) {
+          items.push({
+            id: item.id || crypto.randomUUID(),
+            orderId: o.id,
+            order_id: o.id,
+            orderNumber: orderObj.orderNumber,
+            order_number: orderObj.orderNumber,
+            pickup_code: orderObj.pickupCode,
+            pickupCode: orderObj.pickupCode,
+            kind: item.type,
+            type: item.type,
+            title: item.title,
+            quantity: item.quantity || 1,
+            price: item.computedPricing?.lineTotal || 0,
+            status: (o.status === 'cash_collected' || o.status === 'upi_claimed') ? 'ready_to_print' : (o.status === 'pending_cash' ? 'preparing' : 'waiting_payment'),
+            payment_status: o.status,
+            pages_done: 0,
+            pages_total: 1,
+            created_at: new Date(orderObj.createdAt * 1000).toISOString(),
+            specifications: item.specifications || {},
+            payload: item.specifications || {},
+            printInstructions: item.printInstructions || ''
+          });
+        }
       }
     }
 
-    // 4. Fetch recently printed items (within retention window)
-    const startOfDay = Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
-    let todayCollected = 0;
-    let todayOrdersCount = 0;
-    let todayCash = 0;
-    let todayUpi = 0;
-    let todayPages = 0;
-
+    // 4. Fetch recently printed items
     if (zcql) {
       try {
         const printedRows = await zcql.executeZCQLQuery(
@@ -349,38 +407,77 @@ router.get('/live', async (req, res) => {
           const item = pr.order_items;
           recentlyPrinted.push({
             itemId: item.id,
+            item_id: item.id,
             orderId: item.order_id,
+            order_id: item.order_id,
+            orderNumber: 1000,
+            order_number: 1000,
+            pickup_code: '',
             kind: item.kind,
             printedAt: Number(item.printed_at),
-            expiresAt: Number(item.delete_after || item.printed_at + 300)
+            printed_at: new Date(item.printed_at * 1000).toISOString(),
+            expiresAt: Number(item.delete_after || item.printed_at + 300),
+            delete_after: new Date((item.delete_after || item.printed_at + 300) * 1000).toISOString()
           });
         }
       } catch (_) {}
-
-      // 5. Today KPI Aggregations (authoritative)
-      try {
-        const todayRows = await zcql.executeZCQLQuery(
-          `SELECT status, total, basket FROM orders WHERE created_at >= ${startOfDay}`
-        );
-        for (const tr of (todayRows || [])) {
-          const o = tr.orders;
-          if (['cash_collected', 'upi_claimed', 'processing', 'printing', 'ready', 'completed'].includes(o.status)) {
-            todayOrdersCount++;
-            const tot = Number(o.total || 0);
-            todayCollected += tot;
-            if (o.status === 'cash_collected') todayCash += tot;
-            else todayUpi += tot;
-
-            try {
-              const b = JSON.parse(o.basket || '{}');
-              for (const f of (b.files || [])) {
-                todayPages += Number(f.pages || 1) * Number(f.settings?.copies || 1);
-              }
-            } catch (_) {}
-          }
-        }
-      } catch (_) {}
     }
+
+    // Merge in-memory printed items
+    for (const it of memOrderItems.values()) {
+      if (it.status === 'printed' && it.printed_at && it.printed_at >= deleteCutoff) {
+        if (!recentlyPrinted.some(rp => rp.itemId === it.id || rp.item_id === it.id)) {
+          const ord = memOrders.get(it.order_id);
+          let b = {};
+          try { b = typeof ord?.basket === 'string' ? JSON.parse(ord.basket || '{}') : (ord?.basket || {}); } catch (_) {}
+          recentlyPrinted.push({
+            itemId: it.id,
+            item_id: it.id,
+            orderId: it.order_id,
+            order_id: it.order_id,
+            orderNumber: Number(ord?.order_number || 1000),
+            order_number: Number(ord?.order_number || 1000),
+            pickup_code: b.pickupCode || '',
+            kind: it.kind,
+            printedAt: Number(it.printed_at),
+            printed_at: new Date(it.printed_at * 1000).toISOString(),
+            expiresAt: Number(it.delete_after || it.printed_at + 300),
+            delete_after: new Date((it.delete_after || it.printed_at + 300) * 1000).toISOString()
+          });
+        }
+      }
+    }
+
+    // 5. Today aggregations & counters
+    let todayCollected = 0;
+    let todayOrdersCount = 0;
+    let todayCash = 0;
+    let todayUpi = 0;
+    let todayPages = 0;
+
+    for (const o of memOrders.values()) {
+      if (['cash_collected', 'upi_claimed', 'processing', 'printing', 'ready', 'completed'].includes(o.status)) {
+        todayOrdersCount++;
+        const tot = Number(o.total || 0);
+        todayCollected += tot;
+        if (o.status === 'cash_collected') todayCash += tot;
+        else todayUpi += tot;
+        try {
+          const b = typeof o.basket === 'string' ? JSON.parse(o.basket || '{}') : (o.basket || {});
+          for (const f of (b.files || [])) {
+            todayPages += Number(f.pages || 1) * Number(f.settings?.copies || 1);
+          }
+        } catch (_) {}
+      }
+    }
+
+    const counters = {
+      waiting: items.filter(it => it.status === 'ready_to_print' || it.status === 'preparing').length,
+      cashToCollect: orders.filter(o => o.status === 'pending_cash').length,
+      upiToVerify: orders.filter(o => o.status === 'upi_claimed').length,
+      printedToday: todayOrdersCount,
+      collectedToday: todayCollected
+    };
 
     const today = {
       collected: todayCollected,
@@ -393,6 +490,8 @@ router.get('/live', async (req, res) => {
 
     const payload = {
       timestamp: now,
+      serverTime: Date.now(),
+      shop,
       open: shop.open,
       announcement: shop.announcement,
       rates: shop.rates,
@@ -400,6 +499,7 @@ router.get('/live', async (req, res) => {
       orders,
       items,
       recentlyPrinted,
+      counters,
       today
     };
 
@@ -412,6 +512,7 @@ router.get('/live', async (req, res) => {
       orders,
       items,
       recentlyPrinted,
+      counters,
       today
     });
     const etag = '"' + crypto.createHash('md5').update(stateFingerprint).digest('hex') + '"';
@@ -437,35 +538,56 @@ router.post('/orders/:id/collect-cash', async (req, res) => {
     const orderId = req.params.id;
     const now = nowSec();
 
-    const rows = zcql ? (await zcql.executeZCQLQuery(`SELECT id, status, basket, total FROM orders WHERE id = '${esc(orderId)}'`).catch(() => null)) : null;
-    if (!rows || rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+    let o = null;
+    if (zcql) {
+      const rows = await zcql.executeZCQLQuery(`SELECT id, status, basket, total FROM orders WHERE id = '${esc(orderId)}'`).catch(() => null);
+      if (rows && rows.length > 0) o = rows[0].orders;
+    }
+    if (!o) o = memOrders.get(orderId);
+    if (!o) return res.status(404).json({ error: 'Order not found' });
 
-    const o = rows[0].orders;
     if (o.status !== 'pending_cash') {
       return res.status(409).json({ error: `Cannot collect cash: order is in status '${o.status}'` });
     }
 
     // Save undo action snapshot
     const actionId = crypto.randomUUID();
-    const undoPayload = esc(JSON.stringify({ orderId, previousStatus: 'pending_cash' }));
+    const undoPayload = JSON.stringify({ orderId, previousStatus: 'pending_cash' });
     const expiresAt = now + 5; // 5 seconds undo window
 
-    try {
+    memStaffActions.set(actionId, {
+      id: actionId,
+      action_type: 'collect_cash',
+      order_id: orderId,
+      payload: undoPayload,
+      expires_at: expiresAt,
+      undone: false,
+      created_at: now
+    });
+
+    if (zcql) {
       await zcql.executeZCQLQuery(
-        `INSERT INTO staff_actions (id, action_type, order_id, payload, expires_at, undone, created_at) VALUES ('${actionId}', 'collect_cash', '${esc(orderId)}', '${undoPayload}', ${expiresAt}, false, ${now})`
-      );
-    } catch (_) {}
-
-    await zcql.executeZCQLQuery(
-      `UPDATE orders SET status = 'cash_collected', confirmed_by = 'staff', confirmed_at = ${now}, updated_at = ${now} WHERE id = '${esc(orderId)}'`
-    );
-
-    // Update linked items to ready_to_print
-    try {
+        `INSERT INTO staff_actions (id, action_type, order_id, payload, expires_at, undone, created_at) VALUES ('${actionId}', 'collect_cash', '${esc(orderId)}', '${esc(undoPayload)}', ${expiresAt}, false, ${now})`
+      ).catch(() => {});
+      await zcql.executeZCQLQuery(
+        `UPDATE orders SET status = 'cash_collected', confirmed_by = 'staff', confirmed_at = ${now}, updated_at = ${now} WHERE id = '${esc(orderId)}'`
+      ).catch(() => {});
       await zcql.executeZCQLQuery(
         `UPDATE order_items SET status = 'ready_to_print' WHERE order_id = '${esc(orderId)}' AND status = 'waiting_payment'`
-      );
-    } catch (_) {}
+      ).catch(() => {});
+    }
+
+    o.status = 'cash_collected';
+    o.confirmed_by = 'staff';
+    o.confirmed_at = now;
+    o.updated_at = now;
+    memOrders.set(orderId, o);
+
+    for (const it of memOrderItems.values()) {
+      if (it.order_id === orderId && (it.status === 'waiting_payment' || it.status === 'preparing')) {
+        it.status = 'ready_to_print';
+      }
+    }
 
     await recordAudit(zcql, {
       orderId,
@@ -490,28 +612,43 @@ router.post('/items/:id/approve-print', async (req, res) => {
     const itemId = req.params.id;
     const now = nowSec();
 
-    // Fetch item or order
-    let orderId = req.body.orderId;
-    let itemStatus = 'ready_to_print';
-    let kind = 'document_bw';
+    let itemRecord = memOrderItems.get(itemId);
+    if (!itemRecord && zcql) {
+      try {
+        const itemRows = await zcql.executeZCQLQuery(`SELECT id, order_id, kind, status FROM order_items WHERE id = '${esc(itemId)}'`);
+        if (itemRows && itemRows.length > 0) {
+          itemRecord = itemRows[0].order_items;
+        }
+      } catch (_) {}
+    }
 
-    try {
-      const itemRows = await zcql.executeZCQLQuery(`SELECT id, order_id, kind, status FROM order_items WHERE id = '${esc(itemId)}'`);
-      if (itemRows && itemRows.length > 0) {
-        orderId = itemRows[0].order_items.order_id;
-        itemStatus = itemRows[0].order_items.status;
-        kind = itemRows[0].order_items.kind;
+    let orderId = req.body?.orderId || itemRecord?.order_id;
+    let itemStatus = itemRecord?.status || 'ready_to_print';
+    let kind = itemRecord?.kind || 'document_bw';
+
+    if (!orderId) {
+      for (const [oid, o] of memOrders) {
+        try {
+          const b = typeof o.basket === 'string' ? JSON.parse(o.basket || '{}') : (o.basket || {});
+          if (b.typedItems && b.typedItems.some(it => it.id === itemId)) {
+            orderId = oid;
+            break;
+          }
+        } catch (_) {}
       }
-    } catch (_) {}
+    }
 
     if (!orderId) {
       return res.status(400).json({ error: 'Order ID is required to verify payment' });
     }
 
-    const orderRows = zcql ? (await zcql.executeZCQLQuery(`SELECT id, status FROM orders WHERE id = '${esc(orderId)}'`).catch(() => null)) : null;
-    if (!orderRows || orderRows.length === 0) return res.status(404).json({ error: 'Order not found' });
+    let order = memOrders.get(orderId);
+    if (!order && zcql) {
+      const orderRows = await zcql.executeZCQLQuery(`SELECT id, status FROM orders WHERE id = '${esc(orderId)}'`).catch(() => null);
+      if (orderRows && orderRows.length > 0) order = orderRows[0].orders;
+    }
+    if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    const order = orderRows[0].orders;
     const isPaid = ['cash_collected', 'upi_claimed', 'paid', 'processing', 'printing'].includes(order.status);
     if (!isPaid) {
       return res.status(409).json({ error: 'Cannot print: payment has not been collected or verified' });
@@ -521,17 +658,34 @@ router.post('/items/:id/approve-print', async (req, res) => {
     const printJobId = crypto.randomUUID();
     const targetPrinter = kind.includes('colour') ? 'EPSON L3110 (Colour)' : 'EPSON L3110 (B&W)';
 
-    try {
+    memPrintJobs.set(printJobId, {
+      id: printJobId,
+      item_id: itemId,
+      itemId: itemId,
+      attempt: 1,
+      status: 'queued',
+      pages_done: 0,
+      pages_total: 1,
+      printer: targetPrinter,
+      created_at: now,
+      updated_at: now
+    });
+
+    if (itemRecord) itemRecord.status = 'sending';
+    order.status = 'processing';
+    order.updated_at = now;
+
+    if (zcql) {
       await zcql.executeZCQLQuery(
         `INSERT INTO print_jobs (id, item_id, attempt, status, pages_done, pages_total, printer, created_at, updated_at) VALUES ('${printJobId}', '${esc(itemId)}', 1, 'queued', 0, 1, '${esc(targetPrinter)}', ${now}, ${now})`
-      );
-    } catch (_) {}
-
-    try {
+      ).catch(() => {});
       await zcql.executeZCQLQuery(
         `UPDATE order_items SET status = 'sending' WHERE id = '${esc(itemId)}'`
-      );
-    } catch (_) {}
+      ).catch(() => {});
+      await zcql.executeZCQLQuery(
+        `UPDATE orders SET status = 'processing', updated_at = ${now} WHERE id = '${esc(orderId)}'`
+      ).catch(() => {});
+    }
 
     await recordAudit(zcql, {
       orderId,
@@ -558,12 +712,27 @@ router.post('/items/:id/retry-print', async (req, res) => {
     const now = nowSec();
 
     const printJobId = crypto.randomUUID();
-    try {
+    memPrintJobs.set(printJobId, {
+      id: printJobId,
+      item_id: itemId,
+      itemId: itemId,
+      attempt: 2,
+      status: 'queued',
+      pages_done: 0,
+      pages_total: 1,
+      created_at: now,
+      updated_at: now
+    });
+
+    const it = memOrderItems.get(itemId);
+    if (it) it.status = 'sending';
+
+    if (zcql) {
       await zcql.executeZCQLQuery(
         `INSERT INTO print_jobs (id, item_id, attempt, status, pages_done, pages_total, created_at, updated_at) VALUES ('${printJobId}', '${esc(itemId)}', 2, 'queued', 0, 1, ${now}, ${now})`
-      );
-      await zcql.executeZCQLQuery(`UPDATE order_items SET status = 'sending' WHERE id = '${esc(itemId)}'`);
-    } catch (_) {}
+      ).catch(() => {});
+      await zcql.executeZCQLQuery(`UPDATE order_items SET status = 'sending' WHERE id = '${esc(itemId)}'`).catch(() => {});
+    }
 
     res.json({ ok: true, itemId, status: 'sending' });
   } catch (err) {
@@ -578,9 +747,12 @@ router.post('/items/:id/done', async (req, res) => {
     const zcql = catalystApp ? catalystApp.zcql() : null;
     const itemId = req.params.id;
 
-    try {
-      await zcql.executeZCQLQuery(`UPDATE order_items SET status = 'done' WHERE id = '${esc(itemId)}'`);
-    } catch (_) {}
+    const it = memOrderItems.get(itemId);
+    if (it) it.status = 'done';
+
+    if (zcql) {
+      await zcql.executeZCQLQuery(`UPDATE order_items SET status = 'done' WHERE id = '${esc(itemId)}'`).catch(() => {});
+    }
 
     res.json({ ok: true, itemId, status: 'done' });
   } catch (err) {
@@ -596,13 +768,19 @@ router.post('/items/:id/quote', async (req, res) => {
     const itemId = req.params.id;
     const { amount = 0, notes = '' } = req.body;
 
-    try {
-      await zcql.executeZCQLQuery(
-        `UPDATE order_items SET price = ${Number(amount)}, status = 'quote_sent' WHERE id = '${esc(itemId)}'`
-      );
-    } catch (_) {}
+    const it = memOrderItems.get(itemId);
+    if (it) {
+      it.status = 'quote_sent';
+      it.price = Number(amount);
+    }
 
-    res.json({ ok: true, itemId, status: 'quote_sent', price: Number(amount) });
+    if (zcql) {
+      try {
+        await zcql.executeZCQLQuery(`UPDATE order_items SET status = 'quote_sent', price = ${Number(amount)} WHERE id = '${esc(itemId)}'`);
+      } catch (_) {}
+    }
+
+    res.json({ ok: true, itemId, status: 'quote_sent' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to send quote: ' + err.message });
   }
@@ -614,34 +792,39 @@ router.post('/orders/:id/reject', async (req, res) => {
     const catalystApp = getCatalystApp(req);
     const zcql = catalystApp ? catalystApp.zcql() : null;
     const orderId = req.params.id;
+    const { reason = 'Order rejected by staff' } = req.body;
     const now = nowSec();
 
-    const rows = zcql ? (await zcql.executeZCQLQuery(`SELECT id, status FROM orders WHERE id = '${esc(orderId)}'`).catch(() => null)) : null;
-    if (!rows || rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+    let o = memOrders.get(orderId);
+    if (!o && zcql) {
+      const rows = await zcql.executeZCQLQuery(`SELECT id, status FROM orders WHERE id = '${esc(orderId)}'`).catch(() => null);
+      if (rows && rows.length > 0) o = rows[0].orders;
+    }
+    if (!o) return res.status(404).json({ error: 'Order not found' });
 
-    const previousStatus = rows[0].orders.status;
+    const previousStatus = o.status;
+    o.status = 'rejected';
+    o.updated_at = now;
+    memOrders.set(orderId, o);
+
     const actionId = crypto.randomUUID();
-    const undoPayload = esc(JSON.stringify({ orderId, previousStatus }));
-    const expiresAt = now + 5;
-
-    try {
-      await zcql.executeZCQLQuery(
-        `INSERT INTO staff_actions (id, action_type, order_id, payload, expires_at, undone, created_at) VALUES ('${actionId}', 'reject', '${esc(orderId)}', '${undoPayload}', ${expiresAt}, false, ${now})`
-      );
-    } catch (_) {}
-
-    await zcql.executeZCQLQuery(
-      `UPDATE orders SET status = 'rejected', updated_at = ${now} WHERE id = '${esc(orderId)}'`
-    );
-
-    await recordAudit(zcql, {
-      orderId,
-      actorType: 'staff',
-      actorLabel: req.staffDevice.label,
-      action: 'reject',
-      fromStatus: previousStatus,
-      toStatus: 'rejected'
+    const undoPayload = JSON.stringify({ orderId, previousStatus });
+    memStaffActions.set(actionId, {
+      id: actionId,
+      action_type: 'reject',
+      order_id: orderId,
+      payload: undoPayload,
+      expires_at: now + 5,
+      undone: false,
+      created_at: now
     });
+
+    if (zcql) {
+      await zcql.executeZCQLQuery(
+        `INSERT INTO staff_actions (id, action_type, order_id, payload, expires_at, undone, created_at) VALUES ('${actionId}', 'reject', '${esc(orderId)}', '${esc(undoPayload)}', ${now + 5}, false, ${now})`
+      ).catch(() => {});
+      await zcql.executeZCQLQuery(`UPDATE orders SET status = 'rejected', updated_at = ${now} WHERE id = '${esc(orderId)}'`).catch(() => {});
+    }
 
     res.json({ ok: true, orderId, status: 'rejected', actionId });
   } catch (err) {
@@ -650,17 +833,22 @@ router.post('/orders/:id/reject', async (req, res) => {
 });
 
 // G. 5-Second Undo Action
-router.post('/actions/:id/undo', async (req, res) => {
+router.post(['/undo', '/actions/:id/undo'], async (req, res) => {
   try {
     const catalystApp = getCatalystApp(req);
     const zcql = catalystApp ? catalystApp.zcql() : null;
-    const actionId = req.params.id;
+    const actionId = req.params.id || req.body?.actionId;
+    if (!actionId) return res.status(400).json({ error: 'Action ID required' });
     const now = nowSec();
 
-    const rows = zcql ? (await zcql.executeZCQLQuery(`SELECT * FROM staff_actions WHERE id = '${esc(actionId)}'`).catch(() => null)) : null;
-    if (!rows || rows.length === 0) return res.status(404).json({ error: 'Action not found' });
+    let act = null;
+    if (zcql) {
+      const rows = await zcql.executeZCQLQuery(`SELECT * FROM staff_actions WHERE id = '${esc(actionId)}'`).catch(() => null);
+      if (rows && rows.length > 0) act = rows[0].staff_actions;
+    }
+    if (!act) act = memStaffActions.get(actionId);
+    if (!act) return res.status(404).json({ error: 'Action not found' });
 
-    const act = rows[0].staff_actions;
     if (act.undone === true || String(act.undone) === 'true') {
       return res.status(409).json({ error: 'Action has already been undone' });
     }
@@ -669,14 +857,24 @@ router.post('/actions/:id/undo', async (req, res) => {
       return res.status(410).json({ error: 'Undo window has expired' });
     }
 
-    const payload = JSON.parse(act.payload || '{}');
+    const payload = typeof act.payload === 'string' ? JSON.parse(act.payload || '{}') : (act.payload || {});
     if (payload.orderId && payload.previousStatus) {
-      await zcql.executeZCQLQuery(
-        `UPDATE orders SET status = '${esc(payload.previousStatus)}', updated_at = ${now} WHERE id = '${esc(payload.orderId)}'`
-      );
+      if (zcql) {
+        await zcql.executeZCQLQuery(
+          `UPDATE orders SET status = '${esc(payload.previousStatus)}', updated_at = ${now} WHERE id = '${esc(payload.orderId)}'`
+        ).catch(() => {});
+      }
+      const memO = memOrders.get(payload.orderId);
+      if (memO) {
+        memO.status = payload.previousStatus;
+        memO.updated_at = now;
+      }
     }
 
-    await zcql.executeZCQLQuery(`UPDATE staff_actions SET undone = true WHERE id = '${esc(actionId)}'`);
+    act.undone = true;
+    if (zcql) {
+      await zcql.executeZCQLQuery(`UPDATE staff_actions SET undone = true WHERE id = '${esc(actionId)}'`).catch(() => {});
+    }
 
     res.json({ ok: true, undone: true });
   } catch (err) {
@@ -684,8 +882,6 @@ router.post('/actions/:id/undo', async (req, res) => {
   }
 });
 
-// Shared memory print jobs store for non-ZCQL test harnesses
-const memPrintJobs = global.__printbk_jobs || (global.__printbk_jobs = new Map());
 
 // G2. Trigger Printer Test Print
 router.post('/printers/:id/test-print', async (req, res) => {

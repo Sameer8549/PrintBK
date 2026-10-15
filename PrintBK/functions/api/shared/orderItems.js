@@ -160,16 +160,16 @@ function basketToOrderItems(basket, cfg) {
     // 2. Process services
     for (let i = 0; i < (basket.services || []).length; i++) {
         const s = basket.services[i];
-        const sName = (s.name || '').toLowerCase();
-        const sId = (s.id || '').toLowerCase();
-        const sDetail = (s.detail || '').toLowerCase();
-        const qty = s.qty || 1;
+        const sName = (s.name || s.title || '').toLowerCase();
+        const sId = (s.id || s.category || '').toLowerCase();
+        const sDetail = (s.detail || (s.details ? (typeof s.details === 'string' ? s.details : JSON.stringify(s.details)) : '')).toLowerCase();
+        const qty = s.qty || s.quantity || 1;
         const unitPrice = s.price ?? 0;
         const lineTotal = Math.round(unitPrice * qty * 100) / 100;
         let type = 'typing_custom';
         let specs = {};
         let printInstructions = '';
-        if ((sName.includes('photo') || sId.startsWith('photo')) && !sName.includes('photocopy')) {
+        if ((sName.includes('photo') || sId.startsWith('photo') || sId === 'photo') && !sName.includes('photocopy')) {
             type = 'photo';
             const sizeMatch = sDetail.match(/(passport|stamp|4x6|5x7|a4)/i);
             const size = (sizeMatch ? sizeMatch[1].toLowerCase() : 'passport');
@@ -178,13 +178,13 @@ function basketToOrderItems(basket, cfg) {
                 size,
                 paperType,
                 copies: qty,
-                fileId: s.attachTo
+                fileId: s.attachTo || s.attachedToFileId
             };
             printInstructions = `Photo print (${size}), ${qty} ${qty > 1 ? 'copies' : 'copy'}, ${paperType}`;
         }
-        else if (sName.includes('binding') || sId.startsWith('binding')) {
+        else if (sName.includes('binding') || sId.startsWith('binding') || sId === 'binding') {
             type = 'binding';
-            const kind = sName.includes('spiral') ? 'spiral' : sName.includes('hard') ? 'hard' : 'soft';
+            const kind = (sName.includes('spiral') || sDetail.includes('spiral')) ? 'spiral' : (sName.includes('hard') || sDetail.includes('hard')) ? 'hard' : 'soft';
             const pageMatch = sDetail.match(/(\d+)\s*pages?/i);
             const pageCount = pageMatch ? Number(pageMatch[1]) : 1;
             const colorCover = sDetail.includes('color cover');
@@ -192,11 +192,11 @@ function basketToOrderItems(basket, cfg) {
                 kind,
                 pageCount,
                 colorCover,
-                attachedToFileId: s.attachTo
+                attachedToFileId: s.attachTo || s.attachedToFileId
             };
             printInstructions = `${kind.charAt(0).toUpperCase() + kind.slice(1)} binding (${pageCount} pages${colorCover ? ', color cover' : ''})`;
         }
-        else if (sName.includes('lamination') || sId.startsWith('lamination')) {
+        else if (sName.includes('lamination') || sId.startsWith('lamination') || sId === 'lamination') {
             type = 'lamination';
             const size = sDetail.includes('a3') ? 'A3' : sDetail.includes('id') ? 'ID' : 'A4';
             const thickness = sDetail.includes('thick') ? 'thick' : 'standard';
@@ -204,11 +204,11 @@ function basketToOrderItems(basket, cfg) {
                 size,
                 thickness,
                 quantity: qty,
-                attachedToFileId: s.attachTo
+                attachedToFileId: s.attachTo || s.attachedToFileId
             };
             printInstructions = `${size} lamination (${thickness}), ${qty} pcs`;
         }
-        else if (sName.includes('scan') || sId.startsWith('scan')) {
+        else if (sName.includes('scan') || sId.startsWith('scan') || sId === 'scan') {
             type = 'scanning';
             const dpi = sDetail.includes('600') ? 600 : 300;
             const colour = sDetail.includes('bw') ? 'bw' : 'colour';
@@ -223,7 +223,7 @@ function basketToOrderItems(basket, cfg) {
             };
             printInstructions = `Scan ${qty} pages at ${dpi} DPI (${colour}, ${format} via ${delivery})`;
         }
-        else if (sName.includes('photocopy') || sId.startsWith('photocopy')) {
+        else if (sName.includes('photocopy') || sId.startsWith('photocopy') || sId === 'photocopy') {
             type = 'photocopy';
             const sides = sDetail.includes('double') ? 'double' : 'single';
             const colour = sDetail.includes('colour') || sDetail.includes('color') ? 'colour' : 'bw';
@@ -238,17 +238,17 @@ function basketToOrderItems(basket, cfg) {
         else {
             type = 'typing_custom';
             specs = {
-                description: s.name + (s.detail ? `: ${s.detail}` : ''),
+                description: (s.name || s.title || 'Custom Service') + (sDetail ? `: ${sDetail}` : ''),
                 pagesEstimated: qty,
                 urgency: sDetail.includes('urgent') ? 'urgent' : 'normal',
-                notes: s.counterNote || s.detail
+                notes: s.counterNote || sDetail
             };
-            printInstructions = `Typing / Custom service: ${s.name} (${qty} pages estimated)`;
+            printInstructions = `Typing / Custom service: ${s.name || s.title || 'Service'} (${qty} pages estimated)`;
         }
         const item = {
-            id: s.id || `srv-${i + 1}`,
+            id: s.id || (s.category ? `${s.category.toLowerCase()}-${i + 1}` : `srv-${i + 1}`),
             type,
-            title: s.name,
+            title: s.title || s.name || 'Service',
             quantity: qty,
             specifications: specs,
             computedPricing: {

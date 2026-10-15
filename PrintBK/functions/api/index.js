@@ -33,6 +33,14 @@ try {
 
 const app = express();
 
+/* ─── URL Prefix Normalization ───────────────────────────────────── */
+app.use((req, _res, next) => {
+  if (req.url.startsWith('/server/api')) {
+    req.url = req.url.slice('/server/api'.length) || '/';
+  }
+  next();
+});
+
 /* ─── Security Headers & Middleware ──────────────────────────────── */
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -328,21 +336,49 @@ const { basketToOrderItems } = require('./shared/orderItems');
 function esc(str) { return String(str ?? '').replace(/'/g, "''"); }
 function nowSec() { return Math.floor(Date.now() / 1000); }
 
+function getCatalystApp(req) {
+  try {
+    return catalyst.initialize(req);
+  } catch (_) {
+    try {
+      return catalyst.initialize();
+    } catch (e) {
+      return null;
+    }
+  }
+}
+
+// Global in-memory fallback stores (shared across routes in Node process)
+const memOrders = global.__printbk_orders || (global.__printbk_orders = new Map());
+const memOrderItems = global.__printbk_order_items || (global.__printbk_order_items = new Map());
+const memPrintJobs = global.__printbk_jobs || (global.__printbk_jobs = new Map());
+const memStaffActions = global.__printbk_staff_actions || (global.__printbk_staff_actions = new Map());
+
 /* ─── Server-Generated Pickup Code & Order Number Helpers ────────── */
 async function generateUniquePickupCode(zcql) {
   let activeCodes = new Set();
-  try {
-    const activeRows = await zcql.executeZCQLQuery(
-      `SELECT basket FROM orders WHERE status IN ('pending_payment', 'pending_cash', 'processing', 'printing', 'ready')`
-    );
-    for (const r of (activeRows || [])) {
+  if (zcql) {
+    try {
+      const activeRows = await zcql.executeZCQLQuery(
+        `SELECT basket FROM orders WHERE status IN ('pending_payment', 'pending_cash', 'processing', 'printing', 'ready')`
+      );
+      for (const r of (activeRows || [])) {
+        try {
+          const b = JSON.parse(r.orders.basket || '{}');
+          if (b.pickupCode) activeCodes.add(String(b.pickupCode));
+        } catch (e) {}
+      }
+    } catch (err) {
+      // Graceful fallback
+    }
+  }
+  for (const o of memOrders.values()) {
+    if (['pending_payment', 'pending_cash', 'processing', 'printing', 'ready'].includes(o.status)) {
       try {
-        const b = JSON.parse(r.orders.basket || '{}');
+        const b = typeof o.basket === 'string' ? JSON.parse(o.basket || '{}') : (o.basket || {});
         if (b.pickupCode) activeCodes.add(String(b.pickupCode));
       } catch (e) {}
     }
-  } catch (err) {
-    // Graceful fallback
   }
 
   // 4-digit code (1000 - 9999)
@@ -355,18 +391,29 @@ async function generateUniquePickupCode(zcql) {
 }
 
 async function getNextOrderNumber(zcql) {
-  try {
-    const rows = await zcql.executeZCQLQuery(`SELECT order_number FROM orders ORDER BY order_number DESC LIMIT 1`);
-    if (rows && rows.length > 0 && rows[0].orders?.order_number) {
-      return Number(rows[0].orders.order_number) + 1;
-    }
-  } catch (e) {}
-  try {
-    const allRows = await zcql.executeZCQLQuery(`SELECT id FROM orders`);
-    return 1001 + (allRows ? allRows.length : 0);
-  } catch (e) {
-    return 1001;
+  if (zcql) {
+    try {
+      const rows = await zcql.executeZCQLQuery(`SELECT order_number FROM orders ORDER BY order_number DESC LIMIT 1`);
+      if (rows && rows.length > 0 && rows[0].orders?.order_number) {
+        return Number(rows[0].orders.order_number) + 1;
+      }
+    } catch (e) {}
+    try {
+      const allRows = await zcql.executeZCQLQuery(`SELECT id FROM orders`);
+      if (allRows && allRows.length > 0) {
+        return 1001 + allRows.length;
+      }
+    } catch (e) {}
   }
+  if (memOrders.size > 0) {
+    let max = 1000;
+    for (const o of memOrders.values()) {
+      const num = Number(o.order_number);
+      if (num > max) max = num;
+    }
+    return max + 1;
+  }
+  return 1001;
 }
 
 /* ─── PUBLIC ENDPOINTS ───────────────────────────────────────────── */
@@ -575,22 +622,24 @@ app.post('/orders', async (req, res) => {
   }
 
   try {
-    const catalystApp = catalyst.initialize(req);
-    const zcql = catalystApp.zcql();
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
 
     // 4. Shop Availability Check
-    try {
-      const settingRows = await zcql.executeZCQLQuery("SELECT open, announcement FROM shop_settings WHERE id = 'default'").catch(() => []);
-      if (settingRows && settingRows.length > 0) {
-        const s = settingRows[0].shop_settings;
-        const isOpen = s.open === true || s.open === 'true';
-        if (!isOpen) {
-          return res.status(503).json({
-            error: `Shop is currently closed: ${s.announcement || 'Counter orders are paused. Please try again later.'}`
-          });
+    if (zcql) {
+      try {
+        const settingRows = await zcql.executeZCQLQuery("SELECT open, announcement FROM shop_settings WHERE id = 'default'").catch(() => []);
+        if (settingRows && settingRows.length > 0) {
+          const s = settingRows[0].shop_settings;
+          const isOpen = s.open === true || s.open === 'true';
+          if (!isOpen) {
+            return res.status(503).json({
+              error: `Shop is currently closed: ${s.announcement || 'Counter orders are paused. Please try again later.'}`
+            });
+          }
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
 
     const { files = [], services = [], rush = false } = req.body;
     const orderId = crypto.randomUUID();
@@ -608,7 +657,8 @@ app.post('/orders', async (req, res) => {
     const pricing = priceOrder({ files, services, rush }, defaultShopConfig);
     const total = pricing.total;
     const quotePending = pricing.quotePending;
-    const status = quotePending ? 'waiting_quote' : (req.body.payment === 'Cash' ? 'pending_cash' : 'pending_payment');
+    const paymentMethod = String(req.body.payment || '').toLowerCase();
+    const status = quotePending ? 'waiting_quote' : (paymentMethod === 'cash' ? 'pending_cash' : 'pending_payment');
     
     // 4. Map into Typed Order Items for Staff App Tables
     const typedItems = basketToOrderItems({ files, services, rush }, defaultShopConfig);
@@ -625,24 +675,41 @@ app.post('/orders', async (req, res) => {
       typedItems
     };
 
+    const orderRecord = {
+      id: orderId,
+      order_number: orderNumber,
+      access_token_hash: accessTokenHash,
+      status,
+      basket: JSON.stringify(basketPayload),
+      file_names: JSON.stringify(files.map(f => f.name)),
+      quote_pending: quotePending,
+      total,
+      created_at: now,
+      updated_at: now
+    };
+    memOrders.set(orderId, orderRecord);
+
     const basketJson = esc(JSON.stringify(basketPayload));
     const filesJson  = esc(JSON.stringify(files.map(f => f.name)));
 
-    // Insert order with resilient column fallback
-    try {
-      await zcql.executeZCQLQuery(
-        `INSERT INTO orders (id, order_number, access_token_hash, status, basket, file_names, quote_pending, total, created_at, updated_at) VALUES ('${orderId}', ${orderNumber}, '${accessTokenHash}', '${status}', '${basketJson}', '${filesJson}', ${quotePending}, ${total}, ${now}, ${now})`
-      );
-    } catch (insertErr) {
-      // Fallback if schema columns are not yet created
-      await zcql.executeZCQLQuery(
-        `INSERT INTO orders (id, status, basket, file_names, quote_pending, total, created_at, updated_at) VALUES ('${orderId}', '${status}', '${basketJson}', '${filesJson}', ${quotePending}, ${total}, ${now}, ${now})`
-      );
+    if (zcql) {
+      // Insert order with resilient column fallback
+      try {
+        await zcql.executeZCQLQuery(
+          `INSERT INTO orders (id, order_number, access_token_hash, status, basket, file_names, quote_pending, total, created_at, updated_at) VALUES ('${orderId}', ${orderNumber}, '${accessTokenHash}', '${status}', '${basketJson}', '${filesJson}', ${quotePending}, ${total}, ${now}, ${now})`
+        );
+      } catch (insertErr) {
+        try {
+          await zcql.executeZCQLQuery(
+            `INSERT INTO orders (id, status, basket, file_names, quote_pending, total, created_at, updated_at) VALUES ('${orderId}', '${status}', '${basketJson}', '${filesJson}', ${quotePending}, ${total}, ${now}, ${now})`
+          );
+        } catch (_) {}
+      }
     }
 
     // Populate order_items table for real-time staff counters
     for (const item of typedItems) {
-      const itemId = crypto.randomUUID();
+      const itemId = item.id || crypto.randomUUID();
       const kind = item.type;
       const itemStatus = (status === 'pending_cash' || status === 'upi_claimed') ? 'ready_to_print' : (status === 'pending_payment' ? 'waiting_payment' : 'preparing');
       const payloadStr = esc(JSON.stringify(item.specifications || {}));
@@ -650,12 +717,28 @@ app.post('/orders', async (req, res) => {
       const fileRefs = esc(JSON.stringify(item.specifications?.fileId ? [item.specifications.fileId] : []));
       const printerRole = kind.includes('colour') ? 'colour' : (kind.includes('photo') ? 'photo' : (kind.includes('bw') ? 'bw' : 'none'));
 
-      try {
-        await zcql.executeZCQLQuery(
-          `INSERT INTO order_items (id, order_id, kind, status, payload, price, file_refs, printer_role, created_at) VALUES ('${itemId}', '${orderId}', '${kind}', '${itemStatus}', '${payloadStr}', ${price}, '${fileRefs}', '${printerRole}', ${now})`
-        );
-      } catch (itemErr) {
-        // Resilience: if order_items table has transient schema delay, basket JSON still holds typedItems
+      const itemRecord = {
+        id: itemId,
+        order_id: orderId,
+        order_number: orderNumber,
+        kind,
+        status: itemStatus,
+        payload: JSON.stringify(item.specifications || {}),
+        price,
+        file_refs: JSON.stringify(item.specifications?.fileId ? [item.specifications.fileId] : []),
+        printer_role: printerRole,
+        created_at: now
+      };
+      memOrderItems.set(itemId, itemRecord);
+
+      if (zcql) {
+        try {
+          await zcql.executeZCQLQuery(
+            `INSERT INTO order_items (id, order_id, kind, status, payload, price, file_refs, printer_role, created_at) VALUES ('${itemId}', '${orderId}', '${kind}', '${itemStatus}', '${payloadStr}', ${price}, '${fileRefs}', '${printerRole}', ${now})`
+          );
+        } catch (itemErr) {
+          // Resilience
+        }
       }
     }
 
@@ -679,29 +762,34 @@ app.post('/orders', async (req, res) => {
       items: typedItems
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to create order' });
+    console.error('Order creation error:', err);
+    res.status(500).json({ error: 'Failed to create order: ' + err.message });
   }
 });
 
 /* ─── GET /orders/:id (Protected by Student Access Token or Staff Auth) ── */
 app.get('/orders/:id', async (req, res) => {
   try {
-    const catalystApp = catalyst.initialize(req);
-    const zcql = catalystApp.zcql();
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
     let rows;
-    try {
-      rows = await zcql.executeZCQLQuery(
-        `SELECT id, order_number, status, total, quote_pending, basket, file_names, delete_after, files_deleted_at, created_at, updated_at FROM orders WHERE id = '${esc(req.params.id)}'`
-      );
-    } catch (qErr) {
-      rows = await zcql.executeZCQLQuery(
-        `SELECT id, order_number, status, total, quote_pending, basket, file_names, created_at FROM orders WHERE id = '${esc(req.params.id)}'`
-      );
+    if (zcql) {
+      try {
+        rows = await zcql.executeZCQLQuery(
+          `SELECT id, order_number, status, total, quote_pending, basket, file_names, delete_after, files_deleted_at, created_at, updated_at FROM orders WHERE id = '${esc(req.params.id)}'`
+        );
+      } catch (qErr) {
+        try {
+          rows = await zcql.executeZCQLQuery(
+            `SELECT id, order_number, status, total, quote_pending, basket, file_names, created_at FROM orders WHERE id = '${esc(req.params.id)}'`
+          );
+        } catch (_) {}
+      }
     }
-    if (!rows || rows.length === 0) return res.status(404).json({ error: 'Order not found' });
-    const o = rows[0].orders;
+    const o = (rows && rows.length > 0) ? rows[0].orders : memOrders.get(req.params.id);
+    if (!o) return res.status(404).json({ error: 'Order not found' });
     let basketData = {};
-    try { basketData = JSON.parse(o.basket || '{}'); } catch(e) {}
+    try { basketData = typeof o.basket === 'string' ? JSON.parse(o.basket || '{}') : (o.basket || {}); } catch(e) {}
 
     // Verify student capability token or staff auth
     const clientToken = req.headers['x-order-token'] || req.query.token;
@@ -770,18 +858,21 @@ app.get('/orders/:id', async (req, res) => {
 /* ─── CASH PAYMENT WORKFLOW ───────────────────────────────────────── */
 app.post('/orders/:id/choose-cash', async (req, res) => {
   try {
-    const catalystApp = catalyst.initialize(req);
-    const zcql = catalystApp.zcql();
-    const rows = await zcql.executeZCQLQuery(
-      `SELECT id, order_number, status, total, basket, access_token_hash FROM orders WHERE id = '${esc(req.params.id)}'`
-    );
-    if (!rows || rows.length === 0) return res.status(404).json({ error: 'Order not found' });
-    const o = rows[0].orders;
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    let rows;
+    if (zcql) {
+      rows = await zcql.executeZCQLQuery(
+        `SELECT id, order_number, status, total, basket, access_token_hash FROM orders WHERE id = '${esc(req.params.id)}'`
+      ).catch(() => null);
+    }
+    const o = (rows && rows.length > 0) ? rows[0].orders : memOrders.get(req.params.id);
+    if (!o) return res.status(404).json({ error: 'Order not found' });
 
     // Verify token
     const clientToken = req.headers['x-order-token'] || req.query.token;
     let b = {};
-    try { b = JSON.parse(o.basket || '{}'); } catch(e) {}
+    try { b = typeof o.basket === 'string' ? JSON.parse(o.basket || '{}') : (o.basket || {}); } catch(e) {}
     const storedHash = o.access_token_hash || b.accessTokenHash;
     if (clientToken && storedHash) {
       const clientHash = crypto.createHash('sha256').update(String(clientToken)).digest('hex');
@@ -824,18 +915,21 @@ app.post('/orders/:id/choose-cash', async (req, res) => {
 /* ─── DIRECT UPI INTENT (NPCI Canonical Spec & Platform Schemes) ───── */
 app.post('/orders/:id/start-upi', async (req, res) => {
   try {
-    const catalystApp = catalyst.initialize(req);
-    const zcql = catalystApp.zcql();
-    const rows = await zcql.executeZCQLQuery(
-      `SELECT id, order_number, status, total, basket, access_token_hash FROM orders WHERE id = '${esc(req.params.id)}'`
-    );
-    if (!rows || rows.length === 0) return res.status(404).json({ error: 'Order not found' });
-    const o = rows[0].orders;
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    let rows;
+    if (zcql) {
+      rows = await zcql.executeZCQLQuery(
+        `SELECT id, order_number, status, total, basket, access_token_hash FROM orders WHERE id = '${esc(req.params.id)}'`
+      ).catch(() => null);
+    }
+    const o = (rows && rows.length > 0) ? rows[0].orders : memOrders.get(req.params.id);
+    if (!o) return res.status(404).json({ error: 'Order not found' });
 
     // Verify token
     const clientToken = req.headers['x-order-token'] || req.query.token;
     let b = {};
-    try { b = JSON.parse(o.basket || '{}'); } catch(e) {}
+    try { b = typeof o.basket === 'string' ? JSON.parse(o.basket || '{}') : (o.basket || {}); } catch(e) {}
     const storedHash = o.access_token_hash || b.accessTokenHash;
     if (clientToken && storedHash) {
       const clientHash = crypto.createHash('sha256').update(String(clientToken)).digest('hex');
@@ -874,11 +968,18 @@ app.post('/orders/:id/start-upi', async (req, res) => {
       upiId,
       tr
     });
-    const updatedBasket = esc(JSON.stringify(b));
+    
+    o.status = 'upi_started';
+    o.updated_at = now;
+    o.basket = JSON.stringify(b);
+    memOrders.set(o.id, o);
 
-    await zcql.executeZCQLQuery(
-      `UPDATE orders SET status = 'upi_started', basket = '${updatedBasket}', updated_at = ${now} WHERE id = '${esc(o.id)}'`
-    );
+    if (zcql) {
+      const updatedBasket = esc(JSON.stringify(b));
+      await zcql.executeZCQLQuery(
+        `UPDATE orders SET status = 'upi_started', basket = '${updatedBasket}', updated_at = ${now} WHERE id = '${esc(o.id)}'`
+      ).catch(() => {});
+    }
 
     res.json({
       ok: true,
@@ -902,18 +1003,21 @@ app.post('/orders/:id/start-upi', async (req, res) => {
 /* ─── UPI RETURN HOOK (Student Payment Claim) ──────────────────────── */
 app.post('/orders/:id/upi-return', async (req, res) => {
   try {
-    const catalystApp = catalyst.initialize(req);
-    const zcql = catalystApp.zcql();
-    const rows = await zcql.executeZCQLQuery(
-      `SELECT id, order_number, status, total, basket, access_token_hash FROM orders WHERE id = '${esc(req.params.id)}'`
-    );
-    if (!rows || rows.length === 0) return res.status(404).json({ error: 'Order not found' });
-    const o = rows[0].orders;
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    let rows;
+    if (zcql) {
+      rows = await zcql.executeZCQLQuery(
+        `SELECT id, order_number, status, total, basket, access_token_hash FROM orders WHERE id = '${esc(req.params.id)}'`
+      ).catch(() => null);
+    }
+    const o = (rows && rows.length > 0) ? rows[0].orders : memOrders.get(req.params.id);
+    if (!o) return res.status(404).json({ error: 'Order not found' });
 
     // Verify token
     const clientToken = req.headers['x-order-token'] || req.query.token;
     let b = {};
-    try { b = JSON.parse(o.basket || '{}'); } catch(e) {}
+    try { b = typeof o.basket === 'string' ? JSON.parse(o.basket || '{}') : (o.basket || {}); } catch(e) {}
     const storedHash = o.access_token_hash || b.accessTokenHash;
     if (clientToken && storedHash) {
       const clientHash = crypto.createHash('sha256').update(String(clientToken)).digest('hex');
@@ -949,11 +1053,27 @@ app.post('/orders/:id/upi-return', async (req, res) => {
       claimedAt: now,
       utr
     };
-    const updatedBasket = esc(JSON.stringify(b));
 
-    await zcql.executeZCQLQuery(
-      `UPDATE orders SET status = 'upi_claimed', basket = '${updatedBasket}', updated_at = ${now} WHERE id = '${esc(o.id)}'`
-    );
+    o.status = 'upi_claimed';
+    o.updated_at = now;
+    o.basket = JSON.stringify(b);
+    memOrders.set(o.id, o);
+
+    for (const it of memOrderItems.values()) {
+      if (it.order_id === o.id && (it.status === 'waiting_payment' || it.status === 'preparing')) {
+        it.status = 'ready_to_print';
+      }
+    }
+
+    if (zcql) {
+      const updatedBasket = esc(JSON.stringify(b));
+      await zcql.executeZCQLQuery(
+        `UPDATE orders SET status = 'upi_claimed', basket = '${updatedBasket}', updated_at = ${now} WHERE id = '${esc(o.id)}'`
+      ).catch(() => {});
+      await zcql.executeZCQLQuery(
+        `UPDATE order_items SET status = 'ready_to_print' WHERE order_id = '${esc(o.id)}' AND status = 'waiting_payment'`
+      ).catch(() => {});
+    }
 
     res.json({
       ok: true,
@@ -1479,14 +1599,17 @@ app.post('/cron/cleanup', async (req, res) => {
 // 7. Delete Files Now (Student with Order Token OR Staff)
 app.post('/orders/:id/delete-files', async (req, res) => {
   try {
-    const catalystApp = catalyst.initialize(req);
-    const zcql = catalystApp.zcql();
-    const rows = await zcql.executeZCQLQuery(`SELECT id, basket, access_token_hash FROM orders WHERE id = '${esc(req.params.id)}'`);
-    if (!rows || rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    let rows;
+    if (zcql) {
+      rows = await zcql.executeZCQLQuery(`SELECT id, basket, access_token_hash FROM orders WHERE id = '${esc(req.params.id)}'`).catch(() => null);
+    }
+    const o = (rows && rows.length > 0) ? rows[0].orders : memOrders.get(req.params.id);
+    if (!o) return res.status(404).json({ error: 'Order not found' });
     
-    const o = rows[0].orders;
     let b = {};
-    try { b = JSON.parse(o.basket || '{}'); } catch(e) {}
+    try { b = typeof o.basket === 'string' ? JSON.parse(o.basket || '{}') : (o.basket || {}); } catch(e) {}
 
     // Verify token or staff
     const clientToken = req.headers['x-order-token'] || req.query.token;
@@ -1501,23 +1624,40 @@ app.post('/orders/:id/delete-files', async (req, res) => {
     }
 
     // Delete files from Catalyst File Store
-    const filestore = catalystApp.filestore();
-    const folder = await getPrintFilesFolder(filestore);
-    for (const f of (b.files || [])) {
-      if (f.cloudId) {
-        try { await folder.deleteFile(f.cloudId); } catch(delErr) {}
-      }
+    if (catalystApp) {
+      try {
+        const filestore = catalystApp.filestore();
+        const folder = await getPrintFilesFolder(filestore);
+        for (const f of (b.files || [])) {
+          if (f.cloudId) {
+            try { await folder.deleteFile(f.cloudId); } catch(delErr) {}
+          }
+        }
+      } catch (_) {}
     }
 
     const now = nowSec();
-    await zcql.executeZCQLQuery(
-      `UPDATE orders SET files_deleted_at = ${now}, updated_at = ${now} WHERE id = '${esc(req.params.id)}'`
-    );
+    o.files_deleted_at = now;
+    o.updated_at = now;
+    memOrders.set(o.id, o);
+
+    if (zcql) {
+      await zcql.executeZCQLQuery(
+        `UPDATE orders SET files_deleted_at = ${now}, updated_at = ${now} WHERE id = '${esc(req.params.id)}'`
+      ).catch(() => {});
+    }
 
     res.json({ ok: true, deletedAt: now });
   } catch (err) {
     res.status(500).json({ error: 'Deletion failed' });
   }
 });
+
+if (require.main === module) {
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => {
+    console.log(`PrintBK API listening on port ${port}`);
+  });
+}
 
 module.exports = app;
