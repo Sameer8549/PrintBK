@@ -372,12 +372,50 @@ async function getNextOrderNumber(zcql) {
 /* ─── PUBLIC ENDPOINTS ───────────────────────────────────────────── */
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
-app.get('/config', (_req, res) => {
+app.get('/config', async (req, res) => {
+  let settings = null;
+  try {
+    const catalystApp = catalyst.initialize(req);
+    const zcql = catalystApp.zcql();
+    const rows = await zcql.executeZCQLQuery("SELECT * FROM shop_settings WHERE id = 'default'").catch(() => []);
+    if (rows && rows.length > 0) {
+      settings = rows[0].shop_settings;
+    }
+  } catch (_) {}
+
   const rzpEnabled = Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET && process.env.RAZORPAY_ENABLED === 'true');
   const upiId = process.env.UPI_ID || 'Q098686787@ybl';
   const upiPayee = process.env.UPI_PAYEE_NAME || 'PrintBK HKBK';
+
+  let dynamicRates = defaultShopConfig.rates;
+  let shopOpen = true;
+  let announcement = '';
+  let shopInfo = {};
+
+  if (settings) {
+    if (settings.rates) {
+      try {
+        const parsed = typeof settings.rates === 'string' ? JSON.parse(settings.rates) : settings.rates;
+        dynamicRates = { ...dynamicRates, ...parsed };
+      } catch (_) {}
+    }
+    if (typeof settings.open !== 'undefined') {
+      shopOpen = settings.open === true || settings.open === 'true';
+    }
+    announcement = settings.announcement || '';
+    if (settings.shop_info) {
+      try {
+        shopInfo = typeof settings.shop_info === 'string' ? JSON.parse(settings.shop_info) : settings.shop_info;
+      } catch (_) {}
+    }
+  }
+
   res.json({
     ...defaultShopConfig,
+    open: shopOpen,
+    announcement,
+    shopInfo,
+    rates: dynamicRates,
     paymentMethods: {
       cash: true,
       upi: true,
@@ -385,7 +423,8 @@ app.get('/config', (_req, res) => {
     },
     upi: {
       enabled: true,
-      payeeName: upiPayee
+      payeeName: shopInfo.payee || upiPayee,
+      upiId: shopInfo.upi || upiId
     }
   });
 });
@@ -394,12 +433,20 @@ app.get('/shop/status', async (req, res) => {
   try {
     const catalystApp = catalyst.initialize(req);
     const zcql = catalystApp.zcql();
-    const rows = await zcql.executeZCQLQuery(
-      `SELECT id FROM orders WHERE status IN ('pending_payment', 'pending_cash', 'processing', 'printing')`
-    );
-    const queueLength = rows ? rows.length : 0;
+    const [orderRows, settingRows] = await Promise.all([
+      zcql.executeZCQLQuery(
+        `SELECT id FROM orders WHERE status IN ('pending_payment', 'pending_cash', 'processing', 'printing')`
+      ).catch(() => []),
+      zcql.executeZCQLQuery("SELECT open, announcement FROM shop_settings WHERE id = 'default'").catch(() => [])
+    ]);
+
+    const queueLength = orderRows ? orderRows.length : 0;
+    const setting = settingRows && settingRows.length > 0 ? settingRows[0].shop_settings : null;
+    const isOpen = setting ? (setting.open === true || setting.open === 'true') : true;
+
     res.json({
-      open: true,
+      open: isOpen,
+      announcement: setting?.announcement || '',
       queueLength,
       estimatedWaitMinutes: Math.ceil(queueLength * 2)
     });
@@ -530,6 +577,21 @@ app.post('/orders', async (req, res) => {
   try {
     const catalystApp = catalyst.initialize(req);
     const zcql = catalystApp.zcql();
+
+    // 4. Shop Availability Check
+    try {
+      const settingRows = await zcql.executeZCQLQuery("SELECT open, announcement FROM shop_settings WHERE id = 'default'").catch(() => []);
+      if (settingRows && settingRows.length > 0) {
+        const s = settingRows[0].shop_settings;
+        const isOpen = s.open === true || s.open === 'true';
+        if (!isOpen) {
+          return res.status(503).json({
+            error: `Shop is currently closed: ${s.announcement || 'Counter orders are paused. Please try again later.'}`
+          });
+        }
+      }
+    } catch (_) {}
+
     const { files = [], services = [], rush = false } = req.body;
     const orderId = crypto.randomUUID();
     const now = nowSec();

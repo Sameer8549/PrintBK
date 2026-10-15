@@ -41,7 +41,9 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
     poll();
     const isFinal = ['completed', 'cancelled', 'rejected', 'expired'].includes(order.status);
     if (!isFinal) {
-      const timer = setInterval(poll, 3500);
+      // Adaptive polling: 1s while printing/processing, 3s otherwise
+      const interval = (order.status === 'printing' || order.status === 'processing') ? 1000 : 3000;
+      const timer = setInterval(poll, interval);
       return () => { isMounted = false; clearInterval(timer); };
     }
     return () => { isMounted = false; };
@@ -448,10 +450,10 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
             {/* Student-Facing Files Deletion Countdown / Status */}
             <div style={{ marginTop: 12, fontSize: 12, color: isDeleted ? '#059669' : '#64748b', fontWeight: 500 }}>
               {isDeleted
-                ? '✓ Files permanently deleted'
-                : deleteAfterTime
-                  ? `🕒 Files deleted at ${deleteAfterTime}`
-                  : '🕒 Files deleted 5 mins after pickup'}
+                ? '✓ Files deleted for your privacy'
+                : (status === 'ready' || status === 'completed') && deleteAfterTime
+                  ? `🕒 Files delete at ${deleteAfterTime} (5 min privacy rule)`
+                  : '🕒 Files protected · Deleted 5 mins after printing'}
             </div>
           </div>
 
@@ -482,7 +484,8 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
               {order!.files.map((name, i) => (
                 <div key={i} style={{ fontSize: 13, padding: '7px 0', display: 'flex', alignItems: 'center', gap: 10, borderBottom: i < order!.files.length - 1 ? '1px solid #f8fafc' : 'none' }}>
                   <Icon name="file" size={15} />
-                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#1e293b' }}>{name}</span>
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isDeleted ? '#94a3b8' : '#1e293b' }}>{name}</span>
+                  {isDeleted && <span style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>Files deleted for your privacy</span>}
                 </div>
               ))}
             </div>
