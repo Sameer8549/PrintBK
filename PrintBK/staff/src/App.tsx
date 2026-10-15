@@ -1188,6 +1188,18 @@ export default function App() {
   const previousServices = useRef(tables.filter((table) => initialJobs.some((job) => job.service === table.id)).length)
   const audioRef = useRef<AudioContext | null>(null)
 
+  useEffect(() => {
+    const handleSetJobs = (event: CustomEvent<Job[]>) => {
+      if (Array.isArray(event.detail)) {
+        setJobs(event.detail)
+        setPayments(Object.fromEntries(event.detail.map((job) => [job.order, job.payment])))
+        if (event.detail[0]) setSelected(event.detail[0].key)
+      }
+    }
+    window.addEventListener("printbk-set-jobs", handleSetJobs as EventListener)
+    return () => window.removeEventListener("printbk-set-jobs", handleSetJobs as EventListener)
+  }, [])
+
   const displayJobs = useMemo(() => jobs.map((job) => ({ ...job, payment: payments[job.order] ?? job.payment })), [jobs, payments])
   const filteredJobs = useMemo(() => displayJobs.filter((job) => {
     const query = orderSearch.trim().toLowerCase()
