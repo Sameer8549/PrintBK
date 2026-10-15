@@ -223,7 +223,7 @@ test.describe("Staff Counter App Visual Hardening (Phase 4)", () => {
     })
     expect(alignmentDelta).toBeLessThanOrEqual(4)
 
-    // Touch targets >= 64px on desktop
+    // Check touch targets >= 64px on desktop
     const targetHeights = await page.evaluate(() => {
       const badTargets: string[] = []
       document.querySelectorAll(".row-controls .button, .next-up-bar .button").forEach((btn) => {
@@ -235,11 +235,17 @@ test.describe("Staff Counter App Visual Hardening (Phase 4)", () => {
       return badTargets
     })
     expect(targetHeights).toEqual([])
+
+    // Save 1920 wide operational screenshot
+    await page.screenshot({ path: "../docs/screenshots/staff-1920-after.png" })
   })
 
   test("Desktop 1440: single column, no horizontal scroll, fits worst-case row cleanly", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await setupPageWithWorstCase(page)
+
+    // Save 1440 wide operational screenshot
+    await page.screenshot({ path: "../docs/screenshots/staff-1440-after.png" })
 
     // Single column table grid below 1760px
     const gridCols = await page.evaluate(() => {
@@ -355,5 +361,19 @@ test.describe("Staff Counter App Visual Hardening (Phase 4)", () => {
       return tabs.getBoundingClientRect().top - nextUp.getBoundingClientRect().bottom
     })
     expect(spacing).toBeGreaterThanOrEqual(10)
+  })
+
+  test("Capture before pairing screenshots at 1920 and 1440", async ({ page }) => {
+    // Before pairing (first-run screen) at 1920
+    await page.setViewportSize({ width: 1920, height: 1080 })
+    await page.goto("/?view=orders")
+    await page.waitForLoadState("networkidle")
+    await page.screenshot({ path: "../docs/screenshots/staff-1920-before.png" })
+
+    // Before pairing (first-run screen) at 1440
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto("/?view=orders")
+    await page.waitForLoadState("networkidle")
+    await page.screenshot({ path: "../docs/screenshots/staff-1440-before.png" })
   })
 })

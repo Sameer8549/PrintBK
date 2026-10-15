@@ -118,8 +118,8 @@ function priceOrder(basket, config = defaultConfig_1.defaultShopConfig, now = ne
             }
         }
     }
-    for (const svc of basket.services) {
-        if (svc.type === 'request') {
+    for (const svc of (basket.services || [])) {
+        if (svc.type === 'request' || svc.type === 'typing_request' || svc.category === 'typing_request' || svc.category === 'typing' || (svc.price === 0 && ((svc.name || svc.title || '').toLowerCase().includes('typing') || (svc.name || svc.title || '').toLowerCase().includes('resume')))) {
             quotePending = true;
             continue;
         }
@@ -165,7 +165,7 @@ function computeFilePrintDetails(file) {
     const range = s.range ?? 'all';
     const colorMode = s.colorPlan?.mode ?? s.colorMode ?? 'bw';
     const { pages } = (0, parsePageRange_1.parsePageRange)(range, file.pages || 1);
-    const colorSet = new Set(s.colorPlan?.colorPages || []);
+    const colorSet = new Set(s.colorPlan?.colorPages || s.colorPages || []);
     const colorPrintedPages = [];
     const bwPrintedPages = [];
     let colorFaces = 0;

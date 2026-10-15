@@ -49,7 +49,7 @@ function basketToOrderItems(basket, cfg) {
             bwPages = physicalPages;
         }
         else if (colorMode === 'custom') {
-            const colorSet = new Set(s.colorPlan?.colorPages || []);
+            const colorSet = new Set(s.colorPlan?.colorPages || s.colorPages || []);
             if (s.booklet) {
                 for (let i = 0; i < pages.length; i += 2) {
                     const slot = pages.slice(i, i + 2);
@@ -106,7 +106,10 @@ function basketToOrderItems(basket, cfg) {
                 ? `Colour (${specs.colourPagesCount} colour, ${specs.bwPagesCount} B&W)`
                 : `Colour (${specs.colourPagesCount} pages)`;
             const sidesDesc = sided === 'double' ? `2-sided, ${duplexEdge}-edge` : '1-sided';
-            const printInstructions = `${paper}, ${colorDesc}, ${sidesDesc}, ${nUp}-up, ${copies} ${copies > 1 ? 'copies' : 'copy'}`;
+            const combineNote = (specs.bwPagesCount > 0 && specs.colourPagesCount > 0)
+                ? ` · COMBINE: Col p${details.colorPrintedPages.join(',')} + BW p${details.bwPrintedPages.join(',')}`
+                : '';
+            const printInstructions = `${paper}, ${colorDesc}, ${sidesDesc}, ${nUp}-up, ${copies} ${copies > 1 ? 'copies' : 'copy'}${combineNote}`;
             const item = {
                 id: `doc-${file.id}`,
                 type: 'document_colour',

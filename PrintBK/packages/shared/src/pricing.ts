@@ -146,8 +146,8 @@ export function priceOrder(basket: Basket, config: ShopConfig = defaultShopConfi
     }
   }
 
-  for (const svc of basket.services) {
-    if (svc.type === 'request') {
+  for (const svc of (basket.services || [])) {
+    if (svc.type === 'request' || (svc as any).category === 'typing_request' || (svc as any).category === 'typing' || (svc.price === 0 && (((svc as any).name || (svc as any).title || '').toLowerCase().includes('typing') || ((svc as any).name || (svc as any).title || '').toLowerCase().includes('resume')))) {
       quotePending = true;
       continue;
     }
@@ -212,7 +212,7 @@ export function computeFilePrintDetails(file: PrintFile): FilePrintDetails {
   const colorMode = s.colorPlan?.mode ?? s.colorMode ?? 'bw';
 
   const { pages } = parsePageRange(range, file.pages || 1);
-  const colorSet = new Set(s.colorPlan?.colorPages || []);
+  const colorSet = new Set(s.colorPlan?.colorPages || s.colorPages || []);
 
   const colorPrintedPages: number[] = [];
   const bwPrintedPages: number[] = [];

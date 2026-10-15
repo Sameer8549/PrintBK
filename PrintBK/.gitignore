@@ -1,5 +1,6 @@
 node_modules/
 student/node_modules/
+staff/node_modules/
 functions/api/node_modules/
 agent/node_modules/
 .catalystrc
@@ -9,3 +10,17 @@ agent/node_modules/
 !.env.example
 dist/
 student/dist/
+staff/dist/
+agent/dist/
+agent-config.json
+agent/agent-config.json
+*.agent-token
+agent/*.agent-token
+dry-run/
+agent/dry-run/
+work/
+agent/work/
+test-results/
+playwright-report/
+blob-report/
+coverage/

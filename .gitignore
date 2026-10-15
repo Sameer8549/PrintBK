@@ -3,3 +3,11 @@
 .env
 .env.*
 !.env.example
+node_modules/
+dist/
+agent-config.json
+*.agent-token
+dry-run/
+work/
+test-results/
+playwright-report/

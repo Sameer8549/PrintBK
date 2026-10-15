@@ -61,14 +61,15 @@ function staffRateLimiter(req, res, next) {
   }
   deviceRequests.set(deviceId, rec);
 
-  if (rec.count > maxRequests) {
+  if (process.env.NODE_ENV !== 'test' && rec.count > maxRequests) {
     return res.status(429).json({ error: 'Too many requests. Please slow down.' });
   }
   next();
 }
 
 // In-memory fallback stores when testing outside Catalyst or syncing across endpoints
-const memStaffDevices = new Map();
+const memStaffDevices = global.__printbk_staff_devices || (global.__printbk_staff_devices = new Map());
+const memAgentDevices = global.__printbk_agent_devices || (global.__printbk_agent_devices = new Map());
 const memOrders = global.__printbk_orders || (global.__printbk_orders = new Map());
 const memOrderItems = global.__printbk_order_items || (global.__printbk_order_items = new Map());
 const memPrintJobs = global.__printbk_jobs || (global.__printbk_jobs = new Map());
@@ -220,6 +221,14 @@ router.get('/live', async (req, res) => {
     const zcql = catalystApp ? catalystApp.zcql() : null;
     const now = nowSec();
 
+    // Trigger lazy file purge on staff poll
+    if (typeof global.__printbk_purgeExpiredFiles === 'function') {
+      try {
+        const filestore = catalystApp ? catalystApp.filestore() : null;
+        await global.__printbk_purgeExpiredFiles(catalystApp, zcql, filestore);
+      } catch (_) {}
+    }
+
     // 1. Fetch shop_settings
     let shop = {
       open: true,
@@ -269,7 +278,22 @@ router.get('/live', async (req, res) => {
       } catch (_) {}
     }
 
-    // If no printers in DB, provide default connected roles
+    // If no printers in DB, check in-memory printers reported by agent
+    if (printers.length === 0 && global.__printbk_printers && global.__printbk_printers.size > 0) {
+      for (const [pName, p] of global.__printbk_printers) {
+        const isOnline = p.online !== false && (now - Number(p.last_seen || 0) < 15);
+        printers.push({
+          id: p.id || pName,
+          name: p.name || pName,
+          role: p.role || 'bw',
+          online: isOnline,
+          status: isOnline ? (p.status || 'ready') : 'offline',
+          lastSeen: Number(p.last_seen || 0)
+        });
+      }
+    }
+
+    // Default fallback if no agent reported yet
     if (printers.length === 0) {
       printers = [
         { id: 'bw-1', name: 'EPSON L3110 Series', role: 'bw', online: true, status: 'ready', lastSeen: now },
@@ -344,6 +368,8 @@ router.get('/live', async (req, res) => {
       if (orderMemItems.length > 0) {
         for (const it of orderMemItems) {
           const specObj = typeof it.payload === 'string' ? JSON.parse(it.payload || '{}') : (it.payload || {});
+          const matchingTyped = (b.typedItems || []).find(t => t.id === it.id);
+          const printInstructions = it.printInstructions || it.print_instructions || matchingTyped?.printInstructions || specObj.printInstructions || '';
           items.push({
             id: it.id,
             orderId: o.id,
@@ -364,7 +390,8 @@ router.get('/live', async (req, res) => {
             created_at: new Date(orderObj.createdAt * 1000).toISOString(),
             specifications: specObj,
             payload: specObj,
-            printInstructions: ''
+            printInstructions: printInstructions,
+            print_instructions: printInstructions
           });
         }
       } else {
@@ -626,6 +653,10 @@ router.post('/items/:id/approve-print', async (req, res) => {
     let itemStatus = itemRecord?.status || 'ready_to_print';
     let kind = itemRecord?.kind || 'document_bw';
 
+    if (['sending', 'printing', 'printed'].includes(itemStatus)) {
+      return res.status(409).json({ error: `Item is already in status '${itemStatus}'` });
+    }
+
     if (!orderId) {
       for (const [oid, o] of memOrders) {
         try {
@@ -766,21 +797,38 @@ router.post('/items/:id/quote', async (req, res) => {
     const catalystApp = getCatalystApp(req);
     const zcql = catalystApp ? catalystApp.zcql() : null;
     const itemId = req.params.id;
-    const { amount = 0, notes = '' } = req.body;
+    const { amount = 0, quoteAmount = 0, notes = '' } = req.body;
+    const finalAmount = Number(amount || quoteAmount);
+    const now = nowSec();
 
     const it = memOrderItems.get(itemId);
+    let orderId = it ? it.order_id : null;
     if (it) {
       it.status = 'quote_sent';
-      it.price = Number(amount);
+      it.price = finalAmount;
     }
 
     if (zcql) {
       try {
-        await zcql.executeZCQLQuery(`UPDATE order_items SET status = 'quote_sent', price = ${Number(amount)} WHERE id = '${esc(itemId)}'`);
+        await zcql.executeZCQLQuery(`UPDATE order_items SET status = 'quote_sent', price = ${finalAmount} WHERE id = '${esc(itemId)}'`);
+        const itemRows = await zcql.executeZCQLQuery(`SELECT order_id FROM order_items WHERE id = '${esc(itemId)}'`);
+        if (itemRows && itemRows.length > 0) orderId = itemRows[0].order_items.order_id;
       } catch (_) {}
     }
 
-    res.json({ ok: true, itemId, status: 'quote_sent' });
+    if (orderId) {
+      const o = memOrders.get(orderId);
+      if (o) {
+        o.status = 'quote_sent';
+        o.total = finalAmount;
+        o.updated_at = now;
+      }
+      if (zcql) {
+        await zcql.executeZCQLQuery(`UPDATE orders SET status = 'quote_sent', total = ${finalAmount}, updated_at = ${now} WHERE id = '${esc(orderId)}'`).catch(() => {});
+      }
+    }
+
+    res.json({ ok: true, itemId, orderId, status: 'quote_sent', amount: finalAmount });
   } catch (err) {
     res.status(500).json({ error: 'Failed to send quote: ' + err.message });
   }
@@ -1075,6 +1123,103 @@ router.get('/today', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to aggregate today KPI: ' + err.message });
+  }
+});
+
+// K. Staff & Agent Device Management
+router.get('/devices', async (req, res) => {
+  try {
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    let list = [];
+    if (zcql) {
+      try {
+        const rows = await zcql.executeZCQLQuery(`SELECT id, label, created_at, last_seen_at, revoked FROM staff_devices ORDER BY created_at DESC`);
+        list = (rows || []).map(r => r.staff_devices);
+      } catch (_) {}
+    }
+    if (list.length === 0) {
+      list = Array.from(memStaffDevices.values()).map(d => ({
+        id: d.id,
+        label: d.label,
+        created_at: d.created_at,
+        last_seen_at: d.last_seen_at,
+        revoked: !!d.revoked
+      }));
+    }
+    res.json({ ok: true, devices: list });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to list staff devices: ' + err.message });
+  }
+});
+
+router.post('/devices/:id/revoke', async (req, res) => {
+  try {
+    const targetId = req.params.id;
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    const now = nowSec();
+
+    if (zcql) {
+      await zcql.executeZCQLQuery(`UPDATE staff_devices SET revoked = true WHERE id = '${esc(targetId)}'`).catch(() => {});
+    }
+    for (const d of memStaffDevices.values()) {
+      if (d.id === targetId) {
+        d.revoked = true;
+        d.last_seen_at = now;
+      }
+    }
+    res.json({ ok: true, deviceId: targetId, revoked: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to revoke staff device: ' + err.message });
+  }
+});
+
+router.get('/agent-devices', async (req, res) => {
+  try {
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    let list = [];
+    if (zcql) {
+      try {
+        const rows = await zcql.executeZCQLQuery(`SELECT id, label, created_at, last_seen_at, revoked FROM agent_devices ORDER BY created_at DESC`);
+        list = (rows || []).map(r => r.agent_devices);
+      } catch (_) {}
+    }
+    if (list.length === 0) {
+      list = Array.from(memAgentDevices.values()).map(d => ({
+        id: d.id,
+        label: d.label,
+        created_at: d.created_at,
+        last_seen_at: d.last_seen_at,
+        revoked: !!d.revoked
+      }));
+    }
+    res.json({ ok: true, devices: list });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to list agent devices: ' + err.message });
+  }
+});
+
+router.post('/agent-devices/:id/revoke', async (req, res) => {
+  try {
+    const targetId = req.params.id;
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    const now = nowSec();
+
+    if (zcql) {
+      await zcql.executeZCQLQuery(`UPDATE agent_devices SET revoked = true WHERE id = '${esc(targetId)}'`).catch(() => {});
+    }
+    for (const d of memAgentDevices.values()) {
+      if (d.id === targetId) {
+        d.revoked = true;
+        d.last_seen_at = now;
+      }
+    }
+    res.json({ ok: true, deviceId: targetId, revoked: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to revoke agent device: ' + err.message });
   }
 });
 

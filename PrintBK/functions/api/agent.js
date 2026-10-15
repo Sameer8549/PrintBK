@@ -30,15 +30,16 @@ function getCatalystApp(req) {
 }
 
 // In-memory fallback stores for test harness outside Catalyst
-const memAgentDevices = new Map();
-const memPrinters = new Map();
+const memAgentDevices = global.__printbk_agent_devices || (global.__printbk_agent_devices = new Map());
+const memPrinters = global.__printbk_printers || (global.__printbk_printers = new Map());
 const memOrders = global.__printbk_orders || (global.__printbk_orders = new Map());
 const memOrderItems = global.__printbk_order_items || (global.__printbk_order_items = new Map());
 const memPrintJobs = global.__printbk_jobs || (global.__printbk_jobs = new Map());
 
 /* ─── Agent Authentication Middleware ────────────────────────────── */
 async function authenticateAgent(req, res, next) {
-  const token = req.headers['x-agent-token'] || 
+  const token = req.headers['x-agent-device-token'] ||
+                req.headers['x-agent-token'] || 
                 req.headers['x-token'] || 
                 (req.headers.authorization && req.headers.authorization.startsWith('Bearer ') ? req.headers.authorization.slice(7).trim() : null);
 
@@ -66,7 +67,7 @@ async function authenticateAgent(req, res, next) {
       if (rows && rows.length > 0) {
         const dev = rows[0].agent_devices;
         if (dev.revoked === true || String(dev.revoked) === 'true') {
-          return res.status(401).json({ error: 'Agent device credential has been revoked' });
+          return res.status(403).json({ error: 'Agent device credential has been revoked' });
         }
         // Update last seen
         const now = nowSec();
@@ -84,7 +85,7 @@ async function authenticateAgent(req, res, next) {
   const memDev = memAgentDevices.get(tokenHash);
   if (memDev) {
     if (memDev.revoked) {
-      return res.status(401).json({ error: 'Agent device credential has been revoked' });
+      return res.status(403).json({ error: 'Agent device credential has been revoked' });
     }
     memDev.last_seen_at = nowSec();
     req.agentDevice = { id: memDev.id, label: memDev.label };
@@ -242,6 +243,14 @@ router.get(['/jobs/next', '/jobs/poll'], async (req, res) => {
     const catalystApp = getCatalystApp(req);
     const zcql = catalystApp ? catalystApp.zcql() : null;
     const now = nowSec();
+
+    // Trigger lazy file purge on agent job poll
+    if (typeof global.__printbk_purgeExpiredFiles === 'function') {
+      try {
+        const filestore = catalystApp ? catalystApp.filestore() : null;
+        await global.__printbk_purgeExpiredFiles(catalystApp, zcql, filestore);
+      } catch (_) {}
+    }
 
     // 1. Check for queued print jobs
     let queuedJob = null;
@@ -685,6 +694,33 @@ router.post('/jobs/:id/status', async (req, res) => {
       } catch (_) {}
     }
     return res.json({ ok: true, status: 'printing', jobId });
+  }
+});
+
+// 5. Revoke Agent Device
+router.post('/devices/:id/revoke', async (req, res) => {
+  try {
+    const targetId = req.params.id;
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    const now = nowSec();
+
+    if (zcql) {
+      await zcql.executeZCQLQuery(
+        `UPDATE agent_devices SET revoked = true, updated_at = ${now} WHERE id = '${esc(targetId)}'`
+      ).catch(() => {});
+    }
+
+    for (const dev of memAgentDevices.values()) {
+      if (dev.id === targetId) {
+        dev.revoked = true;
+        dev.last_seen_at = now;
+      }
+    }
+
+    res.json({ ok: true, deviceId: targetId, revoked: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to revoke agent device: ' + err.message });
   }
 });
 
