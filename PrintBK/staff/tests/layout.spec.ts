@@ -147,12 +147,19 @@ function generateWorstCaseJobs(): TestJob[] {
 }
 
 async function setupPageWithWorstCase(page: Page) {
+  await page.route("**/server/api/**", (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ items: [], printers: [], shop: { is_open: true } }),
+    })
+  })
   // Ensure staff app considers the counter paired so it loads the Orders board directly
   await page.addInitScript(() => {
     window.localStorage.setItem("printbk-paired", "true")
   })
   await page.goto("/?view=orders")
-  await page.waitForLoadState("networkidle")
+  await page.waitForLoadState("domcontentloaded")
 
   // Inject worst case jobs via custom event
   const worstCase = generateWorstCaseJobs()
@@ -364,16 +371,25 @@ test.describe("Staff Counter App Visual Hardening (Phase 4)", () => {
   })
 
   test("Capture before pairing screenshots at 1920 and 1440", async ({ page }) => {
+    await page.route("**/server/api/**", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: [], printers: [], shop: { is_open: true } }),
+      })
+    })
     // Before pairing (first-run screen) at 1920
     await page.setViewportSize({ width: 1920, height: 1080 })
     await page.goto("/?view=orders")
-    await page.waitForLoadState("networkidle")
+    await page.waitForLoadState("domcontentloaded")
+    await page.waitForTimeout(300)
     await page.screenshot({ path: "../docs/screenshots/staff-1920-before.png" })
 
     // Before pairing (first-run screen) at 1440
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto("/?view=orders")
-    await page.waitForLoadState("networkidle")
+    await page.waitForLoadState("domcontentloaded")
+    await page.waitForTimeout(300)
     await page.screenshot({ path: "../docs/screenshots/staff-1440-before.png" })
   })
 })

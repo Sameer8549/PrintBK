@@ -126,7 +126,7 @@ kbd { min-width: 32px; height: 32px; display: inline-grid; place-items: center; 
 .service-title > b { min-width: 36px; height: 36px; display: grid; place-items: center; margin-left: auto; border-radius: 50%; background: var(--ink); color: white; font: 700 16px "JetBrains Mono"; }
 .table-scroll { max-height: none !important; overflow: visible !important; }
 .table-head { position: sticky; z-index: 10; top: 86px; min-height: 48px; background: var(--ink); color: white; }
-.compact-head { display: grid; grid-template-columns: 56px 168px 280px 272px minmax(120px, 1fr); align-items: stretch; }
+.compact-head { display: grid; grid-template-columns: 56px 210px 260px 260px minmax(110px, 1fr); align-items: stretch; }
 .table-head > span { display: flex; align-items: center; padding: 0 12px; border-right: 1px solid var(--ink-2); font-size: 14px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .table-head > span:last-child { border-right: none; justify-content: flex-end; text-align: right; padding-right: 20px; }
 .job-wrap { border-bottom: 1px solid var(--line); }
@@ -136,17 +136,18 @@ kbd { min-width: 32px; height: 32px; display: inline-grid; place-items: center; 
 @keyframes newOrder { 0%, 45% { background: rgba(200,240,49,.45); } 100% { background: transparent; } }
 .job-wrap.is-complete { animation: completeFlash 3s ease both; }
 @keyframes completeFlash { 0%, 75% { background: var(--success); color: white; } 100% { opacity: 0; transform: translateY(12px); max-height: 0; } }
-.job-row { min-height: 148px; display: grid; grid-template-columns: 56px 168px 280px 272px minmax(120px, 1fr); grid-template-rows: auto auto; background: white; cursor: pointer; }
+.job-row { min-height: 148px; display: grid; grid-template-columns: 56px 210px 260px 260px minmax(110px, 1fr); grid-template-rows: auto auto; background: white; cursor: pointer; }
 .job-row:hover { background: #fbf8f1; }
 .job-row > div:not(.detail-chip-line) { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 5px; padding: 8px; border-right: 1px dotted var(--line); font-size: 16px; line-height: 1.2; }
 .position { position: relative; grid-row: 1 / 3; width: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 !important; }
 .position::before { content: ""; position: absolute; top: 0; bottom: 0; left: 27px; width: 2px; background: var(--ink); }
 .position i { position: relative; z-index: 2; width: 14px; height: 14px; border: 2px solid var(--ink); border-radius: 50%; background: var(--lime); }
 .position b { position: relative; z-index: 2; padding: 2px 4px; background: white; font: 700 20px "JetBrains Mono"; }
-.row-order { width: 168px; padding: 12px 16px !important; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
-.row-order strong { font: 700 40px/1 "JetBrains Mono", monospace; letter-spacing: -.06em; }
-.row-order span, .combine-chip { align-self: flex-start; display: inline-flex; max-width: 136px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 8px; border: 1px solid var(--ink); border-radius: 999px; background: var(--warning-tint); font-size: 14px; font-weight: 700; letter-spacing: .06em; }
-.row-payment { width: 280px; padding: 12px 16px !important; word-break: break-word; white-space: normal; border-right: 2px solid var(--ink) !important; border-left: 2px solid var(--ink); display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.row-order { min-width: 0; width: 100%; padding: 12px 14px !important; display: flex; flex-direction: column; justify-content: center; gap: 6px; overflow: hidden; }
+.row-order strong { font: 700 38px/1 "JetBrains Mono", monospace; letter-spacing: -.05em; white-space: nowrap; }
+.row-order span { align-self: flex-start; display: inline-flex; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 8px; border: 1px solid var(--ink); border-radius: 999px; background: var(--warning-tint); font-size: 14px; font-weight: 700; letter-spacing: .06em; }
+.combine-chip { align-self: flex-start; display: inline-flex; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 4px 10px; border: 1px solid var(--ink); border-radius: 999px; background: var(--warning-tint); font-size: 14px; font-weight: 700; letter-spacing: .06em; }
+.row-payment { min-width: 0; width: 100%; padding: 12px 14px !important; word-break: break-word; white-space: normal; border-right: 2px solid var(--ink) !important; border-left: 2px solid var(--ink); display: flex; flex-direction: column; justify-content: center; gap: 6px; overflow: hidden; }
 .payment-main { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font: 700 20px "Space Grotesk"; text-transform: uppercase; }
 .payment-main b { font: 700 20px "JetBrains Mono"; }
 .row-payment small { display: block; margin-top: 4px; font-size: 14px; font-weight: 600; line-height: 1.3; }
@@ -156,8 +157,8 @@ kbd { min-width: 32px; height: 32px; display: inline-grid; place-items: center; 
 .row-payment--cash_due::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 10px; background: repeating-linear-gradient(135deg, white 0 4px, var(--error) 4px 8px); }
 .row-payment--cash_due .payment-main { font-size: 20px; }
 .row-payment--cash_due .payment-main b { font-size: 20px; }
-.row-amount { padding: 12px 20px 12px 12px !important; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; text-align: right; font: 700 20px "JetBrains Mono"; font-variant-numeric: tabular-nums; border-right: none !important; }
-.row-controls { width: 272px; min-width: 272px !important; padding: 12px 16px !important; display: flex; align-items: center; justify-content: center; gap: 16px; }
+.row-amount { min-width: 0; width: 100%; padding: 12px 20px 12px 10px !important; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; text-align: right; font: 700 20px "JetBrains Mono"; font-variant-numeric: tabular-nums; border-right: none !important; }
+.row-controls { min-width: 0; width: 100%; padding: 12px 14px !important; display: flex; align-items: center; justify-content: center; gap: 16px; }
 .row-controls .button { width: 100%; height: 72px; min-height: 72px; padding: 0 16px; font-size: 20px; font-weight: 700; white-space: nowrap; gap: 12px; background: var(--sand); }
 .row-controls .button:hover { background: var(--sand-deep); }
 .row-controls .button kbd { margin-left: auto; font-size: 14px; }
@@ -186,7 +187,7 @@ kbd { min-width: 32px; height: 32px; display: inline-grid; place-items: center; 
 .all-caught-up strong { font: 700 72px "Space Grotesk"; letter-spacing: -.06em; }
 .all-caught-up p { color: var(--muted); font-size: 18px; }
 
-.order-detail-panel { position: fixed; z-index: 60; top: 86px; right: 0; width: min(720px, 100vw); height: calc(100vh - 86px); overflow-y: auto; padding: 24px 26px 120px; border-left: 2px solid var(--ink); background: var(--paper); box-shadow: -5px 0 0 rgba(11,16,32,.12); }
+.order-detail-panel { position: fixed; z-index: 60; top: 86px; right: 0; width: min(640px, 100vw); height: calc(100vh - 86px); overflow-y: auto; padding: 24px 26px 120px; border-left: 2px solid var(--ink); background: var(--paper); box-shadow: -5px 0 0 rgba(11,16,32,.12); }
 .panel-handle { display: none; }
 .detail-panel-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
 .detail-panel-top > div { display: flex; flex-direction: column; }
@@ -805,7 +806,7 @@ kbd { min-width: 32px; height: 32px; display: inline-grid; place-items: center; 
 /* Counter-distance readability: the operational Orders view never drops below 16px. */
 .orders-board .service-title span, .orders-board .table-head > span, .orders-board .row-order span, .orders-board .combine-chip, .orders-board .row-payment small, .orders-board .printing-progress small, .orders-board .detail-chip, .orders-board .detail-chip b, .orders-board .state-chip, .orders-board .inline-order-detail span, .orders-board .inline-order-detail b { font-size: 16px; }
 .orders-board .service-title strong { font-size: 23px; }
-.orders-board .row-order strong { font-size: 48px; }
+.orders-board .row-order strong { font-size: clamp(34px, 2.3vw, 40px); }
 .orders-board .payment-main { font-size: 21px; }
 .orders-board .payment-main b { font-size: 25px; }
 .orders-board .row-controls .button { font-size: 19px; }
@@ -851,7 +852,7 @@ kbd { min-width: 32px; height: 32px; display: inline-grid; place-items: center; 
   .service-switcher b { min-width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: white; font: 700 11px "JetBrains Mono"; }
   .tables-grid { grid-template-columns: 1fr; }
   .service-table { grid-column: 1; }
-  .compact-head, .job-row { grid-template-columns: 42px 108px minmax(220px, 1fr) 240px 100px; }
+  .compact-head, .job-row { grid-template-columns: 48px 180px minmax(200px, 1fr) 240px 100px; }
   .orders-toolbar { grid-template-columns: 1fr 1fr; }
   .orders-toolbar .orders-search, .orders-toolbar .recent-wrap { grid-column: span 2; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
