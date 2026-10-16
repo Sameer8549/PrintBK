@@ -1648,74 +1648,77 @@ function OrderDetailPanel({
   }
 
   return (
-    <aside className={`order-detail-panel ${readOnly ? "read-only" : ""}`}>
-      <div className="panel-handle" />
-      <div className="detail-panel-top">
-        <div><span>ORDER DETAILS</span><strong>#{job.order}</strong><small>Uploaded {job.uploaded}</small></div>
-        <button type="button" onClick={onClose} aria-label="Close order details">×</button>
-      </div>
-      <PaymentBlock payment={job.payment} amount={job.amount} order={job.order} />
-      {job.state !== "Preparing" && job.payment !== "cash_due" && (
-        <div className="pickup-code"><span>PICKUP CODE</span><strong>{job.pickup_code}</strong></div>
-      )}
-      <Timeline job={job} />
-
-      {job.payment === "upi" && (
-        <section className="upi-claim">
-          <div><Icon name="eye" size={26} /><strong>UPI payment claimed</strong></div>
-          <p><b>₹{job.amount.toFixed(2)}</b> ref <b>#{job.order}</b>. Check your UPI app, then tap Approve &amp; Print.</p>
-        </section>
-      )}
-
-      <section className="detail-block">
-        <div className="detail-heading"><span>{isDocument || isPhoto ? "WHAT TO PRINT" : "SERVICE DETAILS"}</span><b>{isPhoto ? "PHOTO SHEET" : isDocument ? "DOCUMENT" : serviceConfig?.title.toUpperCase()}</b></div>
-        {(isDocument || isPhoto) && <div className="file-name" title={job.values[1]}>{job.values[1] ?? "Document"}</div>}
-        {!isDocument && !isPhoto ? (
-          <div className="spec-grid service-spec-grid">
-            {serviceConfig?.columns.map((column, index) => <div key={column}><span>{column}</span><b>{job.values[index] ?? "—"}</b></div>)}
-          </div>
-        ) : isPhoto ? (
-          <div className="spec-grid">
-            <div><span>Preset</span><b>{job.values[1] || "Photo"}</b></div><div><span>Photos</span><b>{job.values[2] || "1"}</b></div>
-            <div><span>Sheet specification</span><b>{job.values[3] || "A4"}</b></div><div><span>Paper to load</span><b>{job.values[5] || "Photo paper"}</b></div>
-          </div>
-        ) : (
-          <>
-            <div className="spec-grid">
-              <div><span>Pages</span><b>{job.values[2] || "—"}</b></div><div><span>Copies</span><b>{job.values[3] || "1"}</b></div>
-              <div><span>Sides</span><b>{job.values[4] || "Single"}</b></div><div><span>Layout</span><b>{job.values[5] || "1-up"}</b></div>
-              <div><span>Paper</span><b>{job.values[6] || "A4"}</b></div><div><span>Total sheets</span><b>{job.values[8] || "—"}</b></div>
-            </div>
-            <div className="detail-subhead">COLOUR PLAN</div>
-            <div className="colour-plan">
-              {Array.from({ length: 6 }, (_, index) => <PageChip page={index + 1} colour={isColour && index === 0} key={index} />)}
-              <b>{isColour ? (job.values[3] || "Colour document") : "All B&W"}</b>
-            </div>
-            <OrientationNote title={job.values[7] || "Standard"} note="Applied directly to printer without dialog." />
-          </>
-        )}
-      </section>
-
-      <section className="detail-block">
-        <div className="detail-heading"><span>PEEK</span><b>EXACT SHEETS · READ ONLY</b></div>
-        <SheetPeek colour={isColour || isPhoto} />
-      </section>
-
-      <section className="price-receipt">
-        <div className="detail-heading"><span>PRICE</span><b>RECEIPT</b></div>
-        <div><span>{serviceConfig?.title || "Item"}</span><b>₹{job.amount.toFixed(2)}</b></div>
-        <div className="receipt-total"><span>TOTAL</span><b>₹{job.amount.toFixed(2)}</b></div>
-      </section>
-
-      <div className="student-sees"><i /><span>STUDENT SEES</span><strong>{job.state.startsWith("Printing") ? job.state : job.state.includes("PRINTED") ? `Printed, show code ${job.pickup_code}` : job.payment === "upi" ? "Waiting for the shop to confirm your UPI payment" : job.state}</strong></div>
-      {!readOnly && (
-        <div className="reject-area">
-          <select value={rejectReason} onChange={(event) => setRejectReason(event.target.value)}><option>UPI not received</option><option>Student left without paying</option><option>Other reason</option></select>
-          <button type="button" className={hold ? "holding" : ""} onPointerDown={startReject} onPointerUp={stopReject} onPointerLeave={stopReject}>PRESS &amp; HOLD 1 SECOND TO REJECT</button>
-          <small>The student is notified immediately. You can undo for 5 seconds.</small>
+    <>
+      <div className="order-detail-scrim" onClick={onClose} />
+      <aside className={`order-detail-panel ${readOnly ? "read-only" : ""}`}>
+        <div className="panel-handle" />
+        <div className="detail-panel-top">
+          <div><span>ORDER DETAILS</span><strong>#{job.order}</strong><small>Uploaded {job.uploaded}</small></div>
+          <button type="button" onClick={onClose} aria-label="Close order details">×</button>
         </div>
-      )}
-    </aside>
+        <PaymentBlock payment={job.payment} amount={job.amount} order={job.order} />
+        {job.state !== "Preparing" && job.payment !== "cash_due" && (
+          <div className="pickup-code"><span>PICKUP CODE</span><strong>{job.pickup_code}</strong></div>
+        )}
+        <Timeline job={job} />
+
+        {job.payment === "upi" && (
+          <section className="upi-claim">
+            <div><Icon name="eye" size={26} /><strong>UPI payment claimed</strong></div>
+            <p><b>₹{job.amount.toFixed(2)}</b> ref <b>#{job.order}</b>. Check your UPI app, then tap Approve &amp; Print.</p>
+          </section>
+        )}
+
+        <section className="detail-block">
+          <div className="detail-heading"><span>{isDocument || isPhoto ? "WHAT TO PRINT" : "SERVICE DETAILS"}</span><b>{isPhoto ? "PHOTO SHEET" : isDocument ? "DOCUMENT" : serviceConfig?.title.toUpperCase()}</b></div>
+          {(isDocument || isPhoto) && <div className="file-name" title={job.values[1]}>{job.values[1] ?? "Document"}</div>}
+          {!isDocument && !isPhoto ? (
+            <div className="spec-grid service-spec-grid">
+              {serviceConfig?.columns.map((column, index) => <div key={column}><span>{column}</span><b>{job.values[index] ?? "—"}</b></div>)}
+            </div>
+          ) : isPhoto ? (
+            <div className="spec-grid">
+              <div><span>Preset</span><b>{job.values[1] || "Photo"}</b></div><div><span>Photos</span><b>{job.values[2] || "1"}</b></div>
+              <div><span>Sheet specification</span><b>{job.values[3] || "A4"}</b></div><div><span>Paper to load</span><b>{job.values[5] || "Photo paper"}</b></div>
+            </div>
+          ) : (
+            <>
+              <div className="spec-grid">
+                <div><span>Pages</span><b>{job.values[2] || "—"}</b></div><div><span>Copies</span><b>{job.values[3] || "1"}</b></div>
+                <div><span>Sides</span><b>{job.values[4] || "Single"}</b></div><div><span>Layout</span><b>{job.values[5] || "1-up"}</b></div>
+                <div><span>Paper</span><b>{job.values[6] || "A4"}</b></div><div><span>Total sheets</span><b>{job.values[8] || "—"}</b></div>
+              </div>
+              <div className="detail-subhead">COLOUR PLAN</div>
+              <div className="colour-plan">
+                {Array.from({ length: 6 }, (_, index) => <PageChip page={index + 1} colour={isColour && index === 0} key={index} />)}
+                <b>{isColour ? (job.values[3] || "Colour document") : "All B&W"}</b>
+              </div>
+              <OrientationNote title={job.values[7] || "Standard"} note="Applied directly to printer without dialog." />
+            </>
+          )}
+        </section>
+
+        <section className="detail-block">
+          <div className="detail-heading"><span>PEEK</span><b>EXACT SHEETS · READ ONLY</b></div>
+          <SheetPeek colour={isColour || isPhoto} />
+        </section>
+
+        <section className="price-receipt">
+          <div className="detail-heading"><span>PRICE</span><b>RECEIPT</b></div>
+          <div><span>{serviceConfig?.title || "Item"}</span><b>₹{job.amount.toFixed(2)}</b></div>
+          <div className="receipt-total"><span>TOTAL</span><b>₹{job.amount.toFixed(2)}</b></div>
+        </section>
+
+        <div className="student-sees"><i /><span>STUDENT SEES</span><strong>{job.state.startsWith("Printing") ? job.state : job.state.includes("PRINTED") ? `Printed, show code ${job.pickup_code}` : job.payment === "upi" ? "Waiting for the shop to confirm your UPI payment" : job.state}</strong></div>
+        {!readOnly && (
+          <div className="reject-area">
+            <select value={rejectReason} onChange={(event) => setRejectReason(event.target.value)}><option>UPI not received</option><option>Student left without paying</option><option>Other reason</option></select>
+            <button type="button" className={hold ? "holding" : ""} onPointerDown={startReject} onPointerUp={stopReject} onPointerLeave={stopReject}>PRESS &amp; HOLD 1 SECOND TO REJECT</button>
+            <small>The student is notified immediately. You can undo for 5 seconds.</small>
+          </div>
+        )}
+      </aside>
+    </>
   )
 }
 

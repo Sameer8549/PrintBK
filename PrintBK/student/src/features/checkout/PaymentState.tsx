@@ -33,6 +33,7 @@ function PaymentState({
   const [utrInput, setUtrInput] = useState('');
   const [claiming, setClaiming] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [appOpened, setAppOpened] = useState(false);
   const [returnedFromApp, setReturnedFromApp] = useState(false);
 
   // Platform detection
@@ -67,16 +68,25 @@ function PaymentState({
     return () => { active = false; };
   }, [id, order?.accessToken, isDesktop]);
 
-  // 2. Return-from-UPI hook (Page Visibility Change)
+  // 2. Return-from-UPI hook (Visibility Change + Window Focus)
   useEffect(() => {
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
+    const handleReturn = () => {
+      if (appOpened) {
         setReturnedFromApp(true);
       }
     };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && appOpened) {
+        setReturnedFromApp(true);
+      }
+    };
+    window.addEventListener('focus', handleReturn);
     document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, []);
+    return () => {
+      window.removeEventListener('focus', handleReturn);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [appOpened]);
 
   const handleCopyUpiId = () => {
     if (!upiData) return;
@@ -232,6 +242,9 @@ function PaymentState({
             {/* Primary Action Button: Pay with Installed UPI Apps */}
             <a
               href={upiData.intentUrl}
+              onClick={() => {
+                setAppOpened(true);
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -291,69 +304,127 @@ function PaymentState({
           )}
         </div>
 
-
-        {/* ── Return-From-UPI Claim Card ── */}
-        <div style={{
-          background: returnedFromApp ? '#ecfdf5' : '#ffffff',
-          borderRadius: 20,
-          border: returnedFromApp ? '2px solid #10b981' : '1.5px solid #e2e8f0',
-          padding: '20px',
-          boxShadow: returnedFromApp ? '0 4px 20px rgba(16,185,129,0.15)' : '0 4px 16px rgba(0,0,0,0.03)',
-          transition: 'all 0.3s ease'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <span style={{ fontSize: 18 }}>{returnedFromApp ? '🎉' : '✓'}</span>
-            <span style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
-              {returnedFromApp ? 'Back from your UPI app?' : 'Confirm your payment'}
-            </span>
+        {/* ── Return-From-UPI Claim Card: Gated until app is opened & student returns ── */}
+        {!appOpened && !showQR && !isDesktop && (
+          <div style={{
+            background: '#ffffff',
+            borderRadius: 20,
+            border: '1.5px dashed #cbd5e1',
+            padding: '20px',
+            textAlign: 'center',
+            color: '#64748b',
+            marginBottom: 16
+          }}>
+            <div style={{ fontSize: 24, marginBottom: 6 }}>👆</div>
+            <strong style={{ display: 'block', fontSize: 14, color: '#1e293b', marginBottom: 4 }}>
+              Step 1: Open Your UPI App
+            </strong>
+            <p style={{ fontSize: 12, margin: 0, lineHeight: 1.4 }}>
+              Tap the blue button above to pay. The confirmation button will unlock as soon as you complete payment and return here.
+            </p>
           </div>
-          <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 14px', lineHeight: 1.4 }}>
-            After approving the payment in your UPI app, tap below so our print counter system can immediately verify and print your order.
-          </p>
+        )}
 
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>
-              12-digit UPI Reference / UTR <small style={{ fontWeight: 400, color: '#94a3b8' }}>(optional — found in UPI receipt)</small>
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. 428901234567"
-              value={utrInput}
-              onChange={e => setUtrInput(e.target.value)}
+        {appOpened && !returnedFromApp && (
+          <div style={{
+            background: '#fffbeb',
+            borderRadius: 20,
+            border: '1.5px solid #fde68a',
+            padding: '20px',
+            textAlign: 'center',
+            color: '#92400e',
+            marginBottom: 16
+          }}>
+            <div style={{ fontSize: 24, marginBottom: 6 }}>⏳</div>
+            <strong style={{ display: 'block', fontSize: 14, color: '#92400e', marginBottom: 4 }}>
+              Waiting for you to return from UPI app…
+            </strong>
+            <p style={{ fontSize: 12, margin: 0, lineHeight: 1.4, color: '#b45309' }}>
+              Approve payment in Google Pay / PhonePe / Paytm, then switch back to this tab.
+            </p>
+            <button
+              onClick={() => setReturnedFromApp(true)}
+              style={{
+                marginTop: 12,
+                background: '#fef3c7',
+                border: '1px solid #f59e0b',
+                color: '#92400e',
+                padding: '6px 14px',
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              I have paid and returned →
+            </button>
+          </div>
+        )}
+
+        {((appOpened && returnedFromApp) || isDesktop || showQR) && (
+          <div style={{
+            background: '#ecfdf5',
+            borderRadius: 20,
+            border: '2px solid #10b981',
+            padding: '20px',
+            boxShadow: '0 4px 20px rgba(16,185,129,0.18)',
+            marginBottom: 16
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 20 }}>🎉</span>
+              <span style={{ fontSize: 16, fontWeight: 800, color: '#065f46' }}>
+                Payment Verification
+              </span>
+            </div>
+            <p style={{ fontSize: 12, color: '#047857', margin: '0 0 14px', lineHeight: 1.4 }}>
+              Tap below to submit your payment claim and immediately view your confirmed order receipt.
+            </p>
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#065f46', display: 'block', marginBottom: 4 }}>
+                12-digit UPI Reference / UTR <small style={{ fontWeight: 400, color: '#047857' }}>(optional — found in UPI receipt)</small>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 428901234567"
+                value={utrInput}
+                onChange={e => setUtrInput(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '11px 13px',
+                  borderRadius: 10,
+                  border: '1.5px solid #a7f3d0',
+                  background: '#ffffff',
+                  fontSize: 13,
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            <button
+              onClick={handleClaimPayment}
+              disabled={claiming}
               style={{
                 width: '100%',
-                padding: '11px 13px',
-                borderRadius: 10,
-                border: '1.5px solid #cbd5e1',
-                fontSize: 13,
-                boxSizing: 'border-box'
+                padding: '16px',
+                borderRadius: 14,
+                border: 'none',
+                background: '#059669',
+                color: '#ffffff',
+                fontSize: 16,
+                fontWeight: 800,
+                cursor: claiming ? 'not-allowed' : 'pointer',
+                boxShadow: '0 4px 14px rgba(5, 150, 105, 0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8
               }}
-            />
+            >
+              {claiming ? 'Confirming…' : `✓ I've Paid (₹${upiData.amount.toFixed(2)})`}
+            </button>
           </div>
-
-          <button
-            onClick={handleClaimPayment}
-            disabled={claiming}
-            style={{
-              width: '100%',
-              padding: '15px',
-              borderRadius: 14,
-              border: 'none',
-              background: '#10b981',
-              color: '#ffffff',
-              fontSize: 15,
-              fontWeight: 800,
-              cursor: claiming ? 'not-allowed' : 'pointer',
-              boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8
-            }}
-          >
-            {claiming ? 'Recording claim…' : `✓ I Have Completed Payment (₹${upiData.amount.toFixed(2)})`}
-          </button>
-        </div>
+        )}
 
         {/* Fallback to cash */}
         <div style={{ textAlign: 'center', marginTop: 20 }}>

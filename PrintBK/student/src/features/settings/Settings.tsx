@@ -4,6 +4,26 @@ import { Screen } from '../../lib/types';
 import { notify } from '../../lib/store';
 import { useBasket, useHistory } from '../../store/basket';
 
+function GoldenIcon({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        width: 42,
+        height: 42,
+        borderRadius: 12,
+        background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 50%, #fde68a 100%)',
+        border: '1.5px solid #f59e0b',
+        boxShadow: '0 2px 8px rgba(245, 158, 11, 0.22)',
+        display: 'grid',
+        placeItems: 'center',
+        flexShrink: 0,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 function Settings({ go }: { go: (screen: Screen) => void }) {
   const [cleared, setCleared] = useState(false);
   const [phone, setPhone] = useState(() => {
@@ -101,12 +121,20 @@ function Settings({ go }: { go: (screen: Screen) => void }) {
           boxShadow: '0 2px 12px rgba(0,0,0,0.03)',
           overflow: 'hidden'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px' }}>
-            <div>
-              <strong style={{ display: 'block', fontSize: 15, color: '#0f172a' }}>Phone Number & Ready Alerts</strong>
-              <small style={{ color: '#64748b', fontSize: 12, marginTop: 2, display: 'block' }}>
-                {phone ? `Registered: +91 ${phone}` : 'Enter 10-digit mobile number for pickup alerts'}
-              </small>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <GoldenIcon>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#b45309" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                  <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                </svg>
+              </GoldenIcon>
+              <div>
+                <strong style={{ display: 'block', fontSize: 15, color: '#0f172a' }}>Phone Number &amp; Ready Alerts</strong>
+                <small style={{ color: '#64748b', fontSize: 12, marginTop: 2, display: 'block' }}>
+                  {phone ? `Registered: +91 ${phone}` : 'Enter 10-digit mobile number for pickup alerts'}
+                </small>
+              </div>
             </div>
             <button
               style={{
@@ -117,7 +145,8 @@ function Settings({ go }: { go: (screen: Screen) => void }) {
                 fontSize: 13,
                 cursor: 'pointer',
                 fontWeight: 600,
-                color: '#0f172a'
+                color: '#0f172a',
+                flexShrink: 0
               }}
               onClick={() => {
                 setTempPhone(phone);
@@ -207,7 +236,7 @@ function Settings({ go }: { go: (screen: Screen) => void }) {
                   }}
                   onClick={savePhone}
                 >
-                  Save & Enable Alerts
+                  Save &amp; Enable Alerts
                 </button>
                 {phone && (
                   <button
@@ -231,7 +260,7 @@ function Settings({ go }: { go: (screen: Screen) => void }) {
           )}
         </div>
 
-        {/* ── Links & Information ── */}
+        {/* ── Links & Information with Premium Golden Icons ── */}
         <div style={{
           background: '#ffffff',
           borderRadius: 16,
@@ -243,12 +272,25 @@ function Settings({ go }: { go: (screen: Screen) => void }) {
             {
               label: 'About PrintBK',
               sub: 'Platform details & developer information',
-              action: () => go('/about')
+              action: () => go('/about'),
+              icon: (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#b45309" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 16v-4" />
+                  <path d="M12 8h.01" />
+                </svg>
+              ),
             },
             {
-              label: 'Privacy policy',
-              sub: 'How your files and privacy are protected',
-              action: () => go('/privacy')
+              label: 'Privacy Policy',
+              sub: 'Auto file deletion and encryption protection',
+              action: () => go('/privacy'),
+              icon: (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#b45309" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <path d="m9 12 2 2 4-4" />
+                </svg>
+              ),
             },
           ].map((item, i) => (
             <button
@@ -264,12 +306,16 @@ function Settings({ go }: { go: (screen: Screen) => void }) {
                 border: 'none',
                 cursor: 'pointer',
                 textAlign: 'left',
-                borderTop: i > 0 ? '1px solid #f1f5f9' : 'none'
+                borderTop: i > 0 ? '1px solid #f1f5f9' : 'none',
+                gap: 14
               }}
             >
-              <div>
-                <strong style={{ display: 'block', fontSize: 15, color: '#0f172a' }}>{item.label}</strong>
-                <small style={{ color: '#64748b', fontSize: 12, marginTop: 2, display: 'block' }}>{item.sub}</small>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <GoldenIcon>{item.icon}</GoldenIcon>
+                <div>
+                  <strong style={{ display: 'block', fontSize: 15, color: '#0f172a' }}>{item.label}</strong>
+                  <small style={{ color: '#64748b', fontSize: 12, marginTop: 2, display: 'block' }}>{item.sub}</small>
+                </div>
               </div>
               <div style={{ color: '#94a3b8' }}>
                 <Icon name="chevron" size={18} />
@@ -298,16 +344,26 @@ function Settings({ go }: { go: (screen: Screen) => void }) {
               background: cleared ? '#f8fafc' : 'none',
               border: 'none',
               cursor: cleared ? 'default' : 'pointer',
-              textAlign: 'left'
+              textAlign: 'left',
+              gap: 14
             }}
           >
-            <div>
-              <strong style={{ display: 'block', fontSize: 15, color: cleared ? '#059669' : '#dc2626' }}>
-                {cleared ? '✓ All Data Cleared' : 'Clear my data from this device'}
-              </strong>
-              <small style={{ color: '#64748b', fontSize: 12, marginTop: 2, display: 'block' }}>
-                {cleared ? 'Device memory, orders, and cache have been reset' : 'Permanently clears basket, order history, and phone number'}
-              </small>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <GoldenIcon>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#b45309" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18" />
+                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                </svg>
+              </GoldenIcon>
+              <div>
+                <strong style={{ display: 'block', fontSize: 15, color: cleared ? '#059669' : '#dc2626' }}>
+                  {cleared ? '✓ All Data Cleared' : 'Clear my data from this device'}
+                </strong>
+                <small style={{ color: '#64748b', fontSize: 12, marginTop: 2, display: 'block' }}>
+                  {cleared ? 'Device memory, orders, and cache have been reset' : 'Permanently clears basket, order history, and phone number'}
+                </small>
+              </div>
             </div>
             <div style={{ color: cleared ? '#059669' : '#dc2626' }}>
               {cleared ? <Icon name="check" size={20} /> : <Icon name="trash" size={18} />}
