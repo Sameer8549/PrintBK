@@ -94,6 +94,13 @@ async function authenticateStaff(req, res, next) {
     return next();
   }
 
+  // 1b. Check if deviceToken matches STAFF_SETUP_CODE directly
+  const expectedSetupCode = process.env.STAFF_SETUP_CODE;
+  if (expectedSetupCode && timingSafeCompare(deviceToken, expectedSetupCode)) {
+    req.staffDevice = { id: 'setup-pass', label: 'Counter PC' };
+    return next();
+  }
+
   // 2. Look up token in staff_devices table
   const tokenHash = crypto.createHash('sha256').update(deviceToken).digest('hex');
   try {
@@ -102,8 +109,8 @@ async function authenticateStaff(req, res, next) {
 
     if (zcql) {
       const rows = await zcql.executeZCQLQuery(
-        `SELECT id, label, revoked FROM staff_devices WHERE token_hash = '${tokenHash}'`
-      );
+        `SELECT ROWID, label, revoked FROM staff_devices WHERE token_hash = '${tokenHash}'`
+      ).catch(() => null);
 
       if (rows && rows.length > 0) {
         const dev = rows[0].staff_devices;
@@ -114,10 +121,10 @@ async function authenticateStaff(req, res, next) {
         // Update last seen asynchronously
         const now = nowSec();
         zcql.executeZCQLQuery(
-          `UPDATE staff_devices SET last_seen_at = ${now} WHERE id = '${esc(dev.id)}'`
+          `UPDATE staff_devices SET last_seen_at = ${now} WHERE token_hash = '${tokenHash}'`
         ).catch(() => {});
 
-        req.staffDevice = { id: dev.id, label: dev.label };
+        req.staffDevice = { id: String(dev.ROWID || tokenHash.slice(0, 8)), label: dev.label || 'Counter PC' };
         return next();
       }
     }
@@ -174,10 +181,23 @@ router.post('/pair', async (req, res) => {
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
     const now = nowSec();
 
-    if (zcql) {
-      await zcql.executeZCQLQuery(
-        `INSERT INTO staff_devices (id, label, token_hash, created_at, last_seen_at, revoked) VALUES ('${deviceId}', '${esc(label)}', '${tokenHash}', ${now}, ${now}, false)`
-      ).catch(() => {});
+    if (catalystApp) {
+      try {
+        const table = catalystApp.datastore().table('staff_devices');
+        await table.addRow({
+          label: esc(label),
+          token_hash: tokenHash,
+          created_at: now,
+          last_seen_at: now,
+          revoked: false
+        });
+      } catch (tableErr) {
+        if (zcql) {
+          await zcql.executeZCQLQuery(
+            `INSERT INTO staff_devices (label, token_hash, created_at, last_seen_at, revoked) VALUES ('${esc(label)}', '${tokenHash}', ${now}, ${now}, false)`
+          ).catch(() => {});
+        }
+      }
     }
 
     memStaffDevices.set(tokenHash, {
@@ -567,11 +587,18 @@ router.post('/orders/:id/collect-cash', async (req, res) => {
 
     let o = null;
     if (zcql) {
-      const rows = await zcql.executeZCQLQuery(`SELECT id, status, basket, total FROM orders WHERE id = '${esc(orderId)}'`).catch(() => null);
+      const rows = await zcql.executeZCQLQuery(`SELECT id, order_number, status, basket, total FROM orders WHERE id = '${esc(orderId)}' OR order_number = ${Number(orderId) || 0}`).catch(() => null);
       if (rows && rows.length > 0) o = rows[0].orders;
     }
     if (!o) o = memOrders.get(orderId);
+    if (!o && !isNaN(Number(orderId))) {
+      for (const ord of memOrders.values()) {
+        if (ord.order_number === Number(orderId)) { o = ord; break; }
+      }
+    }
     if (!o) return res.status(404).json({ error: 'Order not found' });
+
+    const primaryOrderId = o.id || orderId;
 
     if (o.status !== 'pending_cash') {
       return res.status(409).json({ error: `Cannot collect cash: order is in status '${o.status}'` });
@@ -579,13 +606,13 @@ router.post('/orders/:id/collect-cash', async (req, res) => {
 
     // Save undo action snapshot
     const actionId = crypto.randomUUID();
-    const undoPayload = JSON.stringify({ orderId, previousStatus: 'pending_cash' });
+    const undoPayload = JSON.stringify({ orderId: primaryOrderId, previousStatus: 'pending_cash' });
     const expiresAt = now + 5; // 5 seconds undo window
 
     memStaffActions.set(actionId, {
       id: actionId,
       action_type: 'collect_cash',
-      order_id: orderId,
+      order_id: primaryOrderId,
       payload: undoPayload,
       expires_at: expiresAt,
       undone: false,
@@ -594,13 +621,13 @@ router.post('/orders/:id/collect-cash', async (req, res) => {
 
     if (zcql) {
       await zcql.executeZCQLQuery(
-        `INSERT INTO staff_actions (id, action_type, order_id, payload, expires_at, undone, created_at) VALUES ('${actionId}', 'collect_cash', '${esc(orderId)}', '${esc(undoPayload)}', ${expiresAt}, false, ${now})`
+        `INSERT INTO staff_actions (id, action_type, order_id, payload, expires_at, undone, created_at) VALUES ('${actionId}', 'collect_cash', '${esc(primaryOrderId)}', '${esc(undoPayload)}', ${expiresAt}, false, ${now})`
       ).catch(() => {});
       await zcql.executeZCQLQuery(
-        `UPDATE orders SET status = 'cash_collected', confirmed_by = 'staff', confirmed_at = ${now}, updated_at = ${now} WHERE id = '${esc(orderId)}'`
+        `UPDATE orders SET status = 'cash_collected', confirmed_by = 'staff', confirmed_at = ${now}, updated_at = ${now} WHERE id = '${esc(primaryOrderId)}' OR order_number = ${Number(o.order_number) || 0}`
       ).catch(() => {});
       await zcql.executeZCQLQuery(
-        `UPDATE order_items SET status = 'ready_to_print' WHERE order_id = '${esc(orderId)}' AND status = 'waiting_payment'`
+        `UPDATE order_items SET status = 'ready_to_print' WHERE (order_id = '${esc(primaryOrderId)}' OR order_id = '${esc(orderId)}') AND (status = 'waiting_payment' OR status = 'preparing')`
       ).catch(() => {});
     }
 
@@ -608,10 +635,11 @@ router.post('/orders/:id/collect-cash', async (req, res) => {
     o.confirmed_by = 'staff';
     o.confirmed_at = now;
     o.updated_at = now;
+    memOrders.set(primaryOrderId, o);
     memOrders.set(orderId, o);
 
     for (const it of memOrderItems.values()) {
-      if (it.order_id === orderId && (it.status === 'waiting_payment' || it.status === 'preparing')) {
+      if ((it.order_id === primaryOrderId || it.order_id === orderId) && (it.status === 'waiting_payment' || it.status === 'preparing')) {
         it.status = 'ready_to_print';
       }
     }
@@ -675,8 +703,13 @@ router.post('/items/:id/approve-print', async (req, res) => {
 
     let order = memOrders.get(orderId);
     if (!order && zcql) {
-      const orderRows = await zcql.executeZCQLQuery(`SELECT id, status FROM orders WHERE id = '${esc(orderId)}'`).catch(() => null);
+      const orderRows = await zcql.executeZCQLQuery(`SELECT id, order_number, status FROM orders WHERE id = '${esc(orderId)}' OR order_number = ${Number(orderId) || 0}`).catch(() => null);
       if (orderRows && orderRows.length > 0) order = orderRows[0].orders;
+    }
+    if (!order && !isNaN(Number(orderId))) {
+      for (const ord of memOrders.values()) {
+        if (ord.order_number === Number(orderId)) { order = ord; break; }
+      }
     }
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
@@ -1223,4 +1256,72 @@ router.post('/agent-devices/:id/revoke', async (req, res) => {
   }
 });
 
+// L. Purge Stale Test Orders (Clear old queue items > 12 hours)
+router.post('/orders/purge-stale', async (req, res) => {
+  try {
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    const now = nowSec();
+    const staleCutoff = now - (12 * 3600); // 12 hours ago
+
+    let purgedCount = 0;
+    if (zcql) {
+      try {
+        const staleOrders = await zcql.executeZCQLQuery(
+          `SELECT ROWID, id, status FROM orders WHERE created_at < ${staleCutoff}`
+        ).catch(() => null);
+
+        if (staleOrders && staleOrders.length > 0) {
+          for (const row of staleOrders) {
+            const o = row.orders;
+            if (['pending_cash', 'pending_payment', 'waiting_payment', 'ready_to_print', 'preparing', 'ready', 'processing', 'upi_claimed'].includes(o.status)) {
+              await zcql.executeZCQLQuery(
+                `UPDATE orders SET status = 'cancelled', updated_at = ${now} WHERE ROWID = ${o.ROWID}`
+              ).catch(() => {});
+              purgedCount++;
+            }
+          }
+        }
+
+        const staleItems = await zcql.executeZCQLQuery(
+          `SELECT ROWID, id, status FROM order_items WHERE created_at < ${staleCutoff}`
+        ).catch(() => null);
+
+        if (staleItems && staleItems.length > 0) {
+          for (const row of staleItems) {
+            const it = row.order_items;
+            if (['waiting_payment', 'preparing', 'ready_to_print', 'waiting_quote', 'quote_sent'].includes(it.status)) {
+              await zcql.executeZCQLQuery(
+                `UPDATE order_items SET status = 'cancelled' WHERE ROWID = ${it.ROWID}`
+              ).catch(() => {});
+            }
+          }
+        }
+      } catch (zcqlErr) {
+        console.error('Purge ZCQL error:', zcqlErr);
+      }
+    }
+
+    for (const [oid, o] of memOrders) {
+      if (Number(o.created_at) < staleCutoff && ['pending_cash', 'pending_payment', 'waiting_payment', 'ready_to_print', 'preparing', 'ready', 'processing', 'upi_claimed'].includes(o.status)) {
+        o.status = 'cancelled';
+        o.updated_at = now;
+        purgedCount++;
+      }
+    }
+
+    for (const [iid, it] of memOrderItems) {
+      if (Number(it.created_at) < staleCutoff && ['waiting_payment', 'preparing', 'ready_to_print', 'waiting_quote', 'quote_sent'].includes(it.status)) {
+        it.status = 'cancelled';
+      }
+    }
+
+    res.json({ ok: true, purgedCount, message: 'Stale test orders purged successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to purge stale orders: ' + err.message });
+  }
+});
+
+
 module.exports = router;
+

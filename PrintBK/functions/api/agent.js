@@ -62,7 +62,7 @@ async function authenticateAgent(req, res, next) {
   if (zcql) {
     try {
       const rows = await zcql.executeZCQLQuery(
-        `SELECT id, label, revoked FROM agent_devices WHERE token_hash = '${esc(tokenHash)}' LIMIT 1`
+        `SELECT ROWID, label, revoked FROM agent_devices WHERE token_hash = '${esc(tokenHash)}' LIMIT 1`
       );
       if (rows && rows.length > 0) {
         const dev = rows[0].agent_devices;
@@ -72,10 +72,10 @@ async function authenticateAgent(req, res, next) {
         // Update last seen
         const now = nowSec();
         zcql.executeZCQLQuery(
-          `UPDATE agent_devices SET last_seen_at = ${now} WHERE id = '${esc(dev.id)}'`
+          `UPDATE agent_devices SET last_seen_at = ${now} WHERE token_hash = '${esc(tokenHash)}'`
         ).catch(() => {});
 
-        req.agentDevice = { id: dev.id, label: dev.label };
+        req.agentDevice = { id: String(dev.ROWID || tokenHash.slice(0, 8)), label: dev.label || 'Shop PC Print Agent' };
         return next();
       }
     } catch (_) {}
@@ -122,23 +122,24 @@ router.post('/pair', async (req, res) => {
   const catalystApp = getCatalystApp(req);
   const zcql = catalystApp ? catalystApp.zcql() : null;
 
-  if (zcql) {
+  if (catalystApp) {
     try {
-      await zcql.executeZCQLQuery(
-        `INSERT INTO agent_devices (id, label, token_hash, created_at, last_seen_at, revoked) VALUES ('${deviceId}', '${esc(deviceLabel)}', '${tokenHash}', ${now}, ${now}, false)`
-      );
-    } catch (err) {
-      // In case table or query fails, store in memory
-      memAgentDevices.set(tokenHash, {
-        id: deviceId,
-        label: deviceLabel,
+      const table = catalystApp.datastore().table('agent_devices');
+      await table.addRow({
+        label: esc(deviceLabel),
         token_hash: tokenHash,
         created_at: now,
         last_seen_at: now,
         revoked: false
       });
+    } catch (err) {
+      if (zcql) {
+        await zcql.executeZCQLQuery(
+          `INSERT INTO agent_devices (label, token_hash, created_at, last_seen_at, revoked) VALUES ('${esc(deviceLabel)}', '${tokenHash}', ${now}, ${now}, false)`
+        ).catch(() => {});
+      }
     }
-  } else {
+  }
     memAgentDevices.set(tokenHash, {
       id: deviceId,
       label: deviceLabel,
@@ -147,7 +148,6 @@ router.post('/pair', async (req, res) => {
       last_seen_at: now,
       revoked: false
     });
-  }
 
   res.json({
     ok: true,

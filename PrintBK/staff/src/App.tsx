@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react"
+import QRCode from "qrcode"
 import {
   isStaffPaired,
   pairStaffDevice,
@@ -14,6 +15,7 @@ import {
   updateShopSettings,
   testPrintPrinter,
   printQrPrinter,
+  purgeStaleOrders,
 } from "./api/client"
 import { useStaffLive, LiveItem, LivePrinter, LiveShop, LiveRecentlyPrinted } from "./api/useStaffLive"
 
@@ -273,11 +275,15 @@ function mapLiveItemToJob(item: LiveItem): Job {
     values = pld.values
   } else {
     const uploadedStr = formatUploadedWait(item.created_at)
+    const docName = pld.fileName || pld.originalFilename || (item as any).title || (pld.files && pld.files[0]?.name) || "Document"
+    const docCount = pld.fileCount || (pld.files && pld.files.length) || 1
+    const fileLabel = `${docName} · ${docCount} file${docCount > 1 ? "s" : ""}`
+
     switch (service) {
       case "bw":
         values = [
           uploadedStr,
-          pld.fileName ? `${pld.fileName} · ${pld.fileCount || 1} file${(pld.fileCount || 1) > 1 ? "s" : ""}` : "Document · 1 file",
+          fileLabel,
           pld.pageRange || (pld.pagesTotal ? `1–${pld.pagesTotal} of ${pld.pagesTotal}` : "—"),
           String(pld.copies || 1),
           pld.duplex ? (pld.flipEdge === "short" ? "Double · short edge" : "Double · long edge") : "Single",
@@ -290,7 +296,7 @@ function mapLiveItemToJob(item: LiveItem): Job {
       case "colour":
         values = [
           uploadedStr,
-          pld.fileName ? `${pld.fileName} · ${pld.fileCount || 1} file${(pld.fileCount || 1) > 1 ? "s" : ""}` : "Document · 1 file",
+          fileLabel,
           pld.pageRange || (pld.pagesTotal ? `1–${pld.pagesTotal} of ${pld.pagesTotal}` : "—"),
           pld.colourPagesSummary || (pld.colourPagesCount ? `Colour: ${pld.colourPagesCount} pages` : "All colour"),
           String(pld.copies || 1),
@@ -434,9 +440,34 @@ function Countdown({ expiresAt, deleted = false, compact = false }: { expiresAt:
   return <span>{compact ? time : `FILES DELETE IN ${time}`}</span>
 }
 
-function ActionButton({ action, primary = false, disabled = false, pressed = false, onClick }: { action: "cash" | "print" | "retry" | "done" | "quote"; primary?: boolean; disabled?: boolean; pressed?: boolean; onClick?: (event: React.MouseEvent) => void }) {
+function ActionButton({
+  action,
+  primary = false,
+  disabled = false,
+  pressed = false,
+  loading = false,
+  onClick,
+}: {
+  action: "cash" | "print" | "retry" | "done" | "quote"
+  primary?: boolean
+  disabled?: boolean
+  pressed?: boolean
+  loading?: boolean
+  onClick?: (event: React.MouseEvent) => void
+}) {
   const labels = { cash: "COLLECT CASH", print: "APPROVE & PRINT", retry: "RETRY PRINT", done: "DONE", quote: "SEND QUOTE" }
-  return <Button kind={primary ? "primary" : "plain"} disabled={disabled} className={pressed ? "is-forced-pressed" : ""} onClick={onClick}>{labels[action]}{action === "cash" && <kbd>C</kbd>}{(action === "print" || action === "retry") && <kbd>↵</kbd>}</Button>
+  return (
+    <Button
+      kind={primary ? "primary" : "plain"}
+      disabled={disabled || loading}
+      className={pressed ? "is-forced-pressed" : ""}
+      onClick={onClick}
+    >
+      {loading ? "WORKING…" : labels[action]}
+      {!loading && action === "cash" && <kbd>C</kbd>}
+      {!loading && (action === "print" || action === "retry") && <kbd>↵</kbd>}
+    </Button>
+  )
 }
 
 function PageChip({ page, colour = false }: { page: number; colour?: boolean }) {
@@ -459,8 +490,33 @@ function SettingRow({ title, help, checked, onChange, disabled = false }: { titl
   return <div className={`toggle-row ${disabled ? "disabled" : ""}`}><div><strong>{title}</strong><span>{help}</span></div><Toggle checked={checked} disabled={disabled} onChange={onChange} /></div>
 }
 
-function PrinterDropdownRow({ value, onTest, onChange }: { value: string; onTest: () => void; onChange?: () => void }) {
-  return <div className="printer-select-row"><select defaultValue={value} onChange={onChange}><option>{value || "Default Printer"}</option></select><Button onClick={onTest}>TEST PRINT</Button></div>
+function PrinterDropdownRow({
+  value,
+  printers = [],
+  onSelect,
+  onTest,
+}: {
+  value: string
+  printers?: LivePrinter[]
+  onSelect?: (printerName: string) => void
+  onTest: () => void
+}) {
+  return (
+    <div className="printer-select-row">
+      <select value={value} onChange={(e) => onSelect?.(e.target.value)}>
+        {printers.length > 0 ? (
+          printers.map((p) => (
+            <option key={p.id} value={p.name}>
+              {p.name} ({p.online ? "Online" : "Offline"})
+            </option>
+          ))
+        ) : (
+          <option value={value}>{value || "Default Printer"}</option>
+        )}
+      </select>
+      <Button onClick={onTest}>TEST PRINT</Button>
+    </div>
+  )
 }
 
 function KpiTile({ label, value, change, spark, lime = false }: { label: string; value: string; change: string; spark: number[]; lime?: boolean }) {
@@ -494,17 +550,25 @@ function Header({
 
   return (
     <header className="topbar">
-      <div className="brand" role="button" tabIndex={0} onClick={onOrders}><img src="/hkbk-logo.jpg" alt="HKBK Group of Institutions" /><div><strong>PrintBK</strong><span>COUNTER</span></div></div>
-      <button className={`shop-switch ${open ? "is-open" : ""}`} type="button" onClick={() => setOpen(!open)}><span className="switch-track"><span /></span><b>{open ? "SHOP OPEN" : "SHOP CLOSED"}</b></button>
+      <div className="brand" role="button" tabIndex={0} onClick={onOrders}>
+        <img src="./hkbk-logo.jpg" alt="HKBK Group of Institutions" />
+        <img src="./printbk-logo.svg" alt="PrintBK" style={{ height: 32, marginLeft: 6 }} />
+        <div><strong>PrintBK</strong><span>COUNTER</span></div>
+      </div>
+      <button className={`shop-switch ${open ? "is-open" : ""}`} type="button" onClick={() => setOpen(!open)}>
+        <span className="switch-track"><span /></span><b>{open ? "SHOP OPEN" : "SHOP CLOSED"}</b>
+      </button>
       <LiveIndicator offline={!online} />
       <div className="printer-pills">
         {bwPrinter && <PrinterPill role="B&W" name={bwPrinter.name} online={bwPrinter.online} />}
         {colourPrinter && <PrinterPill role="COLOUR" name={colourPrinter.name} online={colourPrinter.online} />}
       </div>
       <nav className="nav-actions">
-        <Button kind="ghost" className={sound ? "is-active" : ""} onClick={() => setSound(!sound)}><Icon name="volume" /><span>{sound ? "Sound on" : "Sound off"}</span></Button>
+        <Button kind="ghost" className={sound ? "is-active" : ""} onClick={() => setSound(!sound)}>
+          <Icon name="volume" /><span>{sound ? "Sound on" : "Sound off"}</span>
+        </Button>
         <Button kind="ghost" onClick={onToday}><Icon name="analytics" /><span>Today</span></Button>
-        <Button kind="ghost" onClick={onSettings}><Icon name="settings" /><span>Printers</span></Button>
+        <Button kind="ghost" onClick={onSettings}><Icon name="settings" /><span>Settings</span></Button>
       </nav>
     </header>
   )
@@ -514,11 +578,133 @@ function Toggle({ checked, onChange, disabled = false }: { checked: boolean; onC
   return <button type="button" disabled={disabled} className={`setting-toggle ${checked ? "on" : ""}`} onClick={() => onChange(!checked)}><i /><span>{checked ? "On" : "Off"}</span></button>
 }
 
-function QRPreview({ compact = false }: { compact?: boolean }) {
+function RealQRCode({ text, size = 180, className = "" }: { text: string; size?: number; className?: string }) {
+  const [dataUrl, setDataUrl] = useState<string>("")
+
+  useEffect(() => {
+    QRCode.toDataURL(text, {
+      margin: 1,
+      width: size * 2,
+      color: { dark: "#111827", light: "#FFFFFF" },
+    })
+      .then((url) => setDataUrl(url))
+      .catch(() => {})
+  }, [text, size])
+
+  if (!dataUrl) {
+    return <div className={`qr-preview ${className}`} style={{ width: size, height: size }} />
+  }
+
   return (
-    <div className={`qr-preview ${compact ? "compact" : ""}`}>
-      {Array.from({ length: 81 }, (_, index) => <i className={(index * 7 + Math.floor(index / 9) * 3) % 5 < 2 || [0, 1, 2, 9, 11, 18, 19, 20, 60, 61, 62, 69, 71, 78, 79, 80].includes(index) ? "ink" : ""} key={index} />)}
+    <div className={`real-qr-wrap ${className}`} style={{ width: size, height: size, display: "inline-block" }}>
+      <img src={dataUrl} alt="Scan to start order" style={{ width: "100%", height: "100%", display: "block" }} />
     </div>
+  )
+}
+
+function QrPosterModal({
+  open,
+  onClose,
+  shopName = "HKBK Student Point",
+  studentUrl,
+}: {
+  open: boolean
+  onClose: () => void
+  shopName?: string
+  studentUrl: string
+}) {
+  const [copied, setCopied] = useState(false)
+  if (!open) return null
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(studentUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handlePrint = () => {
+    window.print()
+  }
+
+  return (
+    <>
+      <div className="qr-modal-scrim" onClick={onClose} />
+      <div className="qr-modal-container">
+        <div className="qr-poster-printable">
+          <div className="poster-header">
+            <div className="poster-logos">
+              <img src="./hkbk-logo.jpg" alt="HKBK" className="poster-hkbk-logo" />
+              <div className="poster-divider" />
+              <img src="./printbk-logo.svg" alt="PrintBK" className="poster-brand-logo" />
+            </div>
+            <div className="poster-venue">
+              <strong>{shopName}</strong>
+              <span>CAMPUS DIGITAL PRINT COUNTER</span>
+            </div>
+          </div>
+
+          <div className="poster-hero">
+            <div className="poster-headline-badge">FAST SELF-SERVICE PRINTING</div>
+            <h1 className="poster-title">Scan this QR for Fast Printing</h1>
+            <p className="poster-subtitle">Upload PDFs, docs, and photos directly from your phone — no app or signup required!</p>
+          </div>
+
+          <div className="poster-qr-frame">
+            <RealQRCode text={studentUrl} size={240} />
+            <div className="qr-center-pill">
+              <img src="./printbk-logo.svg" alt="" style={{ height: 22 }} />
+            </div>
+          </div>
+
+          <div className="poster-steps">
+            <div className="step-card">
+              <div className="step-num">1</div>
+              <div className="step-content">
+                <strong>Scan QR Code</strong>
+                <span>Open any Camera, Google Lens, or UPI App</span>
+              </div>
+            </div>
+            <div className="step-card">
+              <div className="step-num">2</div>
+              <div className="step-content">
+                <strong>Upload &amp; Set Options</strong>
+                <span>PDFs, DOCX, Photos · Pick B&amp;W or Colour</span>
+              </div>
+            </div>
+            <div className="step-card">
+              <div className="step-num">3</div>
+              <div className="step-content">
+                <strong>Pick Up at Counter</strong>
+                <span>Pay UPI or Cash · Collect with 4-digit code</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="poster-footer">
+            <div className="footer-url">
+              <span>Direct Link: </span>
+              <strong>{studentUrl}</strong>
+            </div>
+            <div className="footer-secure">
+              <span>🔒 High-speed campus network · Files deleted 5 minutes after printing</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="qr-poster-actions">
+          <Button kind="primary" onClick={handlePrint} className="print-poster-btn">
+            <Icon name="printer" />
+            <span>PRINT A4 POSTER (Ctrl+P)</span>
+          </Button>
+          <Button kind="plain" onClick={handleCopy}>
+            <span>{copied ? "COPIED TO CLIPBOARD ✓" : "COPY LINK"}</span>
+          </Button>
+          <Button kind="ghost" onClick={onClose}>
+            <span>CLOSE</span>
+          </Button>
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -529,12 +715,16 @@ function SettingsField({ label, value, type = "text", suffix, onChange }: { labe
 function PrinterSettingsPanel({
   printers,
   shop,
+  studentUrl,
   onClose,
+  onOpenQrModal,
   onRefreshLive,
 }: {
   printers: LivePrinter[]
   shop: LiveShop
+  studentUrl: string
   onClose: () => void
+  onOpenQrModal: () => void
   onRefreshLive: () => void
 }) {
   const [tab, setTab] = useState(0)
@@ -548,6 +738,21 @@ function PrinterSettingsPanel({
     bulk: String(shop.rates?.bulk ?? "100"),
     a3: String(shop.rates?.a3 ?? "2"),
     legal: String(shop.rates?.legal ?? "1.25"),
+    photo4x6: String(shop.rates?.photo4x6 ?? "20.00"),
+    photo8x10: String(shop.rates?.photo8x10 ?? "50.00"),
+    photoPassport: String(shop.rates?.photoPassport ?? "60.00"),
+    bindingSpiral: String(shop.rates?.bindingSpiral ?? "35.00"),
+    bindingSoft: String(shop.rates?.bindingSoft ?? "60.00"),
+    bindingHard: String(shop.rates?.bindingHard ?? "150.00"),
+    laminationA4: String(shop.rates?.laminationA4 ?? "25.00"),
+    laminationA3: String(shop.rates?.laminationA3 ?? "50.00"),
+    scanPerPage: String(shop.rates?.scanPerPage ?? "5.00"),
+    copyBw: String(shop.rates?.copyBw ?? "1.50"),
+    copyColour: String(shop.rates?.copyColour ?? "8.00"),
+    typingBase: String(shop.rates?.typingBase ?? "50.00"),
+    typingPerPage: String(shop.rates?.typingPerPage ?? "30.00"),
+    upiVpa: String(shop.rates?.upiVpa ?? "studentpoint@okhdfcbank"),
+    upiName: String(shop.rates?.upiName ?? "HKBK Student Point"),
   })
   const [shopDetails, setShopDetails] = useState({
     name: shop.name || "HKBK Student Point",
@@ -570,28 +775,32 @@ function PrinterSettingsPanel({
     }
   }
 
-  const handlePrintQr = async () => {
-    const target = bwPrinter || colourPrinter
-    if (!target) return
-    try {
-      await printQrPrinter(target.id)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-    } catch (err: any) {
-      alert("Failed to print QR: " + err.message)
-    }
-  }
-
-  const saveSettings = async () => {
+  const saveSettings = async (customRates?: typeof rates) => {
+    const r = customRates || rates
     try {
       await updateShopSettings({
         rates: {
-          bw: Number(rates.bw),
-          colour: Number(rates.colour),
-          duplex: Number(rates.duplex),
-          bulk: Number(rates.bulk),
-          a3: Number(rates.a3),
-          legal: Number(rates.legal),
+          bw: Number(r.bw),
+          colour: Number(r.colour),
+          duplex: Number(r.duplex),
+          bulk: Number(r.bulk),
+          a3: Number(r.a3),
+          legal: Number(r.legal),
+          photo4x6: Number(r.photo4x6),
+          photo8x10: Number(r.photo8x10),
+          photoPassport: Number(r.photoPassport),
+          bindingSpiral: Number(r.bindingSpiral),
+          bindingSoft: Number(r.bindingSoft),
+          bindingHard: Number(r.bindingHard),
+          laminationA4: Number(r.laminationA4),
+          laminationA3: Number(r.laminationA3),
+          scanPerPage: Number(r.scanPerPage),
+          copyBw: Number(r.copyBw),
+          copyColour: Number(r.copyColour),
+          typingBase: Number(r.typingBase),
+          typingPerPage: Number(r.typingPerPage),
+          upiVpa: r.upiVpa,
+          upiName: r.upiName,
         },
         shop_info: shopDetails,
         mixed_colour_mode: mixedMode,
@@ -612,7 +821,7 @@ function PrinterSettingsPanel({
       <div className="settings-scrim" onClick={onClose} />
       <aside className="printer-settings-panel">
         <header className="settings-header">
-          <div><span>SETTINGS</span><strong>Printer settings</strong><small>Live shop PC configuration</small></div>
+          <div><span>SETTINGS</span><strong>Counter settings</strong><small>Live shop PC configuration</small></div>
           <button type="button" onClick={onClose} aria-label="Close printer settings">×</button>
         </header>
         <nav className="settings-tabs">{tabs.map((label, index) => <button type="button" className={tab === index ? "active" : ""} onClick={() => setTab(index)} key={label}>{label}</button>)}</nav>
@@ -621,23 +830,38 @@ function PrinterSettingsPanel({
           {tab === 0 && (
             <div className="settings-tab">
               <div className="settings-intro"><span>PRINTERS ON THIS PC</span><strong>Choose where each job goes</strong><p>PrintBK sends orders directly to these shop printers.</p></div>
-              <div className="printer-discovery"><div><i className="status-dot" /><span>{printers.length > 0 ? `${printers.length} printer${printers.length > 1 ? "s" : ""} reported by shop PC agent` : "No printers reported yet"}</span></div><button type="button" onClick={onRefreshLive}>REFRESH</button></div>
+
+              <div className={`printer-agent-status ${printers.some((p) => p.online) ? "online" : "offline"}`}>
+                <span className={`status-badge ${printers.some((p) => p.online) ? "live" : "offline"}`}>
+                  {printers.some((p) => p.online) ? "● PRINT AGENT ONLINE" : "● PRINT AGENT OFFLINE"}
+                </span>
+                <p>
+                  {printers.some((p) => p.online)
+                    ? "Connected to shop PC background agent. Print jobs dispatch directly to local printers."
+                    : "Print agent is offline. Run `node agent.js` on the counter PC to connect local USB/Network printers."}
+                </p>
+              </div>
+
+              <div className="printer-discovery">
+                <div><i className="status-dot" /><span>{printers.length > 0 ? `${printers.length} printer${printers.length > 1 ? "s" : ""} detected` : "No printers reported yet"}</span></div>
+                <button type="button" onClick={onRefreshLive}>REFRESH</button>
+              </div>
 
               <section className="setting-card printer-choice">
                 <div className="setting-card-title"><div><span>Black &amp; White printer</span><strong><i className="status-dot" /> {bwPrinter ? (bwPrinter.online ? "Online" : "Offline") : "None"}</strong></div><Icon name="printer" size={28} /></div>
-                <PrinterDropdownRow value={bwPrinter?.name || "No B&W printer"} onTest={() => handleTestPrint(bwPrinter?.id)} />
+                <PrinterDropdownRow value={bwPrinter?.name || "No B&W printer"} printers={printers} onTest={() => handleTestPrint(bwPrinter?.id)} />
                 {bwPrinter && testStatus[bwPrinter.id] && <div className="test-result success"><Icon name="check" />{testStatus[bwPrinter.id]}</div>}
               </section>
 
               <section className="setting-card printer-choice">
                 <div className="setting-card-title"><div><span>Colour printer</span><strong><i className="status-dot" /> {colourPrinter ? (colourPrinter.online ? "Online" : "Offline") : "None"}</strong></div><Icon name="colour" size={28} /></div>
-                <PrinterDropdownRow value={colourPrinter?.name || "No colour printer"} onTest={() => handleTestPrint(colourPrinter?.id)} />
+                <PrinterDropdownRow value={colourPrinter?.name || "No colour printer"} printers={printers} onTest={() => handleTestPrint(colourPrinter?.id)} />
                 {colourPrinter && testStatus[colourPrinter.id] && <div className="test-result success"><Icon name="check" />{testStatus[colourPrinter.id]}</div>}
               </section>
 
               <section className="setting-card qr-print-card">
-                <div><span>SHOP QR POSTER</span><strong>Print your QR</strong><p>Students scan this to start an order.</p><Button onClick={handlePrintQr}>PRINT YOUR QR</Button></div>
-                <div className="mini-poster"><img src="/hkbk-logo.jpg" alt="" /><QRPreview compact /><b>SCAN TO PRINT</b></div>
+                <div><span>SHOP QR POSTER</span><strong>Print your QR</strong><p>Students scan this to start an order.</p><Button onClick={onOpenQrModal}>PRINT YOUR QR</Button></div>
+                <div className="mini-poster" onClick={onOpenQrModal} style={{ cursor: "pointer" }}><img src="./hkbk-logo.jpg" alt="" /><RealQRCode text={studentUrl} size={64} /><b>SCAN TO PRINT</b></div>
               </section>
 
               <section className="setting-card">
@@ -650,16 +874,68 @@ function PrinterSettingsPanel({
 
           {tab === 1 && (
             <div className="settings-tab">
-              <div className="settings-intro"><span>PRICING &amp; PAYMENT</span><strong>Simple rates students can understand</strong></div>
+              <div className="settings-intro"><span>PRICING &amp; PAYMENT</span><strong>All campus services rates</strong></div>
+
               <section className="setting-card">
-                <div className="setting-card-title"><div><span>PRINT RATES</span><strong>Per-page pricing</strong></div></div>
+                <div className="setting-card-title"><div><span>1. DOCUMENT PRINTS</span><strong>Black &amp; white and colour per page</strong></div></div>
                 <div className="field-grid">
-                  <SettingsField label="B&W per page" value={rates.bw} type="number" suffix="₹" onChange={(v) => { setRates((r) => ({ ...r, bw: v })); saveSettings() }} />
-                  <SettingsField label="Colour per page" value={rates.colour} type="number" suffix="₹" onChange={(v) => { setRates((r) => ({ ...r, colour: v })); saveSettings() }} />
-                  <SettingsField label="Double-sided rate" value={rates.duplex} type="number" suffix="₹" onChange={(v) => { setRates((r) => ({ ...r, duplex: v })); saveSettings() }} />
-                  <SettingsField label="Bulk discount after" value={rates.bulk} type="number" suffix="pages" onChange={(v) => { setRates((r) => ({ ...r, bulk: v })); saveSettings() }} />
-                  <SettingsField label="A3 multiplier" value={rates.a3} type="number" suffix="×" onChange={(v) => { setRates((r) => ({ ...r, a3: v })); saveSettings() }} />
-                  <SettingsField label="Legal multiplier" value={rates.legal} type="number" suffix="×" onChange={(v) => { setRates((r) => ({ ...r, legal: v })); saveSettings() }} />
+                  <SettingsField label="B&W per page" value={rates.bw} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, bw: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Colour per page" value={rates.colour} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, colour: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Double-sided rate" value={rates.duplex} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, duplex: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Bulk discount after" value={rates.bulk} type="number" suffix="pages" onChange={(v) => { const nr = { ...rates, bulk: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="A3 multiplier" value={rates.a3} type="number" suffix="×" onChange={(v) => { const nr = { ...rates, a3: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Legal multiplier" value={rates.legal} type="number" suffix="×" onChange={(v) => { const nr = { ...rates, legal: v }; setRates(nr); saveSettings(nr) }} />
+                </div>
+              </section>
+
+              <section className="setting-card">
+                <div className="setting-card-title"><div><span>2. PHOTO PRINTS</span><strong>Glossy &amp; passport print pricing</strong></div></div>
+                <div className="field-grid">
+                  <SettingsField label="4×6 Photo rate" value={rates.photo4x6} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, photo4x6: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="8×10 Photo rate" value={rates.photo8x10} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, photo8x10: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Passport set (8 photos)" value={rates.photoPassport} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, photoPassport: v }; setRates(nr); saveSettings(nr) }} />
+                </div>
+              </section>
+
+              <section className="setting-card">
+                <div className="setting-card-title"><div><span>3. BINDING DESK</span><strong>Spiral, soft cover, and hard bound</strong></div></div>
+                <div className="field-grid">
+                  <SettingsField label="Spiral binding rate" value={rates.bindingSpiral} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, bindingSpiral: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Soft cover binding rate" value={rates.bindingSoft} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, bindingSoft: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Hard project bound rate" value={rates.bindingHard} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, bindingHard: v }; setRates(nr); saveSettings(nr) }} />
+                </div>
+              </section>
+
+              <section className="setting-card">
+                <div className="setting-card-title"><div><span>4. LAMINATION</span><strong>Thermal protection sheets</strong></div></div>
+                <div className="field-grid">
+                  <SettingsField label="A4 Lamination sheet" value={rates.laminationA4} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, laminationA4: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="A3 Lamination sheet" value={rates.laminationA3} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, laminationA3: v }; setRates(nr); saveSettings(nr) }} />
+                </div>
+              </section>
+
+              <section className="setting-card">
+                <div className="setting-card-title"><div><span>5. SCANNING &amp; PHOTOCOPY</span><strong>Service counter walk-in rates</strong></div></div>
+                <div className="field-grid">
+                  <SettingsField label="Scanning per page" value={rates.scanPerPage} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, scanPerPage: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Photocopy B&W rate" value={rates.copyBw} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, copyBw: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Photocopy Colour rate" value={rates.copyColour} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, copyColour: v }; setRates(nr); saveSettings(nr) }} />
+                </div>
+              </section>
+
+              <section className="setting-card">
+                <div className="setting-card-title"><div><span>6. TYPING &amp; CUSTOM REQUESTS</span><strong>Custom project work &amp; formatting</strong></div></div>
+                <div className="field-grid">
+                  <SettingsField label="Base quote minimum" value={rates.typingBase} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, typingBase: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Typing per page" value={rates.typingPerPage} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, typingPerPage: v }; setRates(nr); saveSettings(nr) }} />
+                </div>
+              </section>
+
+              <section className="setting-card">
+                <div className="setting-card-title"><div><span>7. COUNTER UPI DETAILS</span><strong>Merchant QR &amp; student payment</strong></div></div>
+                <div className="field-grid">
+                  <SettingsField label="UPI VPA (Virtual ID)" value={rates.upiVpa} onChange={(v) => { const nr = { ...rates, upiVpa: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Merchant Display Name" value={rates.upiName} onChange={(v) => { const nr = { ...rates, upiName: v }; setRates(nr); saveSettings(nr) }} />
                 </div>
               </section>
             </div>
@@ -685,9 +961,27 @@ function PrinterSettingsPanel({
             <div className="settings-tab">
               <div className="settings-intro"><span>QR &amp; COUNTER</span><strong>Make ordering obvious</strong></div>
               <section className="setting-card shop-qr-card">
-                <QRPreview /><div><span>YOUR SHOP LINK</span><strong>printbk.in</strong><p>Students scan or open this link to place an order.</p></div>
+                <RealQRCode text={studentUrl} size={150} />
+                <div>
+                  <span>STUDENT APP LINK</span>
+                  <strong>{studentUrl}</strong>
+                  <p>Students scan this QR code or navigate to this link on their mobile devices to start an order.</p>
+                  <div style={{ display: "flex", gap: "10px", marginTop: "14px", flexWrap: "wrap" }}>
+                    <Button kind="primary" onClick={onOpenQrModal}><Icon name="printer" /> OPEN PRINTABLE A4 POSTER</Button>
+                    <Button kind="plain" onClick={async () => {
+                      if (window.confirm("Purge stale test orders older than 12 hours from queue?")) {
+                        try {
+                          const res = await purgeStaleOrders();
+                          alert(`Purged ${res.purgedCount || 0} stale test orders.`);
+                          onRefreshLive();
+                        } catch (e: any) {
+                          alert("Purge failed: " + e.message);
+                        }
+                      }
+                    }}>CLEAR STALE ORDERS</Button>
+                  </div>
+                </div>
               </section>
-              <Button kind="primary" onClick={handlePrintQr}><Icon name="printer" /> PRINT POSTER</Button>
             </div>
           )}
         </div>
@@ -866,7 +1160,7 @@ interface TodayStats {
   averageWait: string
 }
 
-function TodayView({ onHistory }: { onHistory: () => void }) {
+function TodayView({ onHistory, onOrders }: { onHistory: () => void; onOrders: () => void }) {
   const [stats, setStats] = useState<TodayStats | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -890,7 +1184,10 @@ function TodayView({ onHistory }: { onHistory: () => void }) {
     <main className="today-page">
       <div className="today-head">
         <div><span className="eyebrow">TODAY KPI</span><div className="today-date-nav"><strong>Today's Operations</strong></div></div>
-        <div className="today-head-actions"><Button onClick={onHistory}>ORDERS HISTORY</Button></div>
+        <div className="today-head-actions">
+          <Button kind="plain" onClick={onOrders}>← BACK TO LIVE ORDERS</Button>
+          <Button onClick={onHistory}>ORDERS HISTORY</Button>
+        </div>
       </div>
 
       <section className="kpi-grid">
@@ -911,7 +1208,11 @@ function TodayView({ onHistory }: { onHistory: () => void }) {
 
       <section className="day-summary-wrap">
         <article className="day-summary-sheet">
-          <div className="summary-logo"><img src="/hkbk-logo.jpg" alt="" /><div><strong>PrintBK</strong><span>Counter Summary</span></div></div>
+          <div className="summary-logo">
+            <img src="./hkbk-logo.jpg" alt="" />
+            <img src="./printbk-logo.svg" alt="PrintBK" style={{ height: 26, marginLeft: 6 }} />
+            <div><strong>PrintBK</strong><span>Counter Summary</span></div>
+          </div>
           {[
             ["Total collected", collectedStr],
             ["Cash in drawer", cashStr],
@@ -929,7 +1230,7 @@ function HistoryPayment({ payment }: { payment: Payment }) {
   return <span className={`history-payment history-payment--${payment}`}><Icon name={payment === "upi" ? "eye" : payment === "cash_due" ? "cash" : "check"} size={16} />{payment === "upi" ? "UPI VERIFY" : payment === "paid" ? "PAID ONLINE" : payment === "cash_due" ? "CASH DUE" : "CASH PAID"}</span>
 }
 
-function HistoryView({ onBack, onOpen }: { onBack: () => void; onOpen: (job: Job) => void }) {
+function HistoryView({ onBack, onOrders, onOpen }: { onBack: () => void; onOrders: () => void; onOpen: (job: Job) => void }) {
   const [search, setSearch] = useState("")
   const [pay, setPay] = useState("All payments")
   const [rows, setRows] = useState<any[]>([])
@@ -963,7 +1264,16 @@ function HistoryView({ onBack, onOpen }: { onBack: () => void; onOpen: (job: Job
 
   return (
     <main className="history-page">
-      <div className="history-head"><div><button type="button" onClick={onBack}>← TODAY</button><span className="eyebrow">HISTORY</span><div className="page-title">Orders history</div></div><div className="history-total"><span>TOTAL SHOWN</span><b>₹{rows.reduce((sum, row) => sum + row.amount, 0).toFixed(2)}</b></div></div>
+      <div className="history-head">
+        <div className="history-head-nav">
+          <button type="button" className="history-back-btn" onClick={onOrders}>← BACK TO LIVE ORDERS</button>
+          <div>
+            <span className="eyebrow">HISTORY</span>
+            <div className="page-title">Orders history</div>
+          </div>
+        </div>
+        <div className="history-total"><span>TOTAL SHOWN</span><b>₹{rows.reduce((sum, row) => sum + row.amount, 0).toFixed(2)}</b></div>
+      </div>
       <div className="history-tools">
         <label className="history-search"><Icon name="search" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order number or pickup code" /></label>
         <select value={pay} onChange={(event) => setPay(event.target.value)}><option>All payments</option><option value="cash_collected">Cash</option><option value="upi">UPI</option><option value="paid">Online</option></select>
@@ -1004,7 +1314,7 @@ function OwnerPhoneView({
   return (
     <div className="owner-phone">
       <header className="owner-topbar">
-        <div className="owner-brand"><img src="/hkbk-logo.jpg" alt="HKBK Group of Institutions" /><strong>PrintBK</strong></div>
+        <div className="owner-brand"><img src="./hkbk-logo.jpg" alt="HKBK Group of Institutions" /><img src="./printbk-logo.svg" alt="PrintBK" style={{ height: 26, marginLeft: 6 }} /><strong>PrintBK</strong></div>
         <button className={`owner-shop-switch ${shopOpen ? "open" : ""}`} type="button" onClick={() => setShopOpen(!shopOpen)}><i /><span>{shopOpen ? "OPEN" : "CLOSED"}</span></button>
       </header>
 
@@ -1034,7 +1344,7 @@ function OwnerPhoneView({
           )}
         </main>
       ) : (
-        <TodayView onHistory={() => {}} />
+        <TodayView onHistory={() => {}} onOrders={() => setTab("orders")} />
       )}
       <nav className="owner-bottom-tabs"><button type="button" className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><Icon name="printer" /><span>Orders</span></button><button type="button" className={tab === "today" ? "active" : ""} onClick={() => setTab("today")}><Icon name="calendar" /><span>Today</span></button></nav>
     </div>
@@ -1047,6 +1357,7 @@ function ServiceTable({
   selected,
   expanded,
   nextKey,
+  loadingActions,
   onSelect,
   onAction,
 }: {
@@ -1055,6 +1366,7 @@ function ServiceTable({
   selected: string
   expanded: string
   nextKey: string
+  loadingActions?: Record<string, boolean>
   onSelect: (key: string) => void
   onAction: (job: Job, action: "cash" | "primary") => void
 }) {
@@ -1063,32 +1375,37 @@ function ServiceTable({
       <TableTitleBar config={config} count={jobs.length} />
       <div className="table-scroll">
         <div className="table-head compact-head"><span>Pos.</span><span>Order #</span><span>Payment</span><span>Control</span><span>Amount</span></div>
-        {jobs.map((job, index) => (
-          <div key={job.key} className={`job-wrap ${selected === job.key ? "is-selected" : ""} ${index === jobs.length - 1 ? "is-new" : ""} ${job.state.startsWith("PRINTED") || job.state.startsWith("DONE") ? "is-complete" : ""}`}>
-            <div className="job-row" role="button" tabIndex={0} onClick={() => onSelect(job.key)}>
-              <div className="position"><i /><b>{index + 1}</b></div>
-              <div className="row-order"><strong>#{job.order}</strong>{job.linked && <span>SAME ORDER</span>}</div>
-              <PaymentBlock payment={job.payment} amount={job.amount} order={job.order} />
-              <div className="row-controls">
-                {job.payment === "cash_due" && config.action !== "quote" && !job.state.startsWith("PRINTED") && !job.state.startsWith("DONE") && (
-                  <ActionButton action="cash" primary={job.key === nextKey} onClick={(event) => { event.stopPropagation(); onAction(job, "cash") }} />
-                )}
-                {(job.payment !== "cash_due" || config.action === "quote") && !job.state.startsWith("Sending") && !job.state.startsWith("Printing") && !job.state.startsWith("PRINTED") && !job.state.startsWith("DONE") && (
-                  <ActionButton action={config.action === "print" ? (job.state.includes("Error") ? "retry" : "print") : config.action === "quote" ? (job.state === "Quote sent" ? "done" : "quote") : "done"} primary={job.key === nextKey} disabled={job.disabled} onClick={(event) => { event.stopPropagation(); onAction(job, "primary") }} />
-                )}
-                {(job.state.startsWith("Sending") || job.state.startsWith("Printing")) && <div className="printing-progress"><span>{job.state}</span><i><b /></i></div>}
-                {(job.state.startsWith("PRINTED") || job.state.startsWith("DONE")) && <div className="printed-flash">{job.state}</div>}
+        {jobs.map((job, index) => {
+          const isLoading = Boolean(loadingActions?.[job.key] || loadingActions?.[String(job.order)] || loadingActions?.[String(job.orderId)])
+          const hasCombine = Boolean(job.payload?.combineNote || job.payload?.colorPlan?.mode === "custom" || (typeof job.payload?.printInstructions === "string" && job.payload.printInstructions.includes("COMBINE")))
+
+          return (
+            <div key={job.key} className={`job-wrap ${selected === job.key ? "is-selected" : ""} ${index === jobs.length - 1 ? "is-new" : ""} ${job.state.startsWith("PRINTED") || job.state.startsWith("DONE") ? "is-complete" : ""}`}>
+              <div className="job-row" role="button" tabIndex={0} onClick={() => onSelect(job.key)}>
+                <div className="position"><i /><b>{index + 1}</b></div>
+                <div className="row-order"><strong>#{job.order}</strong>{job.linked && <span>SAME ORDER</span>}</div>
+                <PaymentBlock payment={job.payment} amount={job.amount} order={job.order} />
+                <div className="row-controls">
+                  {job.payment === "cash_due" && config.action !== "quote" && !job.state.startsWith("PRINTED") && !job.state.startsWith("DONE") && (
+                    <ActionButton action="cash" primary={job.key === nextKey} loading={isLoading} onClick={(event) => { event.stopPropagation(); onAction(job, "cash") }} />
+                  )}
+                  {(job.payment !== "cash_due" || config.action === "quote") && !job.state.startsWith("Sending") && !job.state.startsWith("Printing") && !job.state.startsWith("PRINTED") && !job.state.startsWith("DONE") && (
+                    <ActionButton action={config.action === "print" ? (job.state.includes("Error") ? "retry" : "print") : config.action === "quote" ? (job.state === "Quote sent" ? "done" : "quote") : "done"} primary={job.key === nextKey} disabled={job.disabled} loading={isLoading} onClick={(event) => { event.stopPropagation(); onAction(job, "primary") }} />
+                  )}
+                  {(job.state.startsWith("Sending") || job.state.startsWith("Printing")) && <div className="printing-progress"><span>{job.state}</span><i><b /></i></div>}
+                  {(job.state.startsWith("PRINTED") || job.state.startsWith("DONE")) && <div className="printed-flash">{job.state}</div>}
+                </div>
+                <div className="row-amount">₹{job.amount.toFixed(2)}</div>
+                <div className="detail-chip-line">
+                  <StateChip state={job.state} />
+                  {config.columns.map((column, valueIndex) => <span className="detail-chip" key={`${job.key}-${column}`} title={job.values[valueIndex]}><b>{column}</b>{job.values[valueIndex] ?? "—"}</span>)}
+                  {config.id === "colour" && hasCombine && <span className="combine-chip">COMBINE · {job.payload?.combineNote || "Colour pages separate"}</span>}
+                </div>
               </div>
-              <div className="row-amount">₹{job.amount.toFixed(2)}</div>
-              <div className="detail-chip-line">
-                <StateChip state={job.state} />
-                {config.columns.map((column, valueIndex) => <span className="detail-chip" key={`${job.key}-${column}`} title={job.values[valueIndex]}><b>{column}</b>{job.values[valueIndex] ?? "—"}</span>)}
-                {config.id === "colour" && <span className="combine-chip">COMBINE · Colour page 1 goes on top</span>}
-              </div>
+              {expanded === job.key && <InlineOrderDetail job={job} />}
             </div>
-            {expanded === job.key && <InlineOrderDetail job={job} />}
-          </div>
-        ))}
+          )
+        })}
       </div>
     </section>
   )
@@ -1116,7 +1433,11 @@ function SetupFlow({ onFinish }: { onFinish: () => void }) {
 
   return (
     <main className="pairing-flow">
-      <div className="pairing-brand"><img src="/hkbk-logo.jpg" alt="HKBK Group of Institutions" /><div><strong>PrintBK</strong><span>COUNTER SETUP</span></div></div>
+      <div className="pairing-brand">
+        <img src="./hkbk-logo.jpg" alt="HKBK Group of Institutions" />
+        <img src="./printbk-logo.svg" alt="PrintBK" style={{ height: 32, marginLeft: 8 }} />
+        <div><strong>PrintBK</strong><span>COUNTER SETUP</span></div>
+      </div>
       <div className="pairing-progress">{[1, 2, 3].map((item) => <div className={item <= step ? "active" : ""} key={item}><i>{item < step ? <Icon name="check" /> : item}</i><span>{item === 1 ? "Connect" : item === 2 ? "Printers" : "Ready"}</span></div>)}</div>
       <section className="pairing-card">
         {step === 1 && (
@@ -1151,10 +1472,18 @@ const ComponentsPageLazy = import.meta.env.DEV
 export default function App() {
   const [shopOpen, setShopOpen] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [qrModalOpen, setQrModalOpen] = useState(false)
+  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({})
   const [view, setView] = useState<"orders" | "today" | "history" | "components">(() => new URLSearchParams(window.location.search).get("view") === "components" && import.meta.env.DEV ? "components" : "orders")
   const [historyJob, setHistoryJob] = useState<Job | null>(null)
   const [phoneOwnerView, setPhoneOwnerView] = useState(() => window.matchMedia("(max-width: 520px)").matches)
   const [showSetup, setShowSetup] = useState(() => !isStaffPaired())
+
+  const studentUrl = typeof window !== "undefined"
+    ? (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+        ? "https://printbk-60074625517.development.catalystserverless.in/app/index.html"
+        : `${window.location.origin}/app/index.html`)
+    : "https://printbk-60074625517.development.catalystserverless.in/app/index.html"
 
   // Live polling feed
   const {
@@ -1271,9 +1600,12 @@ export default function App() {
   }, [liveRecentlyPrinted])
 
   const action = async (job: Job, type: "cash" | "primary") => {
+    const actionKey = job.key
+    setActionLoading((prev) => ({ ...prev, [actionKey]: true, [String(job.order)]: true }))
+
     try {
       if (type === "cash") {
-        const res = await collectCash(job.orderId)
+        const res = await collectCash(job.orderId || job.order)
         setToast({
           message: `Cash collected for #${job.order} · linked rows updated`,
           action: "UNDO",
@@ -1286,12 +1618,14 @@ export default function App() {
       if (job.service === "typing") {
         if (job.state === "Quote sent") {
           await markItemDone(job.key)
+          setToast({ message: `Marked custom request #${job.order} done`, action: "DISMISS" })
         } else {
           const priceInput = window.prompt(`Enter quote amount (₹) for order #${job.order}:`, "50")
           if (priceInput) {
             const price = parseFloat(priceInput)
             if (!isNaN(price) && price > 0) {
               await quoteItem(job.key, price)
+              setToast({ message: `Quote ₹${price} sent for #${job.order}`, action: "DISMISS" })
             }
           }
         }
@@ -1303,15 +1637,20 @@ export default function App() {
       if (isPrint) {
         if (job.state.includes("Error")) {
           await retryPrintItem(job.key)
+          setToast({ message: `Retrying print for #${job.order}`, action: "DISMISS" })
         } else {
           await approvePrintItem(job.key)
+          setToast({ message: `Order #${job.order} approved & queued for printer`, action: "DISMISS" })
         }
       } else {
         await markItemDone(job.key)
+        setToast({ message: `Marked #${job.order} completed`, action: "DISMISS" })
       }
       await refreshLive()
     } catch (err: any) {
       setToast({ message: err.message || "Failed to execute action", action: "DISMISS" })
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [actionKey]: false, [String(job.order)]: false }))
     }
   }
 
@@ -1331,7 +1670,7 @@ export default function App() {
 
   const handleRejectOrder = async (job: Job, reason: string) => {
     try {
-      const res = await rejectOrder(job.orderId, reason)
+      const res = await rejectOrder(job.orderId || job.order, reason)
       setExpanded("")
       setToast({
         message: `#${job.order} cancelled · student notified`,
@@ -1349,8 +1688,21 @@ export default function App() {
       await retryPrintItem(item.key)
       setRecentOpen(false)
       await refreshLive()
+      setToast({ message: `Reprint queued for #${item.order}`, action: "DISMISS" })
     } catch (err: any) {
       setToast({ message: err.message || "Failed to reprint", action: "DISMISS" })
+    }
+  }
+
+  const handlePurgeStale = async () => {
+    if (window.confirm("Purge stale test orders older than 12 hours from the queue?")) {
+      try {
+        const res = await purgeStaleOrders()
+        setToast({ message: `Purged ${res.purgedCount || 0} stale test orders`, action: "DISMISS" })
+        await refreshLive()
+      } catch (err: any) {
+        setToast({ message: err.message || "Failed to purge stale orders", action: "DISMISS" })
+      }
     }
   }
 
@@ -1372,7 +1724,7 @@ export default function App() {
       if (view !== "orders" || phoneOwnerView) return
       const target = event.target as HTMLElement | null
       const typing = !!target && (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable)
-      if (typing || settingsOpen || historyJob || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
+      if (typing || settingsOpen || qrModalOpen || historyJob || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
       if (event.key === "Enter" && target?.closest("button, a")) return
       if (event.key === "/") { event.preventDefault(); setSearching(true); return }
       if (jobs.length === 0) return
@@ -1446,6 +1798,7 @@ export default function App() {
               <label className="orders-search"><Icon name="search" /><input autoFocus={searching} value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} onBlur={() => setSearching(false)} placeholder="Order number, pickup code or file" /></label>
               <select value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value as "all" | Payment)}><option value="all">All payments</option><option value="paid">Paid online</option><option value="upi">UPI verify</option><option value="cash_due">Cash due</option><option value="cash_collected">Cash collected</option></select>
               <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">All statuses</option><option value="ready">Ready</option><option value="waiting">Waiting</option><option value="printing">Printing</option></select>
+              <Button kind="ghost" onClick={handlePurgeStale}>CLEAR STALE</Button>
               <div className="recent-wrap">
                 <button className="recent-button" type="button" onClick={() => setRecentOpen(!recentOpen)}><span>RECENTLY PRINTED</span><b>{recentlyPrinted.length}</b></button>
                 {recentOpen && (
@@ -1485,6 +1838,7 @@ export default function App() {
                     selected={selected}
                     expanded={expanded}
                     nextKey={nextUp?.key ?? ""}
+                    loadingActions={actionLoading}
                     onSelect={chooseRow}
                     onAction={action}
                   />
@@ -1496,23 +1850,38 @@ export default function App() {
         </>
       )}
 
-      {view === "today" && <TodayView onHistory={() => setView("history")} />}
-      {view === "history" && <HistoryView onBack={() => { setView("today"); setHistoryJob(null) }} onOpen={setHistoryJob} />}
+      {view === "today" && <TodayView onHistory={() => setView("history")} onOrders={() => { setView("orders"); setHistoryJob(null) }} />}
+      {view === "history" && <HistoryView onBack={() => { setView("today"); setHistoryJob(null) }} onOrders={() => { setView("orders"); setHistoryJob(null) }} onOpen={setHistoryJob} />}
       {view === "components" && import.meta.env.DEV && (
         <React.Suspense fallback={<div className="component-skeleton"><i /></div>}>
           <ComponentsPageLazy />
         </React.Suspense>
       )}
       {historyJob && <OrderDetailPanel job={historyJob} readOnly onClose={() => setHistoryJob(null)} onReject={() => {}} />}
-      {settingsOpen && <PrinterSettingsPanel printers={livePrinters} shop={liveShop} onClose={() => setSettingsOpen(false)} onRefreshLive={refreshLive} />}
+      {settingsOpen && (
+        <PrinterSettingsPanel
+          printers={livePrinters}
+          shop={liveShop}
+          studentUrl={studentUrl}
+          onClose={() => setSettingsOpen(false)}
+          onOpenQrModal={() => setQrModalOpen(true)}
+          onRefreshLive={refreshLive}
+        />
+      )}
+      <QrPosterModal
+        open={qrModalOpen}
+        onClose={() => setQrModalOpen(false)}
+        shopName={liveShop.name || "HKBK Student Point"}
+        studentUrl={studentUrl}
+      />
       {!shopOpen && <div className="closed-overlay"><div><span>SHOP CLOSED</span><strong>Orders are paused</strong><p>Open the shop from the top bar when you’re ready.</p></div></div>}
       {view === "orders" && nextUp && (
         <div className="next-up-bar">
           <div className="next-label">NEXT UP</div>
           <div className="next-order">#{nextUp.order}</div>
           <div className="next-summary"><strong>{tables.find((table) => table.id === nextUp.service)?.title} · {nextUp.values[2] ?? nextUp.values[0]}</strong><span>{nextUp.payment === "upi" ? "Check your UPI app, then approve & print" : paymentLabel[nextUp.payment]}</span></div>
-          <Button kind="primary" onClick={() => action(nextUp, nextUp.payment === "cash_due" ? "cash" : "primary")}>
-            {nextUp.payment === "cash_due" ? <>COLLECT CASH <kbd>C</kbd></> : tables.find((table) => table.id === nextUp.service)?.action === "done" ? "DONE" : tables.find((table) => table.id === nextUp.service)?.action === "quote" ? nextUp.state === "Quote sent" ? "DONE" : "SEND QUOTE" : <>APPROVE &amp; PRINT <kbd>↵</kbd></>}
+          <Button kind="primary" disabled={Boolean(actionLoading[nextUp.key])} onClick={() => action(nextUp, nextUp.payment === "cash_due" ? "cash" : "primary")}>
+            {actionLoading[nextUp.key] ? "WORKING…" : nextUp.payment === "cash_due" ? <>COLLECT CASH <kbd>C</kbd></> : tables.find((table) => table.id === nextUp.service)?.action === "done" ? "DONE" : tables.find((table) => table.id === nextUp.service)?.action === "quote" ? nextUp.state === "Quote sent" ? "DONE" : "SEND QUOTE" : <>APPROVE &amp; PRINT <kbd>↵</kbd></>}
           </Button>
         </div>
       )}

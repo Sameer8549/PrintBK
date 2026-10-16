@@ -283,3 +283,15 @@ export async function printQrPrinter(printerId: string) {
   }
   return data
 }
+
+export async function purgeStaleOrders() {
+  const res = await staffFetch("/staff/orders/purge-stale", {
+    method: "POST",
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    throw new StaffApiError(data.error || "Failed to purge stale orders", res.status, data)
+  }
+  return data
+}
+
