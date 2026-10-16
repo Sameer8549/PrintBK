@@ -416,8 +416,8 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
   return <svg className="icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
 }
 
-function Button({ children, onClick, kind = "plain", disabled = false, className = "", style }: { children: React.ReactNode; onClick?: (event: React.MouseEvent) => void; kind?: "primary" | "plain" | "ghost"; disabled?: boolean; className?: string; style?: React.CSSProperties }) {
-  return <button className={`button button--${kind} ${className}`} type="button" onClick={onClick} disabled={disabled} style={style}>{children}</button>
+function Button({ children, onClick, kind = "plain", disabled = false, className = "", style, title }: { children: React.ReactNode; onClick?: (event: React.MouseEvent) => void; kind?: "primary" | "plain" | "ghost"; disabled?: boolean; className?: string; style?: React.CSSProperties; title?: string }) {
+  return <button className={`button button--${kind} ${className}`} type="button" onClick={onClick} disabled={disabled} style={style} title={title}>{children}</button>
 }
 
 function LiveIndicator({ offline = false }: { offline?: boolean }) {
@@ -628,7 +628,8 @@ function RealQRCode({ text, size = 180, className = "" }: { text: string; size?:
     QRCode.toDataURL(text, {
       margin: 1,
       width: size * 2,
-      color: { dark: "#111827", light: "#FFFFFF" },
+      errorCorrectionLevel: "H",
+      color: { dark: "#0b1020", light: "#c8f031" },
     })
       .then((url) => setDataUrl(url))
       .catch(() => {})
@@ -640,7 +641,7 @@ function RealQRCode({ text, size = 180, className = "" }: { text: string; size?:
 
   return (
     <div className={`real-qr-wrap ${className}`} style={{ width: size, height: size, display: "inline-block" }}>
-      <img src={dataUrl} alt="Scan to start order" style={{ width: "100%", height: "100%", display: "block" }} />
+      <img src={dataUrl} alt="Scan to start order" style={{ width: "100%", height: "100%", display: "block", borderRadius: 8 }} />
     </div>
   )
 }
@@ -726,6 +727,77 @@ function QrPosterModal({
     <>
       <div className="qr-modal-scrim" onClick={onClose} />
       <div className="qr-modal-container">
+        {/* Top Control Bar with 1-click Browser Print & Actions */}
+        <div className="qr-modal-top-bar">
+          <div className="qr-bar-heading">
+            <strong>Shop QR Poster (1-Page A4)</strong>
+            <span>Print immediately on any printer or export vector PDF</span>
+          </div>
+          <div className="qr-poster-actions">
+            <Button
+              kind="primary"
+              onClick={() => window.print()}
+              className="print-poster-btn"
+              title="Print 1-page A4 poster immediately on counter printer"
+            >
+              <Icon name="printer" />
+              <span>PRINT 1-PAGE POSTER</span>
+            </Button>
+            <Button kind="plain" onClick={handleDownloadPdf} disabled={busy}>
+              <span>DOWNLOAD A4 PDF</span>
+            </Button>
+            <Button kind="plain" onClick={handlePreviewPdf} disabled={busy}>
+              <span>PREVIEW PDF</span>
+            </Button>
+            <Button kind="plain" onClick={handleCopy}>
+              <span>{copied ? "COPIED ✓" : "COPY LINK"}</span>
+            </Button>
+            {printers && printers.length > 0 && selectedPrinterId && (
+              <Button
+                kind="plain"
+                onClick={handlePrintToPrinter}
+                disabled={busy}
+                title="Send directly to local Windows print agent"
+              >
+                <span>PRINT VIA AGENT</span>
+              </Button>
+            )}
+            <Button kind="ghost" onClick={onClose} className="qr-close-btn">
+              <span>✕ CLOSE</span>
+            </Button>
+          </div>
+        </div>
+
+        {printers && printers.length > 0 && (
+          <div className="qr-printer-select-row">
+            <label>Agent Target Printer:</label>
+            <select
+              value={selectedPrinterId}
+              onChange={(e) => setSelectedPrinterId(e.target.value)}
+            >
+              {printers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({(p.role || "bw").toUpperCase()}) — {p.online ? "Online" : "Offline"}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {printingStatus && (
+          <div
+            style={{
+              margin: "8px 0",
+              fontSize: 13,
+              fontWeight: 700,
+              color: printingStatus.includes("error") ? "red" : "green",
+            }}
+          >
+            {printingStatus}
+          </div>
+        )}
+
+        {/* 1-Page Printable Poster Sheet */}
         <div className="qr-poster-printable">
           {/* 1. Header with single canonical logo */}
           <div className="poster-header">
@@ -745,43 +817,13 @@ function QrPosterModal({
             <p className="poster-subtitle">Upload PDFs, docs, and photos directly from your phone — no app or signup required!</p>
           </div>
 
-          {/* 3. Clean high-contrast QR code without center overlay */}
+          {/* 3. Clean high-contrast App-Coloured CSS-Styled QR code */}
           <div className="poster-qr-frame">
-            <RealQRCode text={studentUrl} size={220} />
+            <RealQRCode text={studentUrl} size={240} />
+            <div className="qr-scan-badge">⚡ SCAN TO PRINT</div>
           </div>
 
-          {/* 4. Live campus rates strip */}
-          <div className="poster-rates-strip">
-            <div className="poster-rates-title">POPULAR SERVICES &amp; CAMPUS RATES</div>
-            <div className="poster-rates-grid">
-              <div className="poster-rate-item">
-                <span className="poster-rate-label">B&amp;W</span>
-                <span className="poster-rate-val">₹{Number(rates?.bw ?? 1.5).toFixed(2)}</span>
-              </div>
-              <div className="poster-rate-item">
-                <span className="poster-rate-label">Colour</span>
-                <span className="poster-rate-val">₹{Number(rates?.colour ?? 8.0).toFixed(2)}</span>
-              </div>
-              <div className="poster-rate-item">
-                <span className="poster-rate-label">Duplex</span>
-                <span className="poster-rate-val">₹{Number(rates?.duplex ?? 0.85).toFixed(2)}</span>
-              </div>
-              <div className="poster-rate-item">
-                <span className="poster-rate-label">Photo</span>
-                <span className="poster-rate-val">₹{Number(rates?.photo4x6 ?? 20).toFixed(2)}</span>
-              </div>
-              <div className="poster-rate-item">
-                <span className="poster-rate-label">Spiral</span>
-                <span className="poster-rate-val">₹{Number(rates?.bindingSpiral ?? 30).toFixed(2)}</span>
-              </div>
-              <div className="poster-rate-item">
-                <span className="poster-rate-label">Lamination</span>
-                <span className="poster-rate-val">₹{Number(rates?.laminationA4 ?? 20).toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* 5. 3 Simple steps */}
+          {/* 4. 3 Simple steps */}
           <div className="poster-steps">
             <div className="step-card">
               <div className="step-num">1</div>
@@ -817,64 +859,6 @@ function QrPosterModal({
             </div>
           </div>
         </div>
-
-        {/* Printer selector for direct counter spooling */}
-        <div className="qr-printer-select-row">
-          <label>Target Printer:</label>
-          <select
-            value={selectedPrinterId}
-            onChange={(e) => setSelectedPrinterId(e.target.value)}
-            disabled={!printers || printers.length === 0}
-          >
-            {!printers || printers.length === 0 ? (
-              <option value="">No printers connected (Print Agent offline)</option>
-            ) : (
-              printers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({(p.role || "bw").toUpperCase()}) — {p.online ? "Online" : "Offline"}
-                </option>
-              ))
-            )}
-          </select>
-        </div>
-
-        {/* Actions bar */}
-        <div className="qr-poster-actions">
-          <Button
-            kind="primary"
-            onClick={handlePrintToPrinter}
-            className="print-poster-btn"
-            disabled={busy || !selectedPrinterId}
-          >
-            <Icon name="printer" />
-            <span>PRINT ON PRINTER (AGENT)</span>
-          </Button>
-          <Button kind="plain" onClick={handleDownloadPdf} disabled={busy}>
-            <span>DOWNLOAD A4 PDF</span>
-          </Button>
-          <Button kind="plain" onClick={handlePreviewPdf} disabled={busy}>
-            <span>PREVIEW VECTOR PDF</span>
-          </Button>
-          <Button kind="plain" onClick={handleCopy}>
-            <span>{copied ? "COPIED TO CLIPBOARD ✓" : "COPY LINK"}</span>
-          </Button>
-          <Button kind="ghost" onClick={onClose}>
-            <span>CLOSE</span>
-          </Button>
-        </div>
-
-        {printingStatus && (
-          <div
-            style={{
-              marginTop: 10,
-              fontSize: 13,
-              fontWeight: 700,
-              color: printingStatus.includes("Error") ? "red" : "green",
-            }}
-          >
-            {printingStatus}
-          </div>
-        )}
       </div>
     </>
   )

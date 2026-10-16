@@ -50,6 +50,17 @@ async function main() {
     throw new Error(`Generated PDF is suspiciously small: ${pdfBytes.length} bytes`);
   }
 
+  // Deterministic Page Count Check
+  const { createRequire } = await import('module');
+  const require = createRequire(import.meta.url);
+  const { PDFDocument } = require('../agent/node_modules/pdf-lib');
+  const loadedPdf = await PDFDocument.load(pdfBytes);
+  const pageCount = loadedPdf.getPageCount();
+  console.log(`[QR Poster Test] Generated vector PDF page count: ${pageCount}`);
+  if (pageCount !== 1) {
+    throw new Error(`Expected exactly 1 page in vector PDF, got ${pageCount}`);
+  }
+
   console.log('[QR Poster Test] 3. Rasterizing A4 PDF using Chromium...');
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
@@ -105,7 +116,7 @@ async function main() {
         </script>
       </body>
     </html>
-  `);
+  `, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
   await page.waitForFunction(() => window.__pdfRenderDone === true || window.__pdfRenderError !== undefined, { timeout: 15000 });
   const renderError = await page.evaluate(() => window.__pdfRenderError);

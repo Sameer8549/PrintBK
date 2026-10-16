@@ -199,7 +199,9 @@ export async function generateQrPrintPdf(qrUrl: string, shopInfo?: any): Promise
     y: 672,
     width: 499.28,
     height: 30,
-    color: rgb(0.08, 0.08, 0.08)
+    color: rgb(0.78, 0.94, 0.19),
+    borderColor: rgb(0.04, 0.06, 0.13),
+    borderWidth: 2
   });
 
   const heroBannerText = 'FAST SELF-SERVICE MOBILE PRINTING';
@@ -209,7 +211,7 @@ export async function generateQrPrintPdf(qrUrl: string, shopInfo?: any): Promise
     y: 681,
     size: 12,
     font: fontBold,
-    color: rgb(1, 1, 1)
+    color: rgb(0.11, 0.14, 0)
   });
 
   // Title: "Scan this QR for Fast Printing"
@@ -220,7 +222,7 @@ export async function generateQrPrintPdf(qrUrl: string, shopInfo?: any): Promise
     y: 642,
     size: 19,
     font: fontBold,
-    color: rgb(0.08, 0.08, 0.08)
+    color: rgb(0.04, 0.06, 0.13)
   });
 
   const subText = 'Upload documents & photos directly from your phone — no app or signup required';
@@ -233,19 +235,19 @@ export async function generateQrPrintPdf(qrUrl: string, shopInfo?: any): Promise
     color: rgb(0.35, 0.35, 0.35)
   });
 
-  // 4. Vector High-DPI QR Code Generation
-  const qrSize = 195;
+  // 4. Vector High-DPI App-Coloured QR Code Generation
+  const qrSize = 220;
   const qrX = (595.28 - qrSize) / 2;
-  const qrY = 415;
+  const qrY = 370;
 
   // Background frame around QR code
   page.drawRectangle({
-    x: qrX - 8,
-    y: qrY - 8,
-    width: qrSize + 16,
-    height: qrSize + 16,
-    borderColor: rgb(0.15, 0.15, 0.15),
-    borderWidth: 2,
+    x: qrX - 10,
+    y: qrY - 10,
+    width: qrSize + 20,
+    height: qrSize + 20,
+    borderColor: rgb(0.04, 0.06, 0.13),
+    borderWidth: 3,
     color: rgb(1, 1, 1)
   });
 
@@ -255,8 +257,8 @@ export async function generateQrPrintPdf(qrUrl: string, shopInfo?: any): Promise
     margin: 1,
     scale: 10,
     color: {
-      dark: '#000000',
-      light: '#ffffff'
+      dark: '#0b1020',
+      light: '#c8f031'
     }
   });
 
@@ -268,110 +270,104 @@ export async function generateQrPrintPdf(qrUrl: string, shopInfo?: any): Promise
     height: qrSize
   });
 
+  // QR Scan Badge Pill
+  const pillWidth = 140;
+  const pillHeight = 22;
+  const pillX = (595.28 - pillWidth) / 2;
+  const pillY = qrY - 18;
+  page.drawRectangle({
+    x: pillX,
+    y: pillY,
+    width: pillWidth,
+    height: pillHeight,
+    color: rgb(0.78, 0.94, 0.19),
+    borderColor: rgb(0.04, 0.06, 0.13),
+    borderWidth: 2
+  });
+
+  const pillText = 'SCAN TO PRINT';
+  const pillTextWidth = fontBold.widthOfTextAtSize(pillText, 10);
+  page.drawText(pillText, {
+    x: (595.28 - pillTextWidth) / 2,
+    y: pillY + 6.5,
+    size: 10,
+    font: fontBold,
+    color: rgb(0.11, 0.14, 0)
+  });
+
   // QR Instruction Chip
-  const qrHint = 'Open camera or scanner on any phone';
-  const hintWidth = fontRegular.widthOfTextAtSize(qrHint, 10);
+  const qrHint = 'Open camera or scanner on any smartphone';
+  const hintWidth = fontRegular.widthOfTextAtSize(qrHint, 10.5);
   page.drawText(qrHint, {
     x: (595.28 - hintWidth) / 2,
-    y: 395,
-    size: 10,
+    y: 334,
+    size: 10.5,
     font: fontRegular,
     color: rgb(0.4, 0.4, 0.4)
   });
 
   const linkText = qrUrl;
-  const linkWidth = fontBold.widthOfTextAtSize(linkText, 10);
+  const linkWidth = fontBold.widthOfTextAtSize(linkText, 10.5);
   page.drawText(linkText, {
     x: (595.28 - linkWidth) / 2,
-    y: 380,
-    size: 10,
+    y: 316,
+    size: 10.5,
     font: fontBold,
-    color: rgb(0.1, 0.35, 0.85)
+    color: rgb(0.04, 0.06, 0.13)
   });
 
-  // 5. Dynamic Campus Service Rates Strip
+  // 5. 3-Step Simple Instructions
+  const stepsDividerY = 294;
   page.drawLine({
-    start: { x: 48, y: 366 },
-    end: { x: 547.28, y: 366 },
-    thickness: 1,
-    color: rgb(0.88, 0.88, 0.88)
+    start: { x: 48, y: stepsDividerY },
+    end: { x: 547.28, y: stepsDividerY },
+    thickness: 1.5,
+    color: rgb(0.04, 0.06, 0.13)
   });
 
-  page.drawText('POPULAR SERVICES & CAMPUS RATES', {
+  page.drawText('HOW IT WORKS IN 3 SIMPLE STEPS', {
     x: 48,
-    y: 350,
-    size: 10,
+    y: 276,
+    size: 10.5,
     font: fontBold,
-    color: rgb(0.2, 0.2, 0.2)
-  });
-
-  const rateCards = [
-    { label: 'B&W Print', price: `Rs ${Number(rates.bw || 1.5).toFixed(2)}/pg` },
-    { label: 'Colour Print', price: `Rs ${Number(rates.colour || 8.0).toFixed(2)}/pg` },
-    { label: 'Double-Sided', price: `Rs ${Number(rates.duplex || 0.85).toFixed(2)}/pg` },
-    { label: 'Photo Prints', price: `Rs ${Number(rates.photo4x6 || 20).toFixed(2)}` },
-    { label: 'Spiral Binding', price: `Rs ${Number(rates.bindingSpiral || 30).toFixed(2)}` },
-    { label: 'Lamination A4', price: `Rs ${Number(rates.laminationA4 || 20).toFixed(2)}` },
-  ];
-
-  const colWidth = 78;
-  const colGap = 6;
-  rateCards.forEach((rc, i) => {
-    const rx = 48 + i * (colWidth + colGap);
-    page.drawRectangle({
-      x: rx,
-      y: 308,
-      width: colWidth,
-      height: 34,
-      borderColor: rgb(0.85, 0.85, 0.85),
-      borderWidth: 1,
-      color: rgb(0.96, 0.96, 0.96)
-    });
-    page.drawText(rc.label, { x: rx + 4, y: 328, size: 7.5, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
-    page.drawText(rc.price, { x: rx + 4, y: 314, size: 9, font: fontBold, color: rgb(0.08, 0.08, 0.08) });
-  });
-
-  // 6. 3-Step Simple Instructions
-  const stepsY = 275;
-  page.drawLine({
-    start: { x: 48, y: stepsY + 15 },
-    end: { x: 547.28, y: stepsY + 15 },
-    thickness: 1,
-    color: rgb(0.88, 0.88, 0.88)
+    color: rgb(0.04, 0.06, 0.13)
   });
 
   const steps = [
-    { num: '1', title: 'SCAN QR CODE', desc: 'Scan with any phone camera, Google Lens, or UPI app to launch.' },
-    { num: '2', title: 'UPLOAD & CONFIGURE', desc: 'Upload PDF, DOCX, or Photos. Choose B&W or colour and copies.' },
-    { num: '3', title: 'COLLECT AT COUNTER', desc: 'Pay UPI or Cash. Pick up your documents using your 4-digit code.' }
+    { num: '1', title: 'SCAN QR CODE', desc: 'Scan with any phone camera, Google Lens, or UPI app to launch instantly.' },
+    { num: '2', title: 'UPLOAD & CONFIGURE', desc: 'Upload PDF, DOCX, or Photos. Choose B&W or colour and number of copies.' },
+    { num: '3', title: 'COLLECT AT COUNTER', desc: 'Pay UPI or Cash. Pick up your printed documents using your 4-digit code.' }
   ];
 
+  const stepsY = 244;
   steps.forEach((step, idx) => {
-    const sy = stepsY - (idx * 42);
+    const sy = stepsY - (idx * 46);
     // Number badge circle
     page.drawCircle({
       x: 64,
-      y: sy + 10,
-      size: 12,
-      color: rgb(0.08, 0.08, 0.08)
+      y: sy + 14,
+      size: 13,
+      color: rgb(0.78, 0.94, 0.19),
+      borderColor: rgb(0.04, 0.06, 0.13),
+      borderWidth: 1.5
     });
     page.drawText(step.num, {
       x: 60.5,
-      y: sy + 6,
-      size: 11,
+      y: sy + 9,
+      size: 12,
       font: fontBold,
-      color: rgb(1, 1, 1)
+      color: rgb(0.11, 0.14, 0)
     });
     page.drawText(step.title, {
-      x: 86,
-      y: sy + 12,
+      x: 88,
+      y: sy + 18,
       size: 11,
       font: fontBold,
-      color: rgb(0.08, 0.08, 0.08)
+      color: rgb(0.04, 0.06, 0.13)
     });
     page.drawText(step.desc, {
-      x: 86,
-      y: sy + 0,
+      x: 88,
+      y: sy + 5,
       size: 9.5,
       font: fontRegular,
       color: rgb(0.4, 0.4, 0.4)

@@ -584,53 +584,295 @@ kbd { min-width: 32px; height: 32px; display: inline-grid; place-items: center; 
 
 /* Real QR Code Poster Modal & Print Styles */
 .qr-modal-scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.65); backdrop-filter: blur(4px); z-index: 1000; }
-.qr-modal-container { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 92%; max-width: 620px; max-height: 94vh; overflow-y: auto; background: white; border: 3px solid var(--ink); border-radius: 16px; box-shadow: 10px 10px 0 var(--ink); z-index: 1001; padding: 32px; display: flex; flex-direction: column; align-items: center; }
-.qr-poster-printable { width: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; }
-.poster-header { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid var(--line); }
+.qr-modal-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 94%;
+  max-width: 660px;
+  max-height: 94vh;
+  overflow-y: auto;
+  background: white;
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  box-shadow: 10px 10px 0 var(--ink);
+  z-index: 1001;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.qr-modal-top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #ffffff;
+  border-bottom: 2px solid var(--line);
+  padding: 14px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.qr-bar-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.qr-bar-heading strong { font: 700 16px "Space Grotesk"; color: var(--ink); }
+.qr-bar-heading span { font-size: 12px; color: var(--muted); }
+
+.qr-poster-actions {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.print-poster-btn {
+  background: var(--lime) !important;
+  color: var(--ink) !important;
+  font-weight: 700 !important;
+  border: 2px solid var(--ink) !important;
+  box-shadow: 2px 2px 0 var(--ink) !important;
+}
+
+.qr-close-btn {
+  margin-left: auto;
+  font-weight: 700;
+}
+
+.qr-printer-select-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 20px 0;
+  padding: 8px 14px;
+  background: var(--sand);
+  border: 1.5px solid var(--ink);
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+.qr-printer-select-row label { font: 700 11px "JetBrains Mono"; color: var(--ink); }
+.qr-printer-select-row select { padding: 5px 10px; border: 1.5px solid var(--ink); border-radius: 6px; font: 600 12px "Space Grotesk"; background: white; flex: 1; }
+
+.qr-printing-status {
+  margin: 8px 20px 0;
+  padding: 6px 12px;
+  background: var(--sand);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.qr-poster-printable {
+  width: calc(100% - 40px);
+  max-width: 580px;
+  margin: 16px auto 24px;
+  padding: 24px 28px;
+  background: #ffffff;
+  border: 2.5px solid var(--ink);
+  border-radius: 16px;
+  box-shadow: 6px 6px 0 var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.poster-header { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 2px solid var(--line); }
 .poster-logos { display: flex; align-items: center; justify-content: center; gap: 14px; }
-.poster-hkbk-logo { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; }
-.poster-divider { width: 2px; height: 40px; background: var(--line); }
-.poster-brand-logo { height: 44px; }
+.poster-hkbk-logo { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid var(--ink); }
 .poster-venue { display: flex; flex-direction: column; align-items: center; }
-.poster-venue strong { font: 700 24px "Space Grotesk"; letter-spacing: -.03em; }
-.poster-venue span { font: 700 12px "JetBrains Mono"; color: var(--muted); letter-spacing: 0.12em; }
+.poster-venue strong { font: 700 24px "Space Grotesk"; letter-spacing: -.03em; color: var(--ink); }
+.poster-venue span { font: 700 11px "JetBrains Mono"; color: var(--muted); letter-spacing: 0.14em; }
 
-.poster-hero { margin-bottom: 24px; }
-.poster-headline-badge { display: inline-block; padding: 4px 12px; background: var(--lime); border: 2px solid var(--ink); border-radius: 999px; font: 700 12px "JetBrains Mono"; letter-spacing: 0.1em; margin-bottom: 12px; }
-.poster-title { font: 700 32px/1.15 "Space Grotesk"; margin: 0 0 8px; letter-spacing: -.03em; color: var(--ink); }
-.poster-subtitle { font-size: 15px; color: var(--muted); margin: 0; max-width: 440px; }
+.poster-hero { margin-bottom: 16px; }
+.poster-headline-badge { display: inline-block; padding: 5px 16px; background: var(--lime); color: var(--lime-text); border: 2px solid var(--ink); border-radius: 999px; box-shadow: 2px 2px 0 var(--ink); font: 700 11px "JetBrains Mono"; letter-spacing: 0.1em; margin-bottom: 8px; }
+.poster-title { font: 700 28px/1.15 "Space Grotesk"; margin: 0 0 6px; letter-spacing: -.03em; color: var(--ink); }
+.poster-subtitle { font-size: 13px; color: var(--muted); margin: 0; max-width: 440px; }
 
-.poster-qr-frame { position: relative; padding: 18px; border: 3px solid var(--ink); border-radius: 16px; background: white; box-shadow: 6px 6px 0 var(--lime); margin-bottom: 24px; }
-.qr-center-pill { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 6px 10px; border: 2px solid var(--ink); border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; }
+.poster-qr-frame { position: relative; padding: 16px; border: 3px solid var(--ink); border-radius: 16px; background: white; box-shadow: 5px 5px 0 var(--ink); margin-bottom: 24px; display: inline-flex; flex-direction: column; align-items: center; }
+.qr-scan-badge { position: absolute; bottom: -12px; left: 50%; transform: translateX(-50%); background: var(--lime); color: var(--lime-text); border: 2px solid var(--ink); border-radius: 999px; padding: 3px 14px; font: 700 11px "Space Grotesk"; letter-spacing: 0.08em; box-shadow: 2px 2px 0 var(--ink); white-space: nowrap; }
 
-.poster-steps { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; text-align: left; }
-.step-card { padding: 12px; border: 2px solid var(--ink); border-radius: 10px; background: var(--sand); display: flex; flex-direction: column; gap: 6px; }
-.step-num { width: 26px; height: 26px; border-radius: 50%; background: var(--ink); color: white; display: grid; place-items: center; font: 700 14px "JetBrains Mono"; }
-.step-content strong { display: block; font-size: 13px; font-weight: 700; color: var(--ink); }
-.step-content span { font-size: 11px; color: var(--muted); line-height: 1.3; }
+.poster-steps { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; text-align: left; }
+.step-card { padding: 12px 10px; border: 2px solid var(--ink); border-radius: 10px; background: var(--sand); box-shadow: 3px 3px 0 var(--ink); display: flex; flex-direction: column; gap: 4px; }
+.step-num { width: 22px; height: 22px; border-radius: 50%; background: var(--lime); color: var(--lime-text); border: 1.5px solid var(--ink); box-shadow: 1px 1px 0 var(--ink); display: grid; place-items: center; font: 700 12px "JetBrains Mono"; }
+.step-content strong { display: block; font: 700 12px "Space Grotesk"; color: var(--ink); }
+.step-content span { font-size: 10.5px; color: var(--ink-2); line-height: 1.3; }
 
-.poster-footer { width: 100%; padding-top: 16px; border-top: 2px dashed var(--line); display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.footer-url { font-size: 13px; color: var(--muted); }
+.poster-footer { width: 100%; padding-top: 12px; border-top: 1.5px dashed var(--line); display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.footer-url { font-size: 12px; color: var(--muted); }
 .footer-url strong { color: var(--ink); font-family: "JetBrains Mono"; word-break: break-all; }
-.poster-rates-strip { width: 100%; margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
-.poster-rates-title { font: 700 11px "JetBrains Mono"; letter-spacing: 0.08em; color: var(--muted); text-align: left; }
-.poster-rates-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
-.poster-rate-item { background: var(--sand); border: 1px solid var(--ink); border-radius: 6px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; }
-.poster-rate-label { font-size: 10px; color: var(--muted); }
-.poster-rate-val { font: 700 12px "Space Grotesk"; color: var(--ink); }
+.footer-secure { font-size: 11px; color: var(--muted); }
 
-.qr-printer-select-row { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding: 10px 14px; background: var(--sand); border: 2px solid var(--ink); border-radius: 10px; box-sizing: border-box; }
-.qr-printer-select-row label { font: 700 12px "JetBrains Mono"; color: var(--ink); }
-.qr-printer-select-row select { padding: 6px 12px; border: 2px solid var(--ink); border-radius: 6px; font: 600 13px "Space Grotesk"; background: white; flex: 1; }
-
-.qr-poster-actions { width: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; margin-top: 16px; padding-top: 16px; border-top: 2px solid var(--line); }
-.print-poster-btn { background: var(--lime) !important; color: var(--ink) !important; font-weight: 700 !important; }
+/* Absolute 1-Page A4 Print Stylesheet */
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
 
 @media print {
-  body * { visibility: hidden !important; }
-  .qr-poster-printable, .qr-poster-printable * { visibility: visible !important; }
-  .qr-poster-printable { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 999999 !important; background: white !important; padding: 48px !important; box-sizing: border-box !important; display: flex !important; flex-direction: column !important; justify-content: space-between !important; align-items: center !important; }
-  .qr-poster-actions, .qr-modal-scrim, .topbar, .orders-toolbar, .keyboard-help, .next-up-bar { display: none !important; }
+  html, body {
+    width: 210mm !important;
+    height: 297mm !important;
+    max-height: 297mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    overflow: hidden !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .qr-modal-scrim,
+  .qr-modal-top-bar,
+  .qr-poster-actions,
+  .qr-printer-select-row,
+  .qr-printing-status,
+  .topbar,
+  .orders-toolbar,
+  .orders-board,
+  .next-up-bar,
+  .keyboard-help,
+  .settings-panel,
+  .settings-drawer,
+  .drawer-scrim {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  .qr-modal-container {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    transform: none !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    height: 297mm !important;
+    max-height: 297mm !important;
+    margin: 0 !important;
+    padding: 10mm 14mm !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    overflow: hidden !important;
+    visibility: visible !important;
+    box-sizing: border-box !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .qr-poster-printable,
+  .qr-poster-printable * {
+    visibility: visible !important;
+  }
+
+  .qr-poster-printable {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    padding: 16px 22px !important;
+    border: 3px solid #0b1020 !important;
+    border-radius: 14px !important;
+    background: #ffffff !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .poster-header {
+    margin-bottom: 10px !important;
+    padding-bottom: 10px !important;
+    border-bottom: 2px solid #0b1020 !important;
+  }
+
+  .poster-hero {
+    margin-bottom: 12px !important;
+  }
+
+  .poster-headline-badge {
+    background: #c8f031 !important;
+    color: #1b2300 !important;
+    border: 2px solid #0b1020 !important;
+    margin-bottom: 6px !important;
+    font-size: 11px !important;
+  }
+
+  .poster-title {
+    font-size: 26px !important;
+    margin-bottom: 4px !important;
+    color: #0b1020 !important;
+  }
+
+  .poster-subtitle {
+    font-size: 12px !important;
+    color: #475569 !important;
+  }
+
+  .poster-qr-frame {
+    padding: 16px !important;
+    margin-bottom: 22px !important;
+    border: 3px solid #0b1020 !important;
+    box-shadow: none !important;
+    position: relative !important;
+  }
+
+  .qr-scan-badge {
+    position: absolute !important;
+    bottom: -11px !important;
+    background: #c8f031 !important;
+    color: #1b2300 !important;
+    border: 2px solid #0b1020 !important;
+    border-radius: 999px !important;
+    padding: 2px 12px !important;
+    font: 700 10.5px "Space Grotesk" !important;
+  }
+
+  .poster-steps {
+    margin-bottom: 18px !important;
+    gap: 12px !important;
+  }
+
+  .step-card {
+    padding: 10px 12px !important;
+    border: 2px solid #0b1020 !important;
+    background: #ece6d8 !important;
+    border-radius: 8px !important;
+  }
+
+  .step-num {
+    background: #c8f031 !important;
+    color: #1b2300 !important;
+    border: 1.5px solid #0b1020 !important;
+  }
+
+  .poster-footer {
+    padding-top: 8px !important;
+    border-top: 1.5px dashed #0b1020 !important;
+  }
 }
 
 .owner-phone { min-height: 100vh; padding-bottom: 220px; background: var(--paper); }
