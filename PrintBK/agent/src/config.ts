@@ -1,11 +1,15 @@
 import fs from 'fs';
 import path from 'path';
+import { protectData, unprotectData } from './dpapi';
 
 export interface AgentConfig {
   apiBase: string;
   agentToken: string;
+  encryptedToken?: string;
   agentSetupCode: string;
   deviceLabel: string;
+  shopId?: string;
+  paired?: boolean;
   dryRun: boolean;
   dryRunDir: string;
   workDir: string;
@@ -16,7 +20,27 @@ export interface AgentConfig {
   printerProfiles: Record<string, string>;
 }
 
-const CONFIG_FILE_PATH = path.resolve(process.cwd(), 'agent-config.json');
+// Preferred config location: %APPDATA%\PrintBK\agent-config.json
+export function getAppDataConfigDir(): string {
+  if (process.env.APPDATA) {
+    return path.join(process.env.APPDATA, 'PrintBK');
+  }
+  return path.resolve(process.cwd());
+}
+
+export function getConfigFilePath(): string {
+  const appDataDir = getAppDataConfigDir();
+  const appDataFile = path.join(appDataDir, 'agent-config.json');
+  if (fs.existsSync(appDataFile)) {
+    return appDataFile;
+  }
+  // Local fallback / legacy migration check
+  const localFile = path.resolve(process.cwd(), 'agent-config.json');
+  if (fs.existsSync(localFile)) {
+    return localFile;
+  }
+  return appDataFile;
+}
 
 const DEFAULT_CONFIG: AgentConfig = {
   apiBase: process.env.API_BASE || 'https://printbk-60074625517.development.catalystserverless.in',
@@ -34,13 +58,24 @@ const DEFAULT_CONFIG: AgentConfig = {
 };
 
 export function loadConfig(cliArgs: string[] = process.argv.slice(2)): AgentConfig {
+  const targetPath = getConfigFilePath();
   let fileConfig: Partial<AgentConfig> = {};
-  if (fs.existsSync(CONFIG_FILE_PATH)) {
+
+  if (fs.existsSync(targetPath)) {
     try {
-      const raw = fs.readFileSync(CONFIG_FILE_PATH, 'utf8');
+      const raw = fs.readFileSync(targetPath, 'utf8');
       fileConfig = JSON.parse(raw);
     } catch (e) {
-      console.warn(`[Config] Failed to parse ${CONFIG_FILE_PATH}, using defaults`);
+      console.warn(`[Config] Failed to parse ${targetPath}, using defaults`);
+    }
+  }
+
+  // Attempt DPAPI decryption for token if encryptedToken exists
+  let resolvedToken = fileConfig.agentToken || DEFAULT_CONFIG.agentToken;
+  if (fileConfig.encryptedToken) {
+    const decrypted = unprotectData(fileConfig.encryptedToken);
+    if (decrypted) {
+      resolvedToken = decrypted;
     }
   }
 
@@ -59,9 +94,10 @@ export function loadConfig(cliArgs: string[] = process.argv.slice(2)): AgentConf
   const merged: AgentConfig = {
     ...DEFAULT_CONFIG,
     ...fileConfig,
+    agentToken: tokenCli || resolvedToken,
+    paired: fileConfig.paired !== undefined ? fileConfig.paired : Boolean(tokenCli || resolvedToken),
     dryRun: dryRunCli || fileConfig.dryRun || DEFAULT_CONFIG.dryRun,
     apiBase: apiBaseCli || fileConfig.apiBase || DEFAULT_CONFIG.apiBase,
-    agentToken: tokenCli || fileConfig.agentToken || DEFAULT_CONFIG.agentToken,
     agentSetupCode: codeCli || fileConfig.agentSetupCode || DEFAULT_CONFIG.agentSetupCode
   };
 
@@ -77,12 +113,39 @@ export function loadConfig(cliArgs: string[] = process.argv.slice(2)): AgentConf
 }
 
 export function saveConfig(updates: Partial<AgentConfig>): void {
-  let current: Partial<AgentConfig> = {};
-  if (fs.existsSync(CONFIG_FILE_PATH)) {
+  const appDataDir = getAppDataConfigDir();
+  if (!fs.existsSync(appDataDir)) {
     try {
-      current = JSON.parse(fs.readFileSync(CONFIG_FILE_PATH, 'utf8'));
+      fs.mkdirSync(appDataDir, { recursive: true });
     } catch (_) {}
   }
+
+  const targetPath = path.join(appDataDir, 'agent-config.json');
+  let current: Partial<AgentConfig> = {};
+
+  if (fs.existsSync(targetPath)) {
+    try {
+      current = JSON.parse(fs.readFileSync(targetPath, 'utf8'));
+    } catch (_) {}
+  } else {
+    // Check if legacy local file exists and read it
+    const localFile = path.resolve(process.cwd(), 'agent-config.json');
+    if (fs.existsSync(localFile)) {
+      try {
+        current = JSON.parse(fs.readFileSync(localFile, 'utf8'));
+      } catch (_) {}
+    }
+  }
+
   const next = { ...current, ...updates };
-  fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(next, null, 2), 'utf8');
+
+  // DPAPI protect token if present and on Windows
+  if (next.agentToken) {
+    const encrypted = protectData(next.agentToken);
+    if (encrypted) {
+      next.encryptedToken = encrypted;
+    }
+  }
+
+  fs.writeFileSync(targetPath, JSON.stringify(next, null, 2), 'utf8');
 }

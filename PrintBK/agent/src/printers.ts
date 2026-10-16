@@ -77,5 +77,29 @@ export async function discoverPrinters(dryRun = false, fallbackProfiles?: Record
     });
   }
 
+  // If dry-run and no specific profiles were configured, provide simulated virtual print queues
+  if (results.length === 0 && dryRun) {
+    return [
+      {
+        name: 'Simulated B&W Counter Printer',
+        role: 'bw',
+        online: true,
+        status: 'ready',
+        paper_info: { A4: true, Legal: true, A3: false },
+        tray_info: { 'Tray 1': true },
+        isDefault: true
+      },
+      {
+        name: 'Simulated Colour Counter Printer',
+        role: 'colour',
+        online: true,
+        status: 'ready',
+        paper_info: { A4: true, Legal: true, A3: true },
+        tray_info: { 'Tray 1': true },
+        isDefault: false
+      }
+    ];
+  }
+
   return results;
 }

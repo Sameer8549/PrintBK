@@ -6,7 +6,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/src/index.js",
+    "test:lifecycle": "node dist/tests/lifecycle.test.js",
+    "test:unit": "node dist/src/agent.test.js"
   },
   "keywords": [],
   "author": "",

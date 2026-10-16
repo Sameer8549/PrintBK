@@ -1,160 +1,101 @@
-# PrintBK Shop PC Print Agent — Setup & Operational Guide
+# PrintBK Windows Print Agent — Setup & Operations Guide
 
-The PrintBK Print Agent is an outbound-only Windows background service that runs on the shop counter PC. It communicates exclusively via outbound HTTPS requests to the Zoho Catalyst backend, discovering installed Windows printers, downloading customer files into encrypted memory/temporary storage, executing silent direct printing via SumatraPDF CLI, and immediately destroying local files upon completion.
-
----
-
-## 1. System Architecture & Working Rules
-
-- **Zero Inbound Ports / No Tunnels**: The agent makes only outbound HTTPS requests (`/server/api/agent/*`). No firewall port forwarding, DynDNS, or tunnels (e.g. ngrok) are required.
-- **Direct Silent Printing**: Uses the lightweight [SumatraPDF](https://www.sumatrapdfreader.org/) CLI for silent background printing without opening any print dialogs or UI windows.
-- **Zero Mock / Server Authoritative**: Every print job, progress tick (`pages_done / pages_total`), and status state is authoritatively tracked in Zoho Catalyst (`print_jobs` and `order_items` tables).
-- **Strict Privacy & Auto-Deletion**:
-  - Immediately after printing, local temporary files are deleted from the PC.
-  - The server automatically schedules cloud file deletion at `printed_at + 5 minutes`.
-  - A startup and 60-second sweeper eliminates any abandoned temporary files older than 5 minutes.
+> **Production Setup for Shop Counter PC**  
+> Enables automatic, background printing to local USB and network printers without manual terminal execution.
 
 ---
 
-## 2. Installation & Prerequisites
+## 1. Overview
 
-### Prerequisites
-1. **Node.js**: v18.0.0 or higher (v20+ recommended).
-2. **SumatraPDF**: Download and install SumatraPDF (64-bit). The installer places it in `C:\Program Files\SumatraPDF\SumatraPDF.exe`.
-3. **LibreOffice (Optional for Office formats)**: If students upload `.docx`, `.pptx`, or `.xlsx` files, install LibreOffice to enable headless conversion via `soffice.exe`.
+The **PrintBK Print Agent** is a background Windows service and system-tray application that runs directly on the shop counter PC. It connects the shop's physical printers (B&W laser, Colour inkjet/tank) directly to the cloud backend and counter terminal:
 
-### Installation Steps
+- **No manual node start**: Runs automatically on Windows user login.
+- **Zero console clutter**: Invisible execution in the background without keeping a CMD/PowerShell window open.
+- **Native System Tray**: Displays live status in the taskbar with quick-access controls.
+- **Self-Healing**: Windows Task Scheduler automatically restarts the agent within 1 minute if a crash or process termination occurs.
+- **Secure Credentials**: Shop authentication tokens are protected using Windows DPAPI encryption in `%APPDATA%\PrintBK\agent-config.json`.
 
-1. Clone or copy the repository onto the Shop PC:
-   ```powershell
-   cd C:\PrintBK
-   pnpm install
+---
+
+## 2. Prerequisites
+
+1. **Windows 10 or 11 (64-bit)**.
+2. **Node.js (v18 or newer)** installed and available in PATH.
+3. **Physical Printers** connected via USB or Local Network / Wi-Fi, installed in Windows Settings → *Printers & Scanners*.
+4. **SumatraPDF (Optional, recommended for physical printing)**: If installed, the agent automatically detects it at standard locations (`C:\Program Files\SumatraPDF\SumatraPDF.exe`) or via the `SUMATRA_PATH` environment variable.
+
+---
+
+## 3. One-Click Installation (For Shopkeeper)
+
+1. Open File Explorer and navigate to the `agent` folder:
    ```
-
-2. Build the shared schemas and agent package:
-   ```powershell
-   pnpm --filter @printbk/shared run build
-   pnpm --filter agent run build
+   C:\PrintBK\agent
    ```
+2. Right-click **`install-service.bat`** and select **Run as administrator** (or simply double-click).
+3. The script will:
+   - Configure Windows Task Scheduler to run `PrintBK_Agent` at user logon with high privileges.
+   - Configure automatic restarts on failure (up to 3 retries, 1-minute interval).
+   - Launch the agent immediately in the background using `start-agent.vbs` (completely hidden).
+   - Display a notification in the Windows System Tray.
 
-3. Create the initial `agent-config.json` in `PrintBK\agent\agent-config.json` (or use environment variables):
-   ```json
-   {
-     "apiBase": "https://printbk-60074625517.development.catalystserverless.in",
-     "agentSetupCode": "PBK-SETUP-9021",
-     "deviceLabel": "HKBK Counter Shop PC",
-     "dryRun": false,
-     "printerProfiles": {
-       "bw": "HP LaserJet M1005 (B&W)",
-       "colour": "EPSON L3150 Series (Colour)",
-       "photo": "EPSON L3150 Series (Colour)"
-     }
-   }
+---
+
+## 4. System Tray Controls
+
+Look for the **PrintBK icon** in the Windows taskbar notification area (bottom-right corner, near the clock):
+
+- **Hover tooltip**: Shows current connectivity and printer count (e.g. `PrintBK Agent (Online - 2 printers)`).
+- **Double-click icon**: Opens the Staff App in your default web browser.
+- **Right-click menu**:
+  - **Open Staff App**: Launches counter dashboard.
+  - **Test Print**: Instantly sends a diagnostic test page to the assigned B&W printer without needing a browser.
+  - **View Log**: Opens `agent\logs\agent.log` in Notepad for troubleshooting.
+  - **Check for Update**: Triggers an immediate heartbeat and printer status synchronization.
+  - **Exit**: Cleanly shuts down the agent and frees all temporary spool files.
+
+---
+
+## 5. First-Time Pairing
+
+1. On initial startup, if the agent has not yet been paired with your shop, the tray will display a balloon notification:
+   > *"PrintBK Agent Needs Setup — Click to configure counter"*
+2. Clicking the notification opens the Staff App pairing page.
+3. The agent automatically submits the shop setup code (`PBK-SETUP-9021` or your custom code) and receives an encrypted device capability token.
+4. The token is persisted securely to `%APPDATA%\PrintBK\agent-config.json` via Windows DPAPI. You will never need to pair again on this PC.
+
+---
+
+## 6. Verifying Connection in Staff App
+
+1. Open the **Staff Counter App** (`http://localhost:5173` or your production domain).
+2. Open **Settings → Printers**.
+3. Under *Printers on this PC*, verify that the status badge displays:
    ```
-
-4. Run the initial pairing test:
-   ```powershell
-   cd C:\PrintBK\agent
-   node dist/index.js
+   ● PRINT AGENT ONLINE
    ```
-   *The agent will exchange `PBK-SETUP-9021` for a persistent, cryptographically secure device token and save it into `agent-config.json`.*
+4. Your detected printers will be listed in the B&W and Colour dropdowns.
+5. Click **TEST PRINT** next to any printer to confirm physical spooling.
 
 ---
 
-## 3. Starting the Agent at Login (Windows Task Scheduler)
+## 7. How to Uninstall or Stop the Auto-Start Task
 
-Printers in Windows are frequently installed per-user session. Therefore, the agent should run automatically when the counter staff user logs into Windows.
+To remove the auto-start task:
 
-### Automated Setup via PowerShell
-Run PowerShell as Administrator:
-```powershell
-$Action = New-ScheduledTaskAction -Execute "C:\Program Files\nodejs\node.exe" -Argument "dist/index.js" -WorkingDirectory "C:\PrintBK\agent"
-$Trigger = New-ScheduledTaskTrigger -AtLogOn
-$Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1)
-Register-ScheduledTask -TaskName "PrintBK_PrintAgent" -Action $Action -Trigger $Trigger -Settings $Settings -Description "PrintBK Shop Counter Real-Time Print Agent"
-```
-
-### Manual Setup via Task Scheduler GUI (`taskschd.msc`)
-1. Open **Task Scheduler** (`Win + R` -> `taskschd.msc`).
-2. Click **Create Task** (not Basic Task).
-3. **General Tab**:
-   - Name: `PrintBK_PrintAgent`
-   - Select: *Run only when user is logged on*.
-   - Check: *Run with highest privileges*.
-4. **Triggers Tab**:
-   - Click *New* -> Begin the task: *At log on*.
-5. **Actions Tab**:
-   - Program/script: `C:\Program Files\nodejs\node.exe`
-   - Add arguments: `dist/index.js`
-   - Start in: `C:\PrintBK\agent`
-6. **Settings Tab**:
-   - Check: *If the task fails, restart every: 1 minute*.
-   - Uncheck: *Stop the task if it runs longer than*.
+1. Navigate to `C:\PrintBK\agent`.
+2. Double-click **`uninstall-service.bat`** (or run `uninstall-service.ps1` in PowerShell).
+3. The scheduled task `PrintBK_Agent` will be stopped and removed.
 
 ---
 
-## 4. Turning Off "Keep Printed Documents" in Windows
+## 8. Diagnostic Logs & Troubleshooting
 
-By default, some Windows printer drivers retain raw spooler print files on disk after printing, causing disk accumulation and student privacy exposure.
-
-### Disabling via PowerShell
-Run PowerShell as Administrator:
-```powershell
-Get-Printer | ForEach-Object {
-    Set-Printer -Name $_.Name -KeepPrintedJobs $false
-}
-```
-
-### Disabling via Windows GUI
-1. Open **Settings** -> **Bluetooth & devices** -> **Printers & scanners**.
-2. Select your printer -> **Printer properties**.
-3. Go to the **Advanced** tab.
-4. Ensure the checkbox **"Keep printed documents"** is **UNCHECKED**.
-5. Click **Apply** -> **OK**.
-
----
-
-## 5. Building Windows Printer Profiles
-
-Because many manufacturer drivers ignore CLI duplex or paper size flags sent via SumatraPDF, the robust industry practice is to install the printer multiple times in Windows with dedicated hardware defaults:
-
-1. In Windows, go to **Printers & scanners** -> **Add device** -> **Add manually** -> *Add a local printer with existing port (USB or WSD)*.
-2. Select the same driver (e.g. *EPSON L3150 Series*).
-3. Name the printer specifically for its counter role:
-   - `EPSON L3150 (Colour Standard)`: Set Printing Preferences to Colour, A4, Plain Paper.
-   - `EPSON L3150 (Photo Glossy)`: Set Printing Preferences to Colour, 4x6 / A4, Ultra Glossy.
-   - `HP LaserJet (B&W Duplex)`: Set Printing Preferences to Monochrome, Print on both sides (Long edge).
-4. In `agent-config.json` or the Staff App Settings, map each profile:
-   ```json
-   "printerProfiles": {
-     "bw": "HP LaserJet (B&W Duplex)",
-     "colour": "EPSON L3150 (Colour Standard)",
-     "photo": "EPSON L3150 (Photo Glossy)"
-   }
-   ```
-
----
-
-## 6. Dry-Run Mode (Testing Without Physical Hardware)
-
-For software development, automated CI, and demonstrations without hardware printers:
-```powershell
-cd C:\PrintBK\agent
-node dist/index.js --dry-run
-```
-- Discovered printers will show as online virtual devices (`EPSON L3110 Series`).
-- All printed jobs will render their final layout PDFs and a `manifest.json` into `C:\PrintBK\agent\dry-run\<jobId>\`.
-- Real-time 1Hz page progress will simulate accurately and update the counter and student screens.
-
----
-
-## 7. Operational Troubleshooting Matrix
-
-| Symptom | Root Cause | Resolution |
-| :--- | :--- | :--- |
-| **Agent logs `401 Invalid agent setup code`** | Setup code mismatch between `agent-config.json` and Catalyst environment variables | Verify `AGENT_SETUP_CODE` or `STAFF_SETUP_CODE` in Catalyst Console (`Compute > Functions > api > Environment Variables`). Match with `agent-config.json`. |
-| **Printers appear offline in Staff Counter** | Windows printer spooler service stopped or printer powered off | Check USB cable/Wi-Fi connection. Ensure `Spooler` Windows service is running (`Restart-Service Spooler`). |
-| **SumatraPDF executable not found** | SumatraPDF not installed or not in standard path | Install SumatraPDF from official website or set `"sumatraPath": "C:\\Path\\To\\SumatraPDF.exe"` in `agent-config.json`. |
-| **DOCX/PPTX conversion fails** | LibreOffice not installed on Shop PC | Install LibreOffice 64-bit or save file as PDF before printing. |
-| **Paper size / Duplex not honored** | Driver ignores command-line flags | Set up a dedicated Windows Printer Profile with required defaults as explained in Section 5. |
-| **Heartbeat drops / live feed disconnects** | Shop PC network connection lost | Agent automatically retries with exponential backoff and recovers as soon as internet connection is restored. |
+- **Log File**: `agent\logs\agent.log`
+  Every heartbeat, discovered printer, spooling job, and error is recorded with ISO-8601 timestamps.
+- **PID File**: `agent\agent.pid`
+  Stores the current running process ID while active and is automatically cleaned up on exit.
+- **Printer appears offline**:
+  1. Power-cycle the physical printer and ensure USB cable is connected.
+  2. In the tray icon right-click menu, select **Check for Update**.
+  3. In the Staff App, click **REFRESH** in Settings → Printers.

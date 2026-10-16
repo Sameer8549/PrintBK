@@ -9,6 +9,24 @@ import { processDocumentLayout, PrintPart } from './layout';
 import { generateTestPrintPdf, generateQrPrintPdf } from './testprint';
 import { cleanJobFiles, startSweeper } from './sweeper';
 import { executeDryRunPrint } from './dryrun';
+import { logger } from './logger';
+import { TrayManager } from './tray';
+
+const PID_FILE_PATH = path.resolve(process.cwd(), 'agent.pid');
+
+function writePid(): void {
+  try {
+    fs.writeFileSync(PID_FILE_PATH, String(process.pid), 'utf8');
+  } catch (_) {}
+}
+
+function removePid(): void {
+  try {
+    if (fs.existsSync(PID_FILE_PATH)) {
+      fs.unlinkSync(PID_FILE_PATH);
+    }
+  } catch (_) {}
+}
 
 class PrintAgentDaemon {
   private config: AgentConfig;
@@ -17,6 +35,7 @@ class PrintAgentDaemon {
   private sweeperTimer?: NodeJS.Timeout;
   private activeJobTempFiles: string[] = [];
   private mixedColourMode: 'split' | 'colour' = 'split';
+  private trayManager?: TrayManager;
 
   constructor(cliArgs?: string[]) {
     this.config = loadConfig(cliArgs);
@@ -31,20 +50,40 @@ class PrintAgentDaemon {
   }
 
   public async start(): Promise<void> {
-    console.log('====================================================');
-    console.log('           PRINTBK REAL-TIME PRINT AGENT             ');
-    console.log('====================================================');
-    console.log(`API Base:       ${this.config.apiBase}`);
-    console.log(`Device Label:   ${this.config.deviceLabel}`);
-    console.log(`Execution Mode: ${this.config.dryRun ? 'DRY-RUN (Simulated)' : 'PRODUCTION (Physical)'}`);
-    console.log(`Work Dir:       ${this.config.workDir}`);
+    writePid();
+
+    logger.info('====================================================');
+    logger.info('           PRINTBK REAL-TIME PRINT AGENT             ');
+    logger.info('====================================================');
+    logger.info(`PID:            ${process.pid}`);
+    logger.info(`API Base:       ${this.config.apiBase}`);
+    logger.info(`Device Label:   ${this.config.deviceLabel}`);
+    logger.info(`Execution Mode: ${this.config.dryRun ? 'DRY-RUN (Simulated)' : 'PRODUCTION (Physical)'}`);
+    logger.info(`Work Dir:       ${this.config.workDir}`);
+    logger.info(`Logs File:      ${logger.getLogPath()}`);
     if (this.config.dryRun) {
-      console.log(`Dry-Run Dir:    ${this.config.dryRunDir}`);
+      logger.info(`Dry-Run Dir:    ${this.config.dryRunDir}`);
     }
-    console.log('----------------------------------------------------');
+    logger.info('----------------------------------------------------');
+
+    // Initialize System Tray Companion
+    const staffUrl = `${this.config.apiBase.replace(/\/server\/api$/, '')}/staff`;
+    this.trayManager = new TrayManager(process.pid, logger.getLogPath(), staffUrl);
+    this.trayManager.start();
+    this.trayManager.onAction(async (action) => {
+      logger.info(`[Agent] System tray action: ${action}`);
+      if (action === 'test_print') {
+        await this.triggerLocalTestPrint();
+      } else if (action === 'check_update') {
+        await this.sendHeartbeat();
+      } else if (action === 'exit') {
+        this.shutdown();
+      }
+    });
 
     // 1. Pair if no token exists
     if (!this.config.agentToken) {
+      this.trayManager.notify('PrintBK Agent Setup Required', 'Agent not yet paired. Click to configure counter.');
       await this.pairDevice();
     }
 
@@ -59,7 +98,7 @@ class PrintAgentDaemon {
     // 4. Start Heartbeat Timer (5s)
     this.heartbeatTimer = setInterval(() => {
       this.sendHeartbeat().catch(err => {
-        console.warn(`[Agent] Heartbeat error: ${err.message}`);
+        logger.warn(`[Agent] Heartbeat error: ${err.message}`);
       });
     }, this.config.heartbeatIntervalMs);
 
@@ -72,7 +111,7 @@ class PrintAgentDaemon {
   }
 
   private async pairDevice(): Promise<void> {
-    console.log(`[Agent] Pairing device with setup code against ${this.config.apiBase}...`);
+    logger.info(`[Agent] Pairing device with setup code against ${this.config.apiBase}...`);
     try {
       const res = await fetch(`${this.config.apiBase}/server/api/agent/pair`, {
         method: 'POST',
@@ -92,11 +131,11 @@ class PrintAgentDaemon {
       if (!data.token) throw new Error('No token returned in pairing response');
 
       this.config.agentToken = data.token;
-      saveConfig({ agentToken: data.token });
-      console.log(`[Agent] Device successfully paired! Token saved to agent-config.json`);
+      saveConfig({ agentToken: data.token, paired: true });
+      logger.info(`[Agent] Device successfully paired! Token secured with DPAPI.`);
+      this.trayManager?.notify('PrintBK Agent Paired', 'Counter PC successfully paired and ready.');
     } catch (err: any) {
-      console.error(`[Agent] CRITICAL: Device pairing failed: ${err.message}`);
-      process.exit(1);
+      logger.error(`[Agent] CRITICAL: Device pairing failed: ${err.message}`);
     }
   }
 
@@ -113,7 +152,7 @@ class PrintAgentDaemon {
       });
 
       if (res.status === 401) {
-        console.warn('[Agent] 401 Unauthorized during heartbeat: attempting re-pair...');
+        logger.warn('[Agent] 401 Unauthorized during heartbeat: attempting re-pair...');
         await this.pairDevice();
         return;
       }
@@ -123,9 +162,13 @@ class PrintAgentDaemon {
         if (body.shop_settings?.mixed_colour_mode) {
           this.mixedColourMode = body.shop_settings.mixed_colour_mode;
         }
+        this.trayManager?.updateStatus(`PrintBK Agent (Online - ${printers.length} printer${printers.length > 1 ? 's' : ''})`);
+      } else {
+        this.trayManager?.updateStatus('PrintBK Agent (Connecting...)');
       }
     } catch (err: any) {
-      console.warn(`[Agent] Heartbeat communication failed: ${err.message}`);
+      logger.warn(`[Agent] Heartbeat communication failed: ${err.message}`);
+      this.trayManager?.updateStatus('PrintBK Agent (Connecting...)');
     }
   }
 
@@ -445,24 +488,85 @@ class PrintAgentDaemon {
     } catch (_) {}
   }
 
-  private shutdown(): void {
-    console.log('\n[Agent] Shutting down agent daemon gracefully...');
+  public async triggerLocalTestPrint(printerName?: string): Promise<void> {
+    try {
+      const printers = await discoverPrinters(this.config.dryRun, this.config.printerProfiles);
+      const target = printerName || this.config.printerProfiles.bw || (printers[0]?.name) || 'Default Printer';
+      logger.info(`[Agent] Triggering local test print on: ${target}`);
+      const pdfBytes = await generateTestPrintPdf(target, { name: 'HKBK Student Point' });
+      const part: PrintPart = {
+        role: 'both',
+        pdfBytes,
+        pageCount: 1,
+        pagesList: [1]
+      };
+      if (this.config.dryRun) {
+        await executeDryRunPrint('local-test', target, { kind: 'test_print' }, [part], this.config.dryRunDir);
+      } else {
+        const tempPdf = path.join(this.config.workDir, `local_test_${Date.now()}.pdf`);
+        fs.writeFileSync(tempPdf, pdfBytes);
+        await executeSumatraPrint(tempPdf, target, { copies: 1, paper: 'A4' }, this.config.sumatraPath);
+        cleanJobFiles([tempPdf]);
+      }
+      logger.info(`[Agent] Local test print completed on: ${target}`);
+      this.trayManager?.notify('PrintBK Test Print', `Sent test print to ${target}`);
+    } catch (err: any) {
+      logger.error(`[Agent] Local test print error: ${err.message}`);
+    }
+  }
+
+  public shutdown(): void {
+    logger.info('\n[Agent] Shutting down agent daemon gracefully...');
     this.isRunning = false;
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     if (this.sweeperTimer) clearInterval(this.sweeperTimer);
+    this.trayManager?.close();
     cleanJobFiles(this.activeJobTempFiles);
-    console.log('[Agent] Cleaned up temporary files. Goodbye.');
+    removePid();
+    logger.info('[Agent] Cleaned up temporary files and PID. Goodbye.');
     process.exit(0);
   }
 }
 
+// Process-level self-healing exception handlers
+process.on('uncaughtException', (err) => {
+  logger.error('CRITICAL: Uncaught exception in agent process:', err);
+  removePid();
+  // Exit with non-zero so Task Scheduler triggers auto-restart
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  logger.error('CRITICAL: Unhandled promise rejection in agent process:', reason);
+});
+
+process.on('exit', () => {
+  removePid();
+});
+
 // Start agent if run as main module
+let daemonInstance: PrintAgentDaemon | null = null;
+
 if (require.main === module) {
-  const daemon = new PrintAgentDaemon();
-  daemon.start().catch(err => {
-    console.error('[Agent] Fatal error:', err);
+  daemonInstance = new PrintAgentDaemon();
+  daemonInstance.start().catch(err => {
+    logger.error('[Agent] Fatal error:', err);
+    removePid();
     process.exit(1);
   });
 }
+
+// Graceful IPC/stdin shutdown listener (works reliably across Windows, Linux, and macOS)
+process.stdin.on('data', (data) => {
+  const msg = data.toString().trim();
+  if (msg === 'shutdown' || msg === 'exit' || msg.includes('"shutdown"') || msg.includes('"exit"')) {
+    if (daemonInstance) {
+      daemonInstance.shutdown();
+    } else {
+      removePid();
+      process.exit(0);
+    }
+  }
+});
 
 export { PrintAgentDaemon };
