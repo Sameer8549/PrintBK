@@ -37,7 +37,7 @@ export const api = {
     return res.json();
   },
 
-  async createOrder(basket: Basket & { payment?: string }): Promise<CreateOrderResponse> {
+  async createOrder(basket: Basket & { payment?: string; expectedTotal?: number; settingsVersion?: number; phone?: string }): Promise<CreateOrderResponse> {
     const res = await fetch(`${API_BASE}/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -45,7 +45,9 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to create order');
+      const errorObj = new Error(err.error || 'Failed to create order');
+      Object.assign(errorObj, err);
+      throw errorObj;
     }
     return res.json();
   },

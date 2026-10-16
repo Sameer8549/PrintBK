@@ -12,6 +12,7 @@ import {
   undoAction,
   fetchTodayAnalytics,
   fetchHistoryOrders,
+  fetchShopSettings,
   updateShopSettings,
   testPrintPrinter,
   printQrPrinter,
@@ -748,8 +749,41 @@ function QrPosterModal({
   )
 }
 
-function SettingsField({ label, value, type = "text", suffix, onChange }: { label: string; value: string; type?: string; suffix?: string; onChange: (value: string) => void }) {
-  return <label className="settings-field"><span>{label}</span><div><input type={type} value={value} onChange={(event) => onChange(event.target.value)} />{suffix && <b>{suffix}</b>}</div></label>
+function SettingsField({ label, value, type = "text", suffix, placeholder, onChange }: { label: string; value: string; type?: string; suffix?: string; placeholder?: string; onChange: (value: string) => void }) {
+  return <label className="settings-field"><span>{label}</span><div><input type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />{suffix && <b>{suffix}</b>}</div></label>
+}
+
+function ToggleRow({
+  title,
+  subtitle,
+  checked,
+  disabled = false,
+  onChange,
+}: {
+  title: string
+  subtitle: string
+  checked: boolean
+  disabled?: boolean
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <div className={`toggle-row ${disabled ? "disabled" : ""}`}>
+      <div>
+        <strong>{title}</strong>
+        <span>{subtitle}</span>
+      </div>
+      <button
+        type="button"
+        disabled={disabled}
+        className={`setting-toggle ${checked ? "on" : ""}`}
+        onClick={() => onChange(!checked)}
+        aria-pressed={checked}
+      >
+        <i />
+        <span>{checked ? "ENABLED" : "OFF"}</span>
+      </button>
+    </div>
+  )
 }
 
 function PrinterSettingsPanel({
@@ -771,6 +805,12 @@ function PrinterSettingsPanel({
   const [saved, setSaved] = useState(false)
   const [testStatus, setTestStatus] = useState<Record<string, string>>({})
   const [mixedMode, setMixedMode] = useState(shop.mixed_colour_mode || "split")
+  const [version, setVersion] = useState<number>(shop.version || 1)
+  const [undoable, setUndoable] = useState<any | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [rzpKeys, setRzpKeys] = useState({ keyId: "", keySecret: "" })
+  const [rzpConfigured, setRzpConfigured] = useState(false)
+
   const [rates, setRates] = useState({
     bw: String(shop.rates?.bw ?? "1.50"),
     colour: String(shop.rates?.colour ?? "8.00"),
@@ -794,12 +834,73 @@ function PrinterSettingsPanel({
     upiVpa: String(shop.rates?.upiVpa ?? "studentpoint@okhdfcbank"),
     upiName: String(shop.rates?.upiName ?? "HKBK Student Point"),
   })
+
+  const [services, setServices] = useState<Record<string, { available: boolean; reason?: string }>>({
+    document_bw: { available: true },
+    document_colour: { available: true },
+    photos: { available: true },
+    binding_spiral: { available: true },
+    binding_soft: { available: true },
+    binding_hard: { available: true },
+    lamination: { available: true },
+    scanning: { available: true },
+    photocopy: { available: true },
+    typing: { available: true }
+  })
+
+  const [payments, setPayments] = useState<{ cash: boolean; upi: boolean; razorpay: boolean }>({
+    cash: true,
+    upi: true,
+    razorpay: false
+  })
+
   const [shopDetails, setShopDetails] = useState({
     name: shop.name || "HKBK Student Point",
     address: shop.address || "HKBK College Campus, Bengaluru",
     phone: shop.phone || "080 2544 1722",
-    delete: "5",
+    hours: "8:30 AM – 6:00 PM (Mon–Sat)",
+    announcement: shop.announcement || "",
+    delete: String(shop.delete_delay_minutes || 5),
   })
+
+  useEffect(() => {
+    let mounted = true
+    fetchShopSettings().then((s) => {
+      if (!mounted || !s) return
+      setVersion(s.version || 1)
+      if (s.rates) {
+        setRates((prev) => ({
+          ...prev,
+          ...Object.fromEntries(Object.entries(s.rates).map(([k, v]) => [k, String(v)]))
+        }))
+      }
+      if (s.services) {
+        setServices((prev) => ({ ...prev, ...s.services }))
+      }
+      if (s.payments) {
+        setPayments({
+          cash: s.payments.cash !== false,
+          upi: s.payments.upi !== false,
+          razorpay: Boolean(s.payments.razorpay)
+        })
+        if (s.payments.upiVpa) setRates((r) => ({ ...r, upiVpa: s.payments.upiVpa }))
+        if (s.payments.upiName) setRates((r) => ({ ...r, upiName: s.payments.upiName }))
+      }
+      if (s.shop_info) {
+        setShopDetails({
+          name: s.shop_info.name || "HKBK Student Point",
+          address: s.shop_info.address || "HKBK College Campus, Bengaluru",
+          phone: s.shop_info.phone || "080 2544 1722",
+          hours: s.shop_info.hours || "8:30 AM – 6:00 PM (Mon–Sat)",
+          announcement: s.announcement || "",
+          delete: String(s.delete_delay_minutes || 5),
+        })
+      }
+      if (s.mixed_colour_mode) setMixedMode(s.mixed_colour_mode)
+      if (s.razorpay_configured) setRzpConfigured(true)
+    }).catch(() => {})
+    return () => { mounted = false }
+  }, [])
 
   const configuredBw = (shop as any)?.printer_mapping?.bw || (shop as any)?.shop_info?.printer_mapping?.bw || ""
   const configuredColour = (shop as any)?.printer_mapping?.colour || (shop as any)?.shop_info?.printer_mapping?.colour || ""
@@ -849,10 +950,58 @@ function PrinterSettingsPanel({
     }
   }
 
-  const saveSettings = async (customRates?: typeof rates) => {
+  const handleUndo = async () => {
+    if (!undoable) return
+    const prev = undoable
+    setUndoable(null)
+    setRates(prev.rates)
+    setServices(prev.services)
+    setPayments(prev.payments)
+    setShopDetails(prev.shopDetails)
+    await saveSettings(prev.rates, prev.services, prev.payments, prev.shopDetails, false)
+  }
+
+  const saveSettings = async (
+    customRates?: typeof rates,
+    customServices?: typeof services,
+    customPayments?: typeof payments,
+    customShopDetails?: typeof shopDetails,
+    recordUndo = true
+  ) => {
     const r = customRates || rates
+    const sv = customServices || services
+    const pm = customPayments || payments
+    const sd = customShopDetails || shopDetails
+
+    // Validate inputs
+    for (const [k, v] of Object.entries(r)) {
+      if (k !== 'upiVpa' && k !== 'upiName') {
+        const num = Number(v)
+        if (isNaN(num) || num < 0) {
+          setErrorMsg(`Rate "${k}" cannot be negative`)
+          return
+        }
+      }
+    }
+    const delMinutes = Number(sd.delete)
+    if (isNaN(delMinutes) || delMinutes < 1 || delMinutes > 60) {
+      setErrorMsg("File privacy delete delay must be between 1 and 60 minutes")
+      return
+    }
+    setErrorMsg(null)
+
+    if (recordUndo) {
+      setUndoable({
+        rates: { ...rates },
+        services: { ...services },
+        payments: { ...payments },
+        shopDetails: { ...shopDetails }
+      })
+    }
+
     try {
-      await updateShopSettings({
+      const payload: any = {
+        expected_version: version,
         rates: {
           bw: Number(r.bw),
           colour: Number(r.colour),
@@ -876,15 +1025,43 @@ function PrinterSettingsPanel({
           upiVpa: r.upiVpa,
           upiName: r.upiName,
         },
-        shop_info: shopDetails,
+        services: sv,
+        payments: {
+          cash: pm.cash,
+          upi: pm.upi,
+          razorpay: pm.razorpay,
+          upiVpa: r.upiVpa,
+          upiName: r.upiName,
+        },
+        shop_info: {
+          name: sd.name,
+          address: sd.address,
+          phone: sd.phone,
+          hours: sd.hours,
+          payee: r.upiName,
+          upi: r.upiVpa,
+        },
+        announcement: sd.announcement,
         mixed_colour_mode: mixedMode,
-        delete_delay_minutes: Number(shopDetails.delete) || 5,
-      })
+        delete_delay_minutes: delMinutes,
+      }
+      if (rzpKeys.keyId && rzpKeys.keySecret) {
+        payload.payments.razorpay_key_id = rzpKeys.keyId
+        payload.payments.razorpay_key_secret = rzpKeys.keySecret
+      }
+
+      const res = await updateShopSettings(payload)
+      if (res.version) setVersion(res.version)
       setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
+      setTimeout(() => setSaved(false), 4000)
       onRefreshLive()
     } catch (err: any) {
-      alert("Failed to save settings: " + err.message)
+      if (err?.conflict) {
+        setErrorMsg("Settings were updated on another terminal. Re-fetching latest...");
+        onRefreshLive();
+      } else {
+        setErrorMsg(err.message || "Failed to save settings");
+      }
     }
   }
 
@@ -1063,6 +1240,129 @@ function PrinterSettingsPanel({
                   <SettingsField label="Merchant Display Name" value={rates.upiName} onChange={(v) => { const nr = { ...rates, upiName: v }; setRates(nr); saveSettings(nr) }} />
                 </div>
               </section>
+
+              <section className="setting-card">
+                <div className="setting-card-title"><div><span>8. SERVICE AVAILABILITY</span><strong>Enable or disable individual services</strong></div></div>
+                <p style={{ marginBottom: "16px", color: "var(--muted)", fontSize: 14 }}>
+                  Disabling a service instantly hides or marks it as "Not available today" in the student app with your custom explanation.
+                </p>
+                {[
+                  { key: "bw", label: "Black & White Printing", desc: "A4 / A3 standard document printing" },
+                  { key: "colour", label: "Colour Printing", desc: "Full colour document printing" },
+                  { key: "photos", label: "Photo Printing", desc: "4×6, 8×10, and passport prints" },
+                  { key: "binding_spiral", label: "Spiral Binding", desc: "Standard spiral binding with plastic sheet" },
+                  { key: "binding_soft", label: "Soft Cover Binding", desc: "Thermal and soft card book binding" },
+                  { key: "binding_hard", label: "Hard Bound Project", desc: "Golden embossed project hard binding" },
+                  { key: "lamination", label: "Thermal Lamination", desc: "A4 & A3 sheet pouch lamination" },
+                  { key: "scanning", label: "Document Scanning", desc: "Walk-in scan to email/drive" },
+                  { key: "photocopy", label: "Photocopy Counter", desc: "Walk-in manual page copy" },
+                  { key: "typing", label: "Typing & Formatting", desc: "Custom typing and thesis project editing" },
+                ].map((s) => {
+                  const sInfo = (services as any)[s.key] || { available: true }
+                  const isAvailable = sInfo.available !== false
+                  return (
+                    <div key={s.key} style={{ borderBottom: "1px dotted var(--line)", paddingBottom: "12px", marginBottom: "12px" }}>
+                      <ToggleRow
+                        title={s.label}
+                        subtitle={s.desc}
+                        checked={isAvailable}
+                        onChange={(checked) => {
+                          const updated = {
+                            ...services,
+                            [s.key]: {
+                              available: checked,
+                              reason: checked ? "" : (sInfo.reason || "Temporarily unavailable today")
+                            }
+                          }
+                          setServices(updated)
+                          saveSettings(rates, updated)
+                        }}
+                      />
+                      {!isAvailable && (
+                        <div style={{ marginTop: "8px" }}>
+                          <SettingsField
+                            label="Reason shown to students"
+                            value={sInfo.reason || ""}
+                            placeholder="e.g. Machine under maintenance, resumes 2 PM"
+                            onChange={(reason) => {
+                              const updated = {
+                                ...services,
+                                [s.key]: { available: false, reason }
+                              }
+                              setServices(updated)
+                              saveSettings(rates, updated)
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </section>
+
+              <section className="setting-card">
+                <div className="setting-card-title"><div><span>9. PAYMENT METHODS &amp; GATEWAY</span><strong>Student checkout options</strong></div></div>
+                <ToggleRow
+                  title="Cash at Counter"
+                  subtitle="Student places order and pays counter staff before collection"
+                  checked={payments.cash}
+                  onChange={(checked) => {
+                    const updated = { ...payments, cash: checked }
+                    setPayments(updated)
+                    saveSettings(rates, services, updated)
+                  }}
+                />
+                <ToggleRow
+                  title="Direct UPI Payment"
+                  subtitle="Generates UPI QR with student reference ID, merchant UPI ID, and exact amount"
+                  checked={payments.upi}
+                  onChange={(checked) => {
+                    const updated = { ...payments, upi: checked }
+                    setPayments(updated)
+                    saveSettings(rates, services, updated)
+                  }}
+                />
+                <ToggleRow
+                  title="Razorpay Online Gateway"
+                  subtitle={rzpConfigured ? "Payment gateway active (credentials stored on server)" : "Card, Netbanking & Wallets via Razorpay (API Key required)"}
+                  checked={payments.razorpay}
+                  onChange={(checked) => {
+                    const updated = { ...payments, razorpay: checked }
+                    setPayments(updated)
+                    saveSettings(rates, services, updated)
+                  }}
+                />
+                {payments.razorpay && (
+                  <div style={{ marginTop: "16px", padding: "14px", border: "1px solid var(--line)", borderRadius: "8px", background: "var(--paper)" }}>
+                    <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "8px" }}>
+                      Razorpay API Credentials
+                      {rzpConfigured && <span style={{ marginLeft: "8px", color: "var(--success)", fontSize: "12px" }}>● Configured on server</span>}
+                    </div>
+                    <div className="field-grid">
+                      <SettingsField
+                        label="Key ID"
+                        value={rzpKeys.keyId}
+                        placeholder={rzpConfigured ? "rzp_live_••••••• (unchanged)" : "rzp_live_..."}
+                        onChange={(v) => setRzpKeys((k) => ({ ...k, keyId: v }))}
+                      />
+                      <SettingsField
+                        label="Key Secret"
+                        type="password"
+                        value={rzpKeys.keySecret}
+                        placeholder={rzpConfigured ? "•••••••••••••••• (unchanged)" : "Secret"}
+                        onChange={(v) => setRzpKeys((k) => ({ ...k, keySecret: v }))}
+                      />
+                    </div>
+                    {(rzpKeys.keyId || rzpKeys.keySecret) && (
+                      <div style={{ marginTop: "10px" }}>
+                        <Button kind="plain" onClick={() => saveSettings(rates, services, payments, shopDetails)}>
+                          UPDATE RAZORPAY KEYS
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
             </div>
           )}
 
@@ -1070,13 +1370,19 @@ function PrinterSettingsPanel({
             <div className="settings-tab">
               <div className="settings-intro"><span>SHOP INFO</span><strong>What students see before ordering</strong></div>
               <section className="setting-card shop-fields">
-                <SettingsField label="Shop name" value={shopDetails.name} onChange={(v) => { setShopDetails((s) => ({ ...s, name: v })); saveSettings() }} />
-                <SettingsField label="Address" value={shopDetails.address} onChange={(v) => { setShopDetails((s) => ({ ...s, address: v })); saveSettings() }} />
-                <SettingsField label="Contact number" value={shopDetails.phone} onChange={(v) => { setShopDetails((s) => ({ ...s, phone: v })); saveSettings() }} />
+                <SettingsField label="Shop name" value={shopDetails.name} onChange={(v) => { const ns = { ...shopDetails, name: v }; setShopDetails(ns); saveSettings(rates, services, payments, ns) }} />
+                <SettingsField label="Address" value={shopDetails.address} onChange={(v) => { const ns = { ...shopDetails, address: v }; setShopDetails(ns); saveSettings(rates, services, payments, ns) }} />
+                <SettingsField label="Contact number" value={shopDetails.phone} onChange={(v) => { const ns = { ...shopDetails, phone: v }; setShopDetails(ns); saveSettings(rates, services, payments, ns) }} />
+                <SettingsField
+                  label="Shop announcement banner"
+                  value={shopDetails.announcement}
+                  placeholder="e.g. Closing early today at 4:00 PM for sports day"
+                  onChange={(v) => { const ns = { ...shopDetails, announcement: v }; setShopDetails(ns); saveSettings(rates, services, payments, ns) }}
+                />
               </section>
               <section className="setting-card delete-setting">
                 <div><span>FILE PRIVACY</span><strong>Files are deleted <b>{shopDetails.delete} minutes</b> after printing</strong><p>Configurable between 1 and 30 minutes. Hard maximum 60 minutes.</p></div>
-                <input type="range" min="1" max="30" value={shopDetails.delete} onChange={(e) => { setShopDetails((s) => ({ ...s, delete: e.target.value })); saveSettings() }} />
+                <input type="range" min="1" max="30" value={shopDetails.delete} onChange={(e) => { const ns = { ...shopDetails, delete: e.target.value }; setShopDetails(ns); saveSettings(rates, services, payments, ns) }} />
                 <div className="range-labels"><span>1 min</span><b>{shopDetails.delete} min</b><span>30 min</span></div>
               </section>
             </div>
@@ -1110,6 +1416,18 @@ function PrinterSettingsPanel({
             </div>
           )}
         </div>
+        {errorMsg && (
+          <div className="settings-error" style={{ background: "rgba(239, 68, 68, 0.15)", color: "#ef4444", padding: "10px 16px", borderRadius: "8px", margin: "12px", border: "1px solid rgba(239, 68, 68, 0.3)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span>{errorMsg}</span>
+            <button type="button" onClick={() => setErrorMsg(null)} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontWeight: "bold" }}>✕</button>
+          </div>
+        )}
+        {undoable && (
+          <div className="settings-undo-bar" style={{ background: "rgba(59, 130, 246, 0.15)", color: "#3b82f6", padding: "10px 16px", borderRadius: "8px", margin: "12px", display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid rgba(59, 130, 246, 0.3)" }}>
+            <span>Settings updated.</span>
+            <button type="button" onClick={handleUndo} style={{ background: "#3b82f6", color: "#fff", border: "none", padding: "4px 12px", borderRadius: "6px", cursor: "pointer", fontWeight: 600 }}>UNDO</button>
+          </div>
+        )}
         {saved && <div className="settings-saved"><Icon name="check" /><span>Settings saved</span></div>}
       </aside>
     </>

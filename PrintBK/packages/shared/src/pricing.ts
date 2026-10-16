@@ -99,14 +99,19 @@ export function priceOrder(basket: Basket, config: ShopConfig = defaultShopConfi
     // User-defined exact rates:
     // B&W single: ₹1.50, double: ₹0.85 per page
     // Colour single: ₹8.00, double: ₹8.00 per page
-    const paperMult = config.rates.paperMultipliers[paper] || 1;
+    const paperMult = (config.rates.paperMultipliers as any)?.[paper] ?? 1;
+    const bwRate = config.rates.bw ?? 1.50;
+    const duplexRate = (config.rates as any).duplex ?? ((config.rates as any).doubleSideDiscount ? Number((bwRate * (1 - (config.rates as any).doubleSideDiscount)).toFixed(2)) : 0.85);
+    const colourRate = (config.rates as any).colour ?? config.rates.color ?? 8.00;
+    const bulkThreshold = (config.rates as any).bulkTierThreshold ?? (config.rates as any).bulk ?? 100;
+    const bulkRate = (config.rates as any).bulkTierRate ?? (config.rates as any).bulkRate ?? 0.80;
     
-    let pricePerPageBW = (sided === 'double' ? 0.85 : 1.50) * paperMult;
-    let pricePerPageColor = (sided === 'double' ? 8.00 : 8.00) * paperMult;
+    let pricePerPageBW = (sided === 'double' ? duplexRate : bwRate) * paperMult;
+    let pricePerPageColor = colourRate * paperMult;
 
     // Bulk tier check for high-volume orders
-    if (totalSheets >= (config.rates.bulkTierThreshold || 100)) {
-      pricePerPageBW = Math.min(pricePerPageBW, 0.80 * paperMult);
+    if (totalSheets >= bulkThreshold) {
+      pricePerPageBW = Math.min(pricePerPageBW, bulkRate * paperMult);
     }
     
     const fileTotal = (bwPages * pricePerPageBW + colorPages * pricePerPageColor) * copies;
@@ -137,7 +142,7 @@ export function priceOrder(basket: Basket, config: ShopConfig = defaultShopConfi
     subtotal += roundedTotal;
 
     if (sided === 'single' && !s.booklet) {
-      const duplexTotal = (bwPages * 0.85 + colorPages * 8.00) * copies;
+      const duplexTotal = (bwPages * duplexRate + colorPages * colourRate) * copies;
       const savings = roundedTotal - (Math.round(duplexTotal * 100) / 100);
       if (savings > potentialSavings) {
         potentialSavings = savings;

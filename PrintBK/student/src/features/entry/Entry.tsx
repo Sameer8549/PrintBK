@@ -3,9 +3,8 @@ import { Icon, Brand, Topbar, Segmented } from '../../components/ui';
 import { Screen, Sheet } from '../../lib/types';
 import { notify } from '../../lib/store';
 import { useBasket } from '../../store/basket';
+import { useShopConfig } from '../../store/shopConfig';
 import { browseAndAddFiles } from '../../lib/filePicker';
-import { defaultShopConfig, ShopConfig } from '@printbk/shared';
-import { api } from '../../services/api';
 
 function Entry({
   go,
@@ -17,26 +16,17 @@ function Entry({
   openPhoto: (layout: string) => void;
 }) {
   const [tab, setTab] = useState("Documents");
-  const [cfg, setCfg] = useState<ShopConfig & { open?: boolean; announcement?: string; shopInfo?: any }>(defaultShopConfig);
+  const cfg = useShopConfig(s => s.config);
   const basket = useBasket();
   const addFile = useBasket(s => s.addFile);
 
-  useEffect(() => {
-    let isMounted = true;
-    api.getConfig().then((data) => {
-      if (isMounted && data) {
-        setCfg(data);
-      }
-    }).catch(() => {});
-    return () => { isMounted = false; };
-  }, []);
-
   const isOpen = cfg.open !== false;
   const shopName = cfg.shopInfo?.name || "HKBK Student Point";
-  const rates = cfg.rates as (typeof cfg.rates & { bwSingle?: number; bwDouble?: number; colour?: number }) | undefined;
-  const bwSingle = rates?.bwSingle ?? rates?.bw ?? 1.5;
-  const bwDouble = rates?.bwDouble ?? (rates?.bw ? Number((rates.bw * 0.85).toFixed(2)) : 0.85);
+  const rates = cfg.rates as any;
+  const bwSingle = rates?.bw ?? 1.5;
+  const bwDouble = rates?.duplex ?? (rates?.bw ? Number((rates.bw * 0.85).toFixed(2)) : 0.85);
   const colourRate = rates?.colour ?? rates?.color ?? 8.0;
+  const deleteMinutes = cfg.deleteDelayMinutes || cfg.autoDeleteDelay || 5;
 
   const handleUploadClick = () => {
     if (!isOpen) {
@@ -95,7 +85,7 @@ function Entry({
       <button className="price-strip" onClick={() => setSheet("breakdown")}>
         <span>B&W Single <b>₹{bwSingle.toFixed(2)}</b></span><i /> <span>Double <b>₹{bwDouble.toFixed(2)}</b></span><i /> <span>Colour <b>₹{colourRate.toFixed(2)}</b></span>
       </button>
-      <footer>Files auto-delete <b>{cfg.autoDeleteDelay || 5} minutes</b> after printing.</footer>
+      <footer>Files auto-delete <b>{deleteMinutes} minutes</b> after printing.</footer>
     </main>
   );
 }

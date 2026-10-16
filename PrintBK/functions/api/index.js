@@ -371,6 +371,110 @@ const memOrders = global.__printbk_orders || (global.__printbk_orders = new Map(
 const memOrderItems = global.__printbk_order_items || (global.__printbk_order_items = new Map());
 const memPrintJobs = global.__printbk_jobs || (global.__printbk_jobs = new Map());
 const memStaffActions = global.__printbk_staff_actions || (global.__printbk_staff_actions = new Map());
+const memPrinters = global.__printbk_printers || (global.__printbk_printers = new Map());
+
+const DEFAULT_SHOP_SETTINGS = {
+  id: 'default',
+  version: 1,
+  open: true,
+  closed_since: null,
+  announcement: '',
+  delete_delay_minutes: 5,
+  mixed_colour_mode: 'split',
+  rates: {
+    bw: 1.50,
+    colour: 8.00,
+    duplex: 0.85,
+    bulkTierThreshold: 100,
+    bulkTierRate: 0.80,
+    paperMultipliers: { A4: 1.0, A3: 2.0, Legal: 1.25 },
+    photo4x6: 20.00,
+    photo8x10: 50.00,
+    photoPassport: 60.00,
+    bindingSpiral: 35.00,
+    bindingSoft: 60.00,
+    bindingHard: 150.00,
+    laminationA4: 25.00,
+    laminationA3: 50.00,
+    scanPerPage: 5.00,
+    copyBw: 1.50,
+    copyColour: 8.00,
+    typingBase: 50.00,
+    typingPerPage: 30.00,
+    staple: 5,
+    spiral: 35,
+    comb: 25,
+    hardCover: 150,
+    laminationID: 10,
+    scan: 5,
+    photocopy: 1.50
+  },
+  services: {
+    document_bw: { available: true },
+    document_colour: { available: true },
+    photos: { available: true },
+    binding_spiral: { available: true },
+    binding_soft: { available: true },
+    binding_hard: { available: true },
+    lamination: { available: true },
+    scanning: { available: true },
+    photocopy: { available: true },
+    typing: { available: true }
+  },
+  payments: {
+    cash: true,
+    upi: true,
+    razorpay: false,
+    upiVpa: 'Q098686787@ybl',
+    upiName: 'PrintBK HKBK'
+  },
+  shop_info: {
+    name: 'HKBK Student Point',
+    address: 'HKBK College Campus, Nagawara, Bengaluru',
+    hours: '8:30 AM – 6:00 PM (Mon–Sat)',
+    phone: '+91 87068 68815',
+    logo: '/printbk-logo.svg'
+  },
+  updated_at: Math.floor(Date.now() / 1000)
+};
+
+const memShopSettings = global.__printbk_shop_settings || (global.__printbk_shop_settings = { ...DEFAULT_SHOP_SETTINGS });
+
+async function getEffectiveShopSettings(catalystApp) {
+  const zcql = catalystApp ? catalystApp.zcql() : null;
+  if (zcql) {
+    try {
+      const rows = await zcql.executeZCQLQuery("SELECT * FROM shop_settings WHERE id = 'default' LIMIT 1");
+      if (rows && rows.length > 0) {
+        const s = rows[0].shop_settings;
+        memShopSettings.version = Number(s.version || memShopSettings.version || 1);
+        memShopSettings.open = s.open !== false && String(s.open) !== 'false';
+        memShopSettings.closed_since = s.closed_since ? Number(s.closed_since) : null;
+        memShopSettings.announcement = s.announcement || '';
+        memShopSettings.delete_delay_minutes = Number(s.delete_delay_minutes || 5);
+        memShopSettings.mixed_colour_mode = s.mixed_colour_mode || 'split';
+        if (s.rates) {
+          const r = typeof s.rates === 'string' ? JSON.parse(s.rates) : s.rates;
+          memShopSettings.rates = { ...memShopSettings.rates, ...r };
+        }
+        if (s.services) {
+          const sv = typeof s.services === 'string' ? JSON.parse(s.services) : s.services;
+          memShopSettings.services = { ...memShopSettings.services, ...sv };
+        }
+        if (s.payments) {
+          const p = typeof s.payments === 'string' ? JSON.parse(s.payments) : s.payments;
+          memShopSettings.payments = { ...memShopSettings.payments, ...p };
+        }
+        if (s.shop_info) {
+          const si = typeof s.shop_info === 'string' ? JSON.parse(s.shop_info) : s.shop_info;
+          memShopSettings.shop_info = { ...memShopSettings.shop_info, ...si };
+        }
+        memShopSettings.updated_at = Number(s.updated_at || memShopSettings.updated_at || nowSec());
+      }
+    } catch (_) {}
+  }
+  return memShopSettings;
+}
 
 /* ─── Server-Generated Pickup Code & Order Number Helpers ────────── */
 async function generateUniquePickupCode(zcql) {
@@ -438,59 +542,85 @@ async function getNextOrderNumber(zcql) {
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.get('/config', async (req, res) => {
-  let settings = null;
-  try {
-    const catalystApp = catalyst.initialize(req);
-    const zcql = catalystApp.zcql();
-    const rows = await zcql.executeZCQLQuery("SELECT * FROM shop_settings WHERE id = 'default'").catch(() => []);
-    if (rows && rows.length > 0) {
-      settings = rows[0].shop_settings;
-    }
-  } catch (_) {}
+  const catalystApp = getCatalystApp(req);
+  const settings = await getEffectiveShopSettings(catalystApp);
 
   const rzpEnabled = Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET && process.env.RAZORPAY_ENABLED === 'true');
   const upiId = process.env.UPI_ID || 'Q098686787@ybl';
   const upiPayee = process.env.UPI_PAYEE_NAME || 'PrintBK HKBK';
 
-  let dynamicRates = defaultShopConfig.rates;
-  let shopOpen = true;
-  let announcement = '';
-  let shopInfo = {};
-
-  if (settings) {
-    if (settings.rates) {
-      try {
-        const parsed = typeof settings.rates === 'string' ? JSON.parse(settings.rates) : settings.rates;
-        dynamicRates = { ...dynamicRates, ...parsed };
-      } catch (_) {}
-    }
-    if (typeof settings.open !== 'undefined') {
-      shopOpen = settings.open === true || settings.open === 'true';
-    }
-    announcement = settings.announcement || '';
-    if (settings.shop_info) {
-      try {
-        shopInfo = typeof settings.shop_info === 'string' ? JSON.parse(settings.shop_info) : settings.shop_info;
-      } catch (_) {}
+  // Compute live printer status summary from memPrinters
+  const now = nowSec();
+  let onlinePrintersCount = 0;
+  let paperLow = false;
+  for (const p of memPrinters.values()) {
+    if (p.online && (now - (p.last_seen || 0) <= 60)) {
+      onlinePrintersCount++;
+      if (p.paper_low || (typeof p.paper_info === 'string' && p.paper_info.includes('low'))) {
+        paperLow = true;
+      }
     }
   }
 
+  const version = Number(settings.version || 1);
+  const updatedAt = Number(settings.updated_at || now);
+  const etag = `W/"v${version}-${updatedAt}"`;
+  res.setHeader('ETag', etag);
+  res.setHeader('Cache-Control', 'public, max-age=5, stale-while-revalidate=5');
+
+  if (req.headers['if-none-match'] === etag) {
+    return res.status(304).end();
+  }
+
+  const isOpen = settings.open !== false && String(settings.open) !== 'false';
+  const dynamicRates = {
+    ...defaultShopConfig.rates,
+    ...(settings.rates || {})
+  };
+
   res.json({
-    ...defaultShopConfig,
-    open: shopOpen,
-    announcement,
-    shopInfo,
+    version,
+    open: isOpen,
+    closedSince: settings.closed_since || null,
+    announcement: settings.announcement || '',
+    shopName: settings.shop_info?.name || 'HKBK Student Point',
+    address: settings.shop_info?.address || 'HKBK College Campus, Nagawara, Bengaluru',
+    hours: settings.shop_info?.hours || '8:30 AM – 6:00 PM (Mon–Sat)',
+    phone: settings.shop_info?.phone || '+91 87068 68815',
+    shopInfo: settings.shop_info || {},
     rates: dynamicRates,
+    services: settings.services || {
+      document_bw: { available: true },
+      document_colour: { available: true },
+      photos: { available: true },
+      binding_spiral: { available: true },
+      binding_soft: { available: true },
+      binding_hard: { available: true },
+      lamination: { available: true },
+      scanning: { available: true },
+      photocopy: { available: true },
+      typing: { available: true }
+    },
     paymentMethods: {
-      cash: true,
-      upi: true,
-      razorpay: rzpEnabled
+      cash: settings.payments?.cash !== false,
+      upi: settings.payments?.upi !== false,
+      razorpay: Boolean(rzpEnabled && settings.payments?.razorpay)
     },
     upi: {
-      enabled: true,
-      payeeName: shopInfo.payee || upiPayee,
-      upiId: shopInfo.upi || upiId
-    }
+      enabled: settings.payments?.upi !== false,
+      payeeName: settings.payments?.upiName || settings.shop_info?.payee || upiPayee,
+      upiId: settings.payments?.upiVpa || settings.shop_info?.upi || upiId
+    },
+    deleteDelayMinutes: Number(settings.delete_delay_minutes || 5),
+    printerStatus: {
+      online: onlinePrintersCount > 0,
+      count: onlinePrintersCount,
+      paperLow,
+      summary: onlinePrintersCount > 0
+        ? (paperLow ? 'Online (Paper low on printer)' : 'Online and ready')
+        : 'Print agent offline'
+    },
+    updatedAt
   });
 });
 
@@ -664,19 +794,38 @@ app.post('/orders', async (req, res) => {
     const zcql = catalystApp ? catalystApp.zcql() : null;
 
     // 4. Shop Availability Check
-    if (zcql) {
-      try {
-        const settingRows = await zcql.executeZCQLQuery("SELECT open, announcement FROM shop_settings WHERE id = 'default'").catch(() => []);
-        if (settingRows && settingRows.length > 0) {
-          const s = settingRows[0].shop_settings;
-          const isOpen = s.open === true || s.open === 'true';
-          if (!isOpen) {
-            return res.status(503).json({
-              error: `Shop is currently closed: ${s.announcement || 'Counter orders are paused. Please try again later.'}`
-            });
-          }
-        }
-      } catch (_) {}
+    const settings = await getEffectiveShopSettings(catalystApp);
+    const isOpen = settings.open !== false && String(settings.open) !== 'false';
+    if (!isOpen) {
+      return res.status(503).json({
+        error: `Shop is currently closed: ${settings.announcement || 'Counter orders are paused. Please try again later.'}`,
+        closed: true,
+        shopClosed: true
+      });
+    }
+
+    // 4b. Service Availability Check
+    const servicesToCheck = [];
+    if (req.body.service) {
+      servicesToCheck.push({ type: req.body.service, name: req.body.service });
+    }
+    if (Array.isArray(req.body.services)) {
+      servicesToCheck.push(...req.body.services);
+    }
+    if (Array.isArray(req.body.items)) {
+      for (const item of req.body.items) {
+        if (item.type === 'photo') servicesToCheck.push({ type: 'photos', name: 'Photo Printing' });
+        if (item.binding && item.binding !== 'none') servicesToCheck.push({ type: `binding_${item.binding}`, name: `${item.binding} Binding` });
+        if (item.lamination && item.lamination !== 'none') servicesToCheck.push({ type: 'lamination', name: 'Lamination' });
+      }
+    }
+    for (const svc of servicesToCheck) {
+      const svcKey = svc.type === 'binding' ? `binding_${(svc.bindingType || 'spiral').toLowerCase()}` : (svc.type || '');
+      if (settings.services?.[svcKey] && settings.services[svcKey].available === false) {
+        return res.status(400).json({
+          error: `Service "${svc.name || svcKey}" is currently unavailable: ${settings.services[svcKey].reason || 'Unavailable today'}`
+        });
+      }
     }
 
     const { files = [], services = [], rush = false } = req.body;
@@ -691,15 +840,38 @@ app.post('/orders', async (req, res) => {
     const orderToken = crypto.randomBytes(24).toString('base64url');
     const accessTokenHash = crypto.createHash('sha256').update(orderToken).digest('hex');
 
-    // 3. Strict Authoritative Price Calculation using Shared Engine
-    const pricing = priceOrder({ files, services, rush }, defaultShopConfig);
+    // 3. Strict Authoritative Price Calculation using Shared Engine with dynamic rates
+    const dynamicConfig = {
+      ...defaultShopConfig,
+      rates: {
+        ...defaultShopConfig.rates,
+        ...(settings.rates || {})
+      }
+    };
+    const pricing = priceOrder({ files, services, rush }, dynamicConfig);
     const total = pricing.total;
+
+    // 3b. Verify against expected total from student (Reject stale prices with friendly message)
+    if (typeof req.body.expectedTotal === 'number') {
+      const diff = Math.abs(req.body.expectedTotal - total);
+      if (diff > 0.05) {
+        return res.status(409).json({
+          error: `Prices have changed. Your updated total is ₹${total.toFixed(2)}. Please confirm before paying.`,
+          pricesChanged: true,
+          oldTotal: req.body.expectedTotal,
+          newTotal: total,
+          currentTotal: total,
+          settingsVersion: settings.version || 1
+        });
+      }
+    }
+
     const quotePending = pricing.quotePending;
     const paymentMethod = String(req.body.payment || '').toLowerCase();
     const status = quotePending ? 'waiting_quote' : (paymentMethod === 'cash' ? 'pending_cash' : 'pending_payment');
     
-    // 4. Map into Typed Order Items for Staff App Tables
-    const typedItems = basketToOrderItems({ files, services, rush }, defaultShopConfig);
+    // 4. Map into Typed Order Items for Staff App Tables with dynamic rates
+    const typedItems = basketToOrderItems({ files, services, rush }, dynamicConfig);
 
     const basketPayload = {
       files,
@@ -710,7 +882,8 @@ app.post('/orders', async (req, res) => {
       orderNumber,
       accessTokenHash,
       breakdown: pricing,
-      typedItems
+      typedItems,
+      settingsVersion: settings.version || 1
     };
 
     const isTest = Boolean(req.body.is_test || req.headers['x-test-suite'] || process.env.NODE_ENV === 'test');

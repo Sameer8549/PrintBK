@@ -2,9 +2,7 @@ import React from 'react';
 import { Icon, Topbar, SheetShell } from '../../components/ui';
 import { Screen, Sheet, ServiceItem } from '../../lib/types';
 import { notify } from '../../lib/store';
-import { defaultShopConfig } from '@printbk/shared';
-
-const cfg = defaultShopConfig;
+import { useShopConfig } from '../../store/shopConfig';
 
 function OtherServices({
   go,
@@ -23,15 +21,34 @@ function OtherServices({
   const [filter, setFilter] = React.useState("All");
   const [customNote, setCustomNote] = React.useState("");
 
+  const cfg = useShopConfig(s => s.config);
+  const svcAvail = cfg.services || {};
+  const rates = cfg.rates as any;
+
+  const isSpiralAvail = svcAvail.binding_spiral?.available !== false;
+  const isHardAvail = svcAvail.binding_hard?.available !== false;
+  const isLaminationAvail = svcAvail.lamination?.available !== false;
+  const isScanningAvail = svcAvail.scanning?.available !== false;
+  const isPhotocopyAvail = svcAvail.photocopy?.available !== false;
+  const isTypingAvail = svcAvail.typing?.available !== false;
+
+  const spiralRate = rates.bindingSpiral ?? rates.spiral ?? 35;
+  const hardRate = rates.bindingHard ?? rates.hardCover ?? 150;
+  const scanRate = rates.scanPerPage ?? rates.scan ?? 5;
+  const copyRate = rates.copyBw ?? rates.photocopy ?? 1.5;
+  const lamA4 = rates.laminationA4 ?? 25;
+  const lamA3 = rates.laminationA3 ?? 50;
+  const lamID = rates.laminationID ?? 10;
+
   const services = [
-    { id: "spiral", category: "Binding", title: "Spiral binding", copy: "Neat, flexible binding for notes and reports", price: `from ₹${cfg.rates.spiral}`, tag: "Add to a print", icon: "file" as const, sheet: "binding" as Sheet, bindingType: "Spiral" },
-    { id: "comb", category: "Binding", title: "Comb binding", copy: "Reusable spine for manuals and projects", price: `from ₹${cfg.rates.comb}`, tag: "Add to a print", icon: "file" as const, sheet: "binding" as Sheet, bindingType: "Comb" },
-    { id: "staple", category: "Binding", title: "Staple / corner pin", copy: "Simple finish for short documents", price: `₹${cfg.rates.staple}`, tag: "Add to a print", icon: "check" as const, sheet: "binding" as Sheet, bindingType: "Staple" },
-    { id: "hard", category: "Binding", title: "Hard cover / thesis binding", copy: "Premium project and thesis finish", price: `from ₹${cfg.rates.hardCover}`, tag: "Not available today", icon: "file" as const, sheet: "binding" as Sheet, bindingType: "Hard cover", unavailable: true },
-    { id: "lamination", category: "Lamination", title: "Lamination", copy: `ID ₹${cfg.rates.laminationID} · A4 ₹${cfg.rates.laminationA4} · A3 ₹${cfg.rates.laminationA3}`, price: `from ₹${cfg.rates.laminationID}`, tag: "Walk-in", icon: "copy" as const, sheet: "lamination" as Sheet },
-    { id: "scanning", category: "Scanning", title: "Scanning to PDF", copy: "Upload page photos or bring originals", price: `₹${cfg.rates.scan}/page`, tag: "Walk-in or upload", icon: "camera" as const, sheet: "scanning" as Sheet },
-    { id: "photocopy", category: "Other", title: "Photocopy at counter", copy: "Bring the original to the counter", price: `from ₹${cfg.rates.photocopy}/page`, tag: "Walk-in", icon: "copy" as const },
-    { id: "typing", category: "Typing", title: "Document typing / resume making", copy: "We type, format and clean up your draft", price: "quote", tag: "Request", icon: "file" as const, sheet: "typing" as Sheet },
+    { id: "spiral", category: "Binding", title: "Spiral binding", copy: "Neat, flexible binding for notes and reports", price: `from ₹${spiralRate}`, tag: isSpiralAvail ? "Add to a print" : (svcAvail.binding_spiral?.reason || "Not available today"), icon: "file" as const, sheet: "binding" as Sheet, bindingType: "Spiral", unavailable: !isSpiralAvail },
+    { id: "comb", category: "Binding", title: "Comb binding", copy: "Reusable spine for manuals and projects", price: `from ₹${rates.comb ?? 25}`, tag: isSpiralAvail ? "Add to a print" : (svcAvail.binding_spiral?.reason || "Not available today"), icon: "file" as const, sheet: "binding" as Sheet, bindingType: "Comb", unavailable: !isSpiralAvail },
+    { id: "staple", category: "Binding", title: "Staple / corner pin", copy: "Simple finish for short documents", price: `₹${rates.staple ?? 5}`, tag: "Add to a print", icon: "check" as const, sheet: "binding" as Sheet, bindingType: "Staple", unavailable: false },
+    { id: "hard", category: "Binding", title: "Hard cover / thesis binding", copy: "Premium project and thesis finish", price: `from ₹${hardRate}`, tag: isHardAvail ? "Add to a print" : (svcAvail.binding_hard?.reason || "Not available today"), icon: "file" as const, sheet: "binding" as Sheet, bindingType: "Hard cover", unavailable: !isHardAvail },
+    { id: "lamination", category: "Lamination", title: "Lamination", copy: `ID ₹${lamID} · A4 ₹${lamA4} · A3 ₹${lamA3}`, price: `from ₹${lamID}`, tag: isLaminationAvail ? "Walk-in" : (svcAvail.lamination?.reason || "Not available today"), icon: "copy" as const, sheet: "lamination" as Sheet, unavailable: !isLaminationAvail },
+    { id: "scanning", category: "Scanning", title: "Scanning to PDF", copy: "Upload page photos or bring originals", price: `₹${scanRate}/page`, tag: isScanningAvail ? "Walk-in or upload" : (svcAvail.scanning?.reason || "Not available today"), icon: "camera" as const, sheet: "scanning" as Sheet, unavailable: !isScanningAvail },
+    { id: "photocopy", category: "Other", title: "Photocopy at counter", copy: "Bring the original to the counter", price: `from ₹${copyRate}/page`, tag: isPhotocopyAvail ? "Walk-in" : (svcAvail.photocopy?.reason || "Not available today"), icon: "copy" as const, unavailable: !isPhotocopyAvail },
+    { id: "typing", category: "Typing", title: "Document typing / resume making", copy: "We type, format and clean up your draft", price: "quote", tag: isTypingAvail ? "Request" : (svcAvail.typing?.reason || "Not available today"), icon: "file" as const, sheet: "typing" as Sheet, unavailable: !isTypingAvail },
   ];
 
   const visible = services.filter(s =>

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { priceOrder, defaultShopConfig, PriceBreakdown, PrintFile, ServiceLine } from '@printbk/shared';
 import { countPages } from '../lib/pdfPages';
+import { useShopConfig } from './shopConfig';
 
 // Re-export PrintFile so other files can import from here
 export type { PrintFile };
@@ -52,12 +53,13 @@ export const useBasket = create<BasketState>()(
   )
 );
 
-// Reactive pricing hook — recalculates on every basket change
+// Reactive pricing hook — recalculates on every basket change and dynamic shop rate change
 export function usePricing(): PriceBreakdown {
   const files = useBasket(s => s.files);
   const services = useBasket(s => s.services);
+  const config = useShopConfig(s => s.config);
   try {
-    return priceOrder({ files, services, rush: false }, defaultShopConfig, new Date());
+    return priceOrder({ files, services, rush: false }, config, new Date());
   } catch {
     return { lines: [], subtotal: 0, rushFee: 0, gatewayFee: 0, total: 0, savingsTip: null, quotePending: false };
   }

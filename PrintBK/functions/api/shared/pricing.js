@@ -77,12 +77,17 @@ function priceOrder(basket, config = defaultConfig_1.defaultShopConfig, now = ne
         // User-defined exact rates:
         // B&W single: ₹1.50, double: ₹0.85 per page
         // Colour single: ₹8.00, double: ₹8.00 per page
-        const paperMult = config.rates.paperMultipliers[paper] || 1;
-        let pricePerPageBW = (sided === 'double' ? 0.85 : 1.50) * paperMult;
-        let pricePerPageColor = (sided === 'double' ? 8.00 : 8.00) * paperMult;
+        const paperMult = config.rates.paperMultipliers?.[paper] ?? 1;
+        const bwRate = config.rates.bw ?? 1.50;
+        const duplexRate = config.rates.duplex ?? (config.rates.doubleSideDiscount ? Number((bwRate * (1 - config.rates.doubleSideDiscount)).toFixed(2)) : 0.85);
+        const colourRate = config.rates.colour ?? config.rates.color ?? 8.00;
+        const bulkThreshold = config.rates.bulkTierThreshold ?? config.rates.bulk ?? 100;
+        const bulkRate = config.rates.bulkTierRate ?? config.rates.bulkRate ?? 0.80;
+        let pricePerPageBW = (sided === 'double' ? duplexRate : bwRate) * paperMult;
+        let pricePerPageColor = colourRate * paperMult;
         // Bulk tier check for high-volume orders
-        if (totalSheets >= (config.rates.bulkTierThreshold || 100)) {
-            pricePerPageBW = Math.min(pricePerPageBW, 0.80 * paperMult);
+        if (totalSheets >= bulkThreshold) {
+            pricePerPageBW = Math.min(pricePerPageBW, bulkRate * paperMult);
         }
         const fileTotal = (bwPages * pricePerPageBW + colorPages * pricePerPageColor) * copies;
         const roundedTotal = Math.round(fileTotal * 100) / 100;
@@ -110,7 +115,7 @@ function priceOrder(basket, config = defaultConfig_1.defaultShopConfig, now = ne
         });
         subtotal += roundedTotal;
         if (sided === 'single' && !s.booklet) {
-            const duplexTotal = (bwPages * 0.85 + colorPages * 8.00) * copies;
+            const duplexTotal = (bwPages * duplexRate + colorPages * colourRate) * copies;
             const savings = roundedTotal - (Math.round(duplexTotal * 100) / 100);
             if (savings > potentialSavings) {
                 potentialSavings = savings;

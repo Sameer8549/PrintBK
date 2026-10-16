@@ -3,6 +3,7 @@ import { Topbar } from '../../components/ui';
 import { Screen, Sheet } from '../../lib/types';
 import { notify } from '../../lib/store';
 import { usePricing, useBasket, useHistory } from '../../store/basket';
+import { useShopConfig } from '../../store/shopConfig';
 import { api } from '../../services/api';
 
 function Checkout({ go, setSheet, services }: {
@@ -11,7 +12,15 @@ function Checkout({ go, setSheet, services }: {
   services: any[];
 }) {
   const [payment, setPayment] = useState<'UPI' | 'Cash' | 'Razorpay'>('UPI');
-  const [enabledMethods, setEnabledMethods] = useState<{ cash: boolean; upi: boolean; razorpay: boolean }>({ cash: true, upi: true, razorpay: false });
+  const cfg = useShopConfig(s => s.config);
+  const isOpen = cfg.open !== false;
+
+  const enabledMethods = {
+    cash: cfg.paymentMethods?.cash !== false,
+    upi: cfg.paymentMethods?.upi !== false,
+    razorpay: Boolean(cfg.paymentMethods?.razorpay)
+  };
+
   const [phone, setPhone] = useState(() => {
     try {
       return localStorage.getItem('printbk-phone') || '';
@@ -27,19 +36,11 @@ function Checkout({ go, setSheet, services }: {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    api.getConfig().then(cfg => {
-      if (cfg?.paymentMethods) {
-        setEnabledMethods({
-          cash: cfg.paymentMethods.cash !== false,
-          upi: true,
-          razorpay: Boolean(cfg.paymentMethods.razorpay)
-        });
-      }
-    }).catch(() => {});
-  }, []);
-
   const placeOrder = async () => {
+    if (!isOpen) {
+      setError(`Shop is currently closed: ${cfg.announcement || 'Counter orders are paused.'}`);
+      return;
+    }
     if (basket.files.length === 0 && basket.services.length === 0) {
       setError('Your basket is empty!');
       return;
@@ -56,8 +57,10 @@ function Checkout({ go, setSheet, services }: {
         files: basket.files,
         services: basket.services,
         rush: false,
-        payment: isCash ? 'Cash' : 'UPI',
-        phone: phone.trim() || undefined
+        payment: isCash ? 'Cash' : (payment === 'Razorpay' ? 'Razorpay' : 'UPI'),
+        phone: phone.trim() || undefined,
+        expectedTotal: total,
+        settingsVersion: cfg.version
       } as any);
 
       addOrder({
@@ -81,7 +84,12 @@ function Checkout({ go, setSheet, services }: {
         go(`/pay/${result.orderId}`);
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to place order. Please try again.');
+      if (err?.pricesChanged) {
+        useShopConfig.getState().fetchConfig();
+        setError(`Prices were updated by the counter. New total: ₹${Number(err.newTotal).toFixed(2)}. Please review and tap again.`);
+      } else {
+        setError(err?.message || 'Failed to place order. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -351,7 +359,7 @@ function Checkout({ go, setSheet, services }: {
         )}
 
         <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', lineHeight: 1.5 }}>
-          🔒 HKBK Student Point · Files auto-delete 10 minutes after printing
+          🔒 {cfg.shopInfo?.name || 'HKBK Student Point'} · Files auto-delete {cfg.deleteDelayMinutes || 5} minutes after printing
         </div>
       </div>
 
@@ -371,7 +379,7 @@ function Checkout({ go, setSheet, services }: {
       }}>
         <button
           onClick={placeOrder}
-          disabled={loading || (basket.files.length === 0 && basket.services.length === 0)}
+          disabled={loading || !isOpen || (basket.files.length === 0 && basket.services.length === 0)}
           style={{
             width: '100%',
             maxWidth: 440,
@@ -380,10 +388,10 @@ function Checkout({ go, setSheet, services }: {
             fontWeight: 800,
             borderRadius: 14,
             border: 'none',
-            background: payment === 'Cash' ? '#15803d' : '#2563eb',
+            background: !isOpen ? '#94a3b8' : (payment === 'Cash' ? '#15803d' : '#2563eb'),
             color: '#ffffff',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            boxShadow: payment === 'Cash' ? '0 4px 14px rgba(21,128,61,0.3)' : '0 4px 14px rgba(37,99,235,0.3)',
+            cursor: (loading || !isOpen) ? 'not-allowed' : 'pointer',
+            boxShadow: !isOpen ? 'none' : (payment === 'Cash' ? '0 4px 14px rgba(21,128,61,0.3)' : '0 4px 14px rgba(37,99,235,0.3)'),
             transition: 'all 0.2s ease',
             display: 'flex',
             alignItems: 'center',
@@ -393,6 +401,8 @@ function Checkout({ go, setSheet, services }: {
         >
           {loading ? (
             'Processing Order…'
+          ) : !isOpen ? (
+            'Shop Closed · Ordering Paused'
           ) : hasQuote ? (
             'Send Documents for Quote'
           ) : payment === 'Cash' ? (

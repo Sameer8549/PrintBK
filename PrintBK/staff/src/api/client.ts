@@ -230,6 +230,15 @@ export async function fetchHistoryOrders(params?: {
   return data
 }
 
+export async function fetchShopSettings() {
+  const res = await staffFetch("/staff/settings", { method: "GET" })
+  const data = await res.json()
+  if (!res.ok) {
+    throw new StaffApiError(data.error || "Failed to fetch shop settings", res.status, data)
+  }
+  return data.settings
+}
+
 export async function updateShopSettings(settings: Record<string, any>) {
   const res = await staffFetch("/staff/settings", {
     method: "PUT",

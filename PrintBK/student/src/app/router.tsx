@@ -27,6 +27,7 @@ import PrivacyPolicy from '../features/settings/PrivacyPolicy';
 import About from '../features/about/About';
 
 import { useBasket } from '../store/basket';
+import { useShopConfig } from '../store/shopConfig';
 import type { ServiceLine } from '@printbk/shared';
 
 function ShopClosedBarrier({
@@ -79,35 +80,17 @@ function RouteMapper() {
   const location = useLocation();
   const basket = useBasket();
 
-  // Live shop open/closed polling
-  const [shopOpen, setShopOpen] = useState<boolean>(true);
-  const [shopAnnouncement, setShopAnnouncement] = useState<string>('');
+  // Live shop open/closed from single source useShopConfig
+  const cfg = useShopConfig(s => s.config);
+  const shopOpen = cfg.open !== false;
+  const shopAnnouncement = cfg.announcement || '';
   const [checkingStatus, setCheckingStatus] = useState<boolean>(false);
 
   const checkShopStatus = useCallback(async () => {
-    try {
-      const res = await fetch('/server/api/shop/status');
-      if (res.ok) {
-        const data = await res.json();
-        setShopOpen(data.open !== false);
-        setShopAnnouncement(data.announcement || '');
-      }
-    } catch (_) {}
+    setCheckingStatus(true);
+    await useShopConfig.getState().fetchConfig();
+    setCheckingStatus(false);
   }, []);
-
-  useEffect(() => {
-    checkShopStatus();
-    const interval = setInterval(checkShopStatus, 5000);
-    const handleFocus = () => checkShopStatus();
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') checkShopStatus();
-    });
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [checkShopStatus]);
 
   const go = (screen: string) => {
     if (screen.startsWith('/')) return navigate(screen);

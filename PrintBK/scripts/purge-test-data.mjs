@@ -9,7 +9,6 @@
  */
 
 import fs from 'node:fs';
-import catalyst from 'zcatalyst-sdk-node';
 
 const env = fs.readFileSync('functions/api/.env', 'utf8');
 let cronSecret = '';

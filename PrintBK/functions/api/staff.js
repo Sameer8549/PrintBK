@@ -250,22 +250,26 @@ router.get('/live', async (req, res) => {
     }
 
     // 1. Fetch shop_settings
+    const mem = global.__printbk_shop_settings || {};
     let shop = {
-      open: true,
-      announcement: '',
-      delete_delay_minutes: 5,
-      mixed_colour_mode: 'split',
-      rates: { bw: '1.50', colour: '8.00', duplex: '0.85', bulk: '100', a3: '2', legal: '1.25' },
-      services: {},
-      payments: { cash: true, upi: true },
-      shop_info: { name: 'HKBK Student Point', address: 'HKBK College Campus, Bengaluru' }
+      version: Number(mem.version || 1),
+      open: mem.open !== false,
+      announcement: mem.announcement || '',
+      delete_delay_minutes: Number(mem.delete_delay_minutes || 5),
+      mixed_colour_mode: mem.mixed_colour_mode || 'split',
+      rates: mem.rates || { bw: '1.50', colour: '8.00', duplex: '0.85', bulk: '100', a3: '2', legal: '1.25' },
+      services: mem.services || {},
+      payments: mem.payments || { cash: true, upi: true },
+      shop_info: mem.shop_info || { name: 'HKBK Student Point', address: 'HKBK College Campus, Bengaluru' },
+      printer_mapping: mem.shop_info?.printer_mapping || {}
     };
     if (zcql) {
       try {
-        const settingsRows = await zcql.executeZCQLQuery(`SELECT * FROM shop_settings LIMIT 1`);
+        const settingsRows = await zcql.executeZCQLQuery(`SELECT * FROM shop_settings WHERE id = 'default' LIMIT 1`);
         if (settingsRows && settingsRows.length > 0) {
           const s = settingsRows[0].shop_settings;
           shop = {
+            version: Number(s.version || mem.version || 1),
             open: s.open !== false && String(s.open) !== 'false',
             announcement: s.announcement || '',
             delete_delay_minutes: Number(s.delete_delay_minutes || 5),
@@ -1169,8 +1173,71 @@ router.post('/printers/add', async (req, res) => {
   }
 });
 
-// H. Update Shop Settings (Partial Merge Safe)
-router.put('/settings', async (req, res) => {
+// G2. Get Full Shop Settings (Staff Authenticated)
+router.get('/settings', authenticateStaff, async (req, res) => {
+  try {
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    let s = null;
+    if (zcql) {
+      try {
+        const rows = await zcql.executeZCQLQuery("SELECT * FROM shop_settings WHERE id = 'default' LIMIT 1");
+        if (rows && rows.length > 0) s = rows[0].shop_settings;
+      } catch (_) {}
+    }
+    const mem = global.__printbk_shop_settings;
+    const now = nowSec();
+
+    let printers = [];
+    if (zcql) {
+      try {
+        const pRows = await zcql.executeZCQLQuery("SELECT * FROM printers");
+        printers = (pRows || []).map(r => ({
+          id: r.printers.id,
+          name: r.printers.name,
+          role: r.printers.role,
+          online: r.printers.online !== false && String(r.printers.online) !== 'false',
+          status: r.printers.status
+        }));
+      } catch (_) {}
+    }
+    if (printers.length === 0 && global.__printbk_printers) {
+      for (const p of global.__printbk_printers.values()) {
+        printers.push(p);
+      }
+    }
+
+    const rates = typeof s?.rates === 'string' ? JSON.parse(s.rates) : (s?.rates || mem?.rates || {});
+    const services = typeof s?.services === 'string' ? JSON.parse(s.services) : (s?.services || mem?.services || {});
+    const payments = typeof s?.payments === 'string' ? JSON.parse(s.payments) : (s?.payments || mem?.payments || {});
+    const shop_info = typeof s?.shop_info === 'string' ? JSON.parse(s.shop_info) : (s?.shop_info || mem?.shop_info || {});
+
+    const settings = {
+      version: Number(s?.version || mem?.version || 1),
+      open: s ? (s.open !== false && String(s.open) !== 'false') : (mem?.open !== false),
+      closed_since: s?.closed_since || mem?.closed_since || null,
+      announcement: s?.announcement ?? mem?.announcement ?? '',
+      rates,
+      services,
+      payments,
+      shop_info,
+      delete_delay_minutes: Number(s?.delete_delay_minutes || mem?.delete_delay_minutes || 5),
+      mixed_colour_mode: s?.mixed_colour_mode || mem?.mixed_colour_mode || 'split',
+      printer_mapping: shop_info.printer_mapping || {},
+      printers,
+      updated_at: Number(s?.updated_at || mem?.updated_at || now),
+      razorpay_configured: Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
+      razorpay_key_id: process.env.RAZORPAY_KEY_ID ? `${process.env.RAZORPAY_KEY_ID.slice(0, 8)}...` : ''
+    };
+
+    res.json({ ok: true, settings });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch settings: ' + err.message });
+  }
+});
+
+// H. Update Shop Settings (Validated, Versioned & Audited)
+router.put('/settings', authenticateStaff, async (req, res) => {
   try {
     const catalystApp = getCatalystApp(req);
     const zcql = catalystApp ? catalystApp.zcql() : null;
@@ -1185,11 +1252,55 @@ router.put('/settings', async (req, res) => {
         }
       } catch (_) {}
     }
+    const mem = global.__printbk_shop_settings || (global.__printbk_shop_settings = {});
 
-    // Merge existing shop_info values so partial updates never wipe data
+    // Optimistic Version Check (if client provided expected_version)
+    const currentVersion = Number(existing.version || mem.version || 1);
+    if (typeof req.body.expected_version !== 'undefined' && req.body.expected_version !== null) {
+      const expected = Number(req.body.expected_version);
+      if (expected !== currentVersion) {
+        return res.status(409).json({
+          error: 'Settings have been updated by another terminal. Please reload.',
+          conflict: true,
+          currentVersion
+        });
+      }
+    }
+
+    // Input Validation
+    if (req.body.rates && typeof req.body.rates === 'object') {
+      for (const [key, val] of Object.entries(req.body.rates)) {
+        if (typeof val === 'number' && (isNaN(val) || val < 0)) {
+          return res.status(400).json({ error: `Rate for "${key}" cannot be negative` });
+        }
+      }
+    }
+    if (typeof req.body.delete_delay_minutes !== 'undefined') {
+      const d = Number(req.body.delete_delay_minutes);
+      if (isNaN(d) || d < 1 || d > 60) {
+        return res.status(400).json({ error: 'Delete delay must be between 1 and 60 minutes' });
+      }
+    }
+
+    const newVersion = currentVersion + 1;
+
+    // Track open status and closed_since
+    let isOpen = existing.open !== false && String(existing.open) !== 'false';
+    let closedSince = existing.closed_since || mem.closed_since || null;
+    if (typeof req.body.open !== 'undefined') {
+      const requestedOpen = req.body.open === true || req.body.open === 'true';
+      if (isOpen && !requestedOpen) {
+        closedSince = now;
+      } else if (!isOpen && requestedOpen) {
+        closedSince = null;
+      }
+      isOpen = requestedOpen;
+    }
+
+    // Merge shop_info
     let existingShopInfo = {};
     try {
-      existingShopInfo = typeof existing.shop_info === 'string' ? JSON.parse(existing.shop_info) : (existing.shop_info || {});
+      existingShopInfo = typeof existing.shop_info === 'string' ? JSON.parse(existing.shop_info) : (existing.shop_info || mem.shop_info || {});
     } catch (_) {}
 
     const shopInfoMerged = {
@@ -1203,50 +1314,113 @@ router.put('/settings', async (req, res) => {
       };
     }
 
-    const updates = [];
-    if (typeof req.body.open !== 'undefined') {
-      const isOpen = req.body.open === true || req.body.open === 'true';
-      updates.push(`open = ${isOpen}`);
-    }
-    if (typeof req.body.announcement !== 'undefined') {
-      updates.push(`announcement = '${esc(req.body.announcement)}'`);
-    }
-    if (typeof req.body.rates !== 'undefined') {
-      updates.push(`rates = '${esc(JSON.stringify(req.body.rates))}'`);
-    }
-    if (typeof req.body.services !== 'undefined') {
-      updates.push(`services = '${esc(JSON.stringify(req.body.services))}'`);
-    }
-    if (typeof req.body.payments !== 'undefined') {
-      updates.push(`payments = '${esc(JSON.stringify(req.body.payments))}'`);
-    }
-    if (typeof req.body.shop_info !== 'undefined' || typeof req.body.printer_mapping !== 'undefined') {
-      updates.push(`shop_info = '${esc(JSON.stringify(shopInfoMerged))}'`);
-    }
-    if (typeof req.body.delete_delay_minutes !== 'undefined') {
-      updates.push(`delete_delay_minutes = ${Number(req.body.delete_delay_minutes) || 5}`);
-    }
-    if (typeof req.body.mixed_colour_mode !== 'undefined') {
-      updates.push(`mixed_colour_mode = '${esc(req.body.mixed_colour_mode)}'`);
-    }
-    updates.push(`updated_at = ${now}`);
+    // Merge rates
+    let existingRates = {};
+    try {
+      existingRates = typeof existing.rates === 'string' ? JSON.parse(existing.rates) : (existing.rates || mem.rates || {});
+    } catch (_) {}
+    const ratesMerged = {
+      ...existingRates,
+      ...(req.body.rates || {})
+    };
 
-    if (zcql && updates.length > 0) {
+    // Merge services
+    let existingServices = {};
+    try {
+      existingServices = typeof existing.services === 'string' ? JSON.parse(existing.services) : (existing.services || mem.services || {});
+    } catch (_) {}
+    const servicesMerged = {
+      ...existingServices,
+      ...(req.body.services || {})
+    };
+
+    // Merge payments
+    let existingPayments = {};
+    try {
+      existingPayments = typeof existing.payments === 'string' ? JSON.parse(existing.payments) : (existing.payments || mem.payments || {});
+    } catch (_) {}
+    const paymentsMerged = {
+      ...existingPayments,
+      ...(req.body.payments || {})
+    };
+
+    const announcement = typeof req.body.announcement !== 'undefined' ? req.body.announcement : (existing.announcement ?? mem.announcement ?? '');
+    const deleteDelay = typeof req.body.delete_delay_minutes !== 'undefined' ? Number(req.body.delete_delay_minutes) : (Number(existing.delete_delay_minutes) || 5);
+    const mixedMode = req.body.mixed_colour_mode || existing.mixed_colour_mode || mem.mixed_colour_mode || 'split';
+
+    // Update in-memory store immediately
+    mem.version = newVersion;
+    mem.open = isOpen;
+    mem.closed_since = closedSince;
+    mem.announcement = announcement;
+    mem.rates = ratesMerged;
+    mem.services = servicesMerged;
+    mem.payments = paymentsMerged;
+    mem.shop_info = shopInfoMerged;
+    mem.delete_delay_minutes = deleteDelay;
+    mem.mixed_colour_mode = mixedMode;
+    mem.updated_at = now;
+
+    // Persist to ZCQL
+    if (zcql) {
+      const updates = [
+        `version = ${newVersion}`,
+        `open = ${isOpen}`,
+        `announcement = '${esc(announcement)}'`,
+        `rates = '${esc(JSON.stringify(ratesMerged))}'`,
+        `services = '${esc(JSON.stringify(servicesMerged))}'`,
+        `payments = '${esc(JSON.stringify(paymentsMerged))}'`,
+        `shop_info = '${esc(JSON.stringify(shopInfoMerged))}'`,
+        `delete_delay_minutes = ${deleteDelay}`,
+        `mixed_colour_mode = '${esc(mixedMode)}'`,
+        `updated_at = ${now}`
+      ];
+      if (closedSince) {
+        updates.push(`closed_since = ${closedSince}`);
+      }
+
       try {
         await zcql.executeZCQLQuery(`UPDATE shop_settings SET ${updates.join(', ')} WHERE id = 'default'`);
       } catch (_) {
-        const isOpen = typeof req.body.open !== 'undefined' ? (req.body.open === true || req.body.open === 'true') : (existing.open !== false && String(existing.open) !== 'false');
-        const ratesJson = esc(JSON.stringify(req.body.rates || existing.rates || {}));
-        const servicesJson = esc(JSON.stringify(req.body.services || existing.services || {}));
-        const paymentsJson = esc(JSON.stringify(req.body.payments || existing.payments || {}));
-        const shopJson = esc(JSON.stringify(shopInfoMerged));
-        await zcql.executeZCQLQuery(
-          `INSERT INTO shop_settings (id, rates, services, payments, shop_info, delete_delay_minutes, mixed_colour_mode, open, announcement, updated_at) VALUES ('default', '${ratesJson}', '${servicesJson}', '${paymentsJson}', '${shopJson}', ${Number(req.body.delete_delay_minutes || existing.delete_delay_minutes || 5)}, '${esc(req.body.mixed_colour_mode || existing.mixed_colour_mode || 'split')}', ${isOpen}, '${esc(req.body.announcement || existing.announcement || '')}', ${now})`
-        ).catch(() => {});
+        try {
+          const ratesJson = esc(JSON.stringify(ratesMerged));
+          const servicesJson = esc(JSON.stringify(servicesMerged));
+          const paymentsJson = esc(JSON.stringify(paymentsMerged));
+          const shopJson = esc(JSON.stringify(shopInfoMerged));
+          await zcql.executeZCQLQuery(
+            `INSERT INTO shop_settings (id, version, rates, services, payments, shop_info, delete_delay_minutes, mixed_colour_mode, open, announcement, updated_at) VALUES ('default', ${newVersion}, '${ratesJson}', '${servicesJson}', '${paymentsJson}', '${shopJson}', ${deleteDelay}, '${esc(mixedMode)}', ${isOpen}, '${esc(announcement)}', ${now})`
+          ).catch(() => {});
+        } catch (_) {}
       }
     }
 
-    res.json({ ok: true, updated: true });
+    // Audit event
+    recordAudit(zcql, {
+      orderId: 'shop_settings',
+      actorType: 'staff',
+      actorLabel: req.staffDevice?.label || 'Counter PC',
+      action: 'update_settings',
+      fromStatus: String(currentVersion),
+      toStatus: String(newVersion)
+    }).catch(() => {});
+
+    res.json({
+      ok: true,
+      version: newVersion,
+      settings: {
+        version: newVersion,
+        open: isOpen,
+        closed_since: closedSince,
+        announcement,
+        rates: ratesMerged,
+        services: servicesMerged,
+        payments: paymentsMerged,
+        shop_info: shopInfoMerged,
+        delete_delay_minutes: deleteDelay,
+        mixed_colour_mode: mixedMode,
+        updated_at: now
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update settings: ' + err.message });
   }

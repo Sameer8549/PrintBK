@@ -83,12 +83,18 @@ export function basketToOrderItems(basket: Basket, cfg?: ShopConfig): OrderItem[
       bwPages = physicalPages - colorPages;
     }
 
-    const paperMult = config.rates.paperMultipliers[paper] || 1;
-    let pricePerPageBW = (sided === 'double' ? 0.85 : 1.50) * paperMult;
-    const pricePerPageColor = 8.00 * paperMult;
+    const paperMult = (config.rates.paperMultipliers as any)?.[paper] ?? 1;
+    const bwRate = config.rates.bw ?? 1.50;
+    const duplexRate = (config.rates as any).duplex ?? ((config.rates as any).doubleSideDiscount ? Number((bwRate * (1 - (config.rates as any).doubleSideDiscount)).toFixed(2)) : 0.85);
+    const colourRate = (config.rates as any).colour ?? config.rates.color ?? 8.00;
+    const bulkThreshold = (config.rates as any).bulkTierThreshold ?? (config.rates as any).bulk ?? 100;
+    const bulkRate = (config.rates as any).bulkTierRate ?? (config.rates as any).bulkRate ?? 0.80;
 
-    if (totalSheets >= (config.rates.bulkTierThreshold || 100)) {
-      pricePerPageBW = Math.min(pricePerPageBW, 0.80 * paperMult);
+    let pricePerPageBW = (sided === 'double' ? duplexRate : bwRate) * paperMult;
+    const pricePerPageColor = colourRate * paperMult;
+
+    if (totalSheets >= bulkThreshold) {
+      pricePerPageBW = Math.min(pricePerPageBW, bulkRate * paperMult);
     }
 
     const bwSubtotal = bwPages * pricePerPageBW * copies;
