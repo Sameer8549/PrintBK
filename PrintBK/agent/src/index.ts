@@ -36,6 +36,7 @@ class PrintAgentDaemon {
   private activeJobTempFiles: string[] = [];
   private mixedColourMode: 'split' | 'colour' = 'split';
   private trayManager?: TrayManager;
+  private shopSettings?: any;
 
   constructor(cliArgs?: string[]) {
     this.config = loadConfig(cliArgs);
@@ -159,8 +160,11 @@ class PrintAgentDaemon {
 
       if (res.ok) {
         const body: any = await res.json();
-        if (body.shop_settings?.mixed_colour_mode) {
-          this.mixedColourMode = body.shop_settings.mixed_colour_mode;
+        if (body.shop_settings) {
+          this.shopSettings = body.shop_settings;
+          if (body.shop_settings.mixed_colour_mode) {
+            this.mixedColourMode = body.shop_settings.mixed_colour_mode;
+          }
         }
         this.trayManager?.updateStatus(`PrintBK Agent (Online - ${printers.length} printer${printers.length > 1 ? 's' : ''})`);
       } else {
@@ -277,7 +281,7 @@ class PrintAgentDaemon {
     const qrUrl = `${this.config.apiBase.replace('/server/api', '')}/app/student`;
 
     console.log(`[Agent] Generating Print Your QR sign for ${printerName}...`);
-    const pdfBytes = await generateQrPrintPdf(qrUrl, { name: 'HKBK Student Point' });
+    const pdfBytes = await generateQrPrintPdf(qrUrl, this.shopSettings || { name: 'HKBK Student Point' });
     const part: PrintPart = {
       role: 'colour',
       pdfBytes,

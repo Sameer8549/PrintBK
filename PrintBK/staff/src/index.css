@@ -612,9 +612,18 @@ kbd { min-width: 32px; height: 32px; display: inline-grid; place-items: center; 
 .poster-footer { width: 100%; padding-top: 16px; border-top: 2px dashed var(--line); display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .footer-url { font-size: 13px; color: var(--muted); }
 .footer-url strong { color: var(--ink); font-family: "JetBrains Mono"; word-break: break-all; }
-.footer-secure { font-size: 11px; color: var(--muted); }
+.poster-rates-strip { width: 100%; margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
+.poster-rates-title { font: 700 11px "JetBrains Mono"; letter-spacing: 0.08em; color: var(--muted); text-align: left; }
+.poster-rates-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.poster-rate-item { background: var(--sand); border: 1px solid var(--ink); border-radius: 6px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; }
+.poster-rate-label { font-size: 10px; color: var(--muted); }
+.poster-rate-val { font: 700 12px "Space Grotesk"; color: var(--ink); }
 
-.qr-poster-actions { width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 24px; padding-top: 20px; border-top: 2px solid var(--line); }
+.qr-printer-select-row { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding: 10px 14px; background: var(--sand); border: 2px solid var(--ink); border-radius: 10px; box-sizing: border-box; }
+.qr-printer-select-row label { font: 700 12px "JetBrains Mono"; color: var(--ink); }
+.qr-printer-select-row select { padding: 6px 12px; border: 2px solid var(--ink); border-radius: 6px; font: 600 13px "Space Grotesk"; background: white; flex: 1; }
+
+.qr-poster-actions { width: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; margin-top: 16px; padding-top: 16px; border-top: 2px solid var(--line); }
 .print-poster-btn { background: var(--lime) !important; color: var(--ink) !important; font-weight: 700 !important; }
 
 @media print {

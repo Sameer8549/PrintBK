@@ -12,6 +12,7 @@
     "test:layout": "playwright test tests/layout.spec.ts"
   },
   "dependencies": {
+    "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

@@ -20,6 +20,7 @@ import {
   purgeStaleOrders,
 } from "./api/client"
 import { useStaffLive, LiveItem, LivePrinter, LiveShop, LiveRecentlyPrinted } from "./api/useStaffLive"
+import { downloadQrPdf, previewQrPdf } from "./qrPosterPdf"
 
 export type Payment = "paid" | "upi" | "cash_due" | "cash_collected"
 export type Service =
@@ -647,14 +648,31 @@ function QrPosterModal({
   open,
   onClose,
   shopName = "HKBK Student Point",
+  address = "HKBK College Campus, Bengaluru",
   studentUrl,
+  printers = [],
+  rates = {},
 }: {
   open: boolean
   onClose: () => void
   shopName?: string
+  address?: string
   studentUrl: string
+  printers?: LivePrinter[]
+  rates?: any
 }) {
   const [copied, setCopied] = useState(false)
+  const [selectedPrinterId, setSelectedPrinterId] = useState<string>("")
+  const [printingStatus, setPrintingStatus] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (printers && printers.length > 0) {
+      const onlinePrinter = printers.find((p) => p.online)
+      setSelectedPrinterId(onlinePrinter ? String(onlinePrinter.id) : String(printers[0].id))
+    }
+  }, [printers])
+
   if (!open) return null
 
   const handleCopy = () => {
@@ -663,8 +681,44 @@ function QrPosterModal({
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handlePrint = () => {
-    window.print()
+  const handlePrintToPrinter = async () => {
+    if (!selectedPrinterId) {
+      alert("No printer selected. You can download or preview the A4 vector PDF directly.")
+      return
+    }
+    try {
+      setBusy(true)
+      setPrintingStatus("Sending print job to counter printer via agent...")
+      await printQrPrinter(selectedPrinterId)
+      setPrintingStatus("Sent to printer successfully! ✓")
+      setTimeout(() => setPrintingStatus(null), 4000)
+    } catch (err: any) {
+      setPrintingStatus(`Printing error: ${err.message}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleDownloadPdf = async () => {
+    try {
+      setBusy(true)
+      await downloadQrPdf(studentUrl, { name: shopName, address, rates })
+    } catch (err: any) {
+      alert("Failed to download PDF: " + err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handlePreviewPdf = async () => {
+    try {
+      setBusy(true)
+      await previewQrPdf(studentUrl, { name: shopName, address, rates })
+    } catch (err: any) {
+      alert("Failed to preview PDF: " + err.message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -672,11 +726,10 @@ function QrPosterModal({
       <div className="qr-modal-scrim" onClick={onClose} />
       <div className="qr-modal-container">
         <div className="qr-poster-printable">
+          {/* 1. Header with single canonical logo */}
           <div className="poster-header">
             <div className="poster-logos">
               <img src="./hkbk-logo.jpg" alt="HKBK" className="poster-hkbk-logo" />
-              <div className="poster-divider" />
-              <img src="./printbk-logo.svg" alt="PrintBK" className="poster-brand-logo" />
             </div>
             <div className="poster-venue">
               <strong>{shopName}</strong>
@@ -684,19 +737,50 @@ function QrPosterModal({
             </div>
           </div>
 
+          {/* 2. Hero banner */}
           <div className="poster-hero">
             <div className="poster-headline-badge">FAST SELF-SERVICE PRINTING</div>
             <h1 className="poster-title">Scan this QR for Fast Printing</h1>
             <p className="poster-subtitle">Upload PDFs, docs, and photos directly from your phone — no app or signup required!</p>
           </div>
 
+          {/* 3. Clean high-contrast QR code without center overlay */}
           <div className="poster-qr-frame">
-            <RealQRCode text={studentUrl} size={240} />
-            <div className="qr-center-pill">
-              <img src="./printbk-logo.svg" alt="" style={{ height: 22 }} />
+            <RealQRCode text={studentUrl} size={220} />
+          </div>
+
+          {/* 4. Live campus rates strip */}
+          <div className="poster-rates-strip">
+            <div className="poster-rates-title">POPULAR SERVICES &amp; CAMPUS RATES</div>
+            <div className="poster-rates-grid">
+              <div className="poster-rate-item">
+                <span className="poster-rate-label">B&amp;W</span>
+                <span className="poster-rate-val">₹{Number(rates?.bw ?? 1.5).toFixed(2)}</span>
+              </div>
+              <div className="poster-rate-item">
+                <span className="poster-rate-label">Colour</span>
+                <span className="poster-rate-val">₹{Number(rates?.colour ?? 8.0).toFixed(2)}</span>
+              </div>
+              <div className="poster-rate-item">
+                <span className="poster-rate-label">Duplex</span>
+                <span className="poster-rate-val">₹{Number(rates?.duplex ?? 0.85).toFixed(2)}</span>
+              </div>
+              <div className="poster-rate-item">
+                <span className="poster-rate-label">Photo</span>
+                <span className="poster-rate-val">₹{Number(rates?.photo4x6 ?? 20).toFixed(2)}</span>
+              </div>
+              <div className="poster-rate-item">
+                <span className="poster-rate-label">Spiral</span>
+                <span className="poster-rate-val">₹{Number(rates?.bindingSpiral ?? 30).toFixed(2)}</span>
+              </div>
+              <div className="poster-rate-item">
+                <span className="poster-rate-label">Lamination</span>
+                <span className="poster-rate-val">₹{Number(rates?.laminationA4 ?? 20).toFixed(2)}</span>
+              </div>
             </div>
           </div>
 
+          {/* 5. 3 Simple steps */}
           <div className="poster-steps">
             <div className="step-card">
               <div className="step-num">1</div>
@@ -721,6 +805,7 @@ function QrPosterModal({
             </div>
           </div>
 
+          {/* 6. Direct link and privacy note */}
           <div className="poster-footer">
             <div className="footer-url">
               <span>Direct Link: </span>
@@ -732,10 +817,42 @@ function QrPosterModal({
           </div>
         </div>
 
+        {/* Printer selector for direct counter spooling */}
+        <div className="qr-printer-select-row">
+          <label>Target Printer:</label>
+          <select
+            value={selectedPrinterId}
+            onChange={(e) => setSelectedPrinterId(e.target.value)}
+            disabled={!printers || printers.length === 0}
+          >
+            {!printers || printers.length === 0 ? (
+              <option value="">No printers connected (Print Agent offline)</option>
+            ) : (
+              printers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.role.toUpperCase()}) — {p.online ? "Online" : "Offline"}
+                </option>
+              ))
+            )}
+          </select>
+        </div>
+
+        {/* Actions bar */}
         <div className="qr-poster-actions">
-          <Button kind="primary" onClick={handlePrint} className="print-poster-btn">
+          <Button
+            kind="primary"
+            onClick={handlePrintToPrinter}
+            className="print-poster-btn"
+            disabled={busy || !selectedPrinterId}
+          >
             <Icon name="printer" />
-            <span>PRINT A4 POSTER (Ctrl+P)</span>
+            <span>PRINT ON PRINTER (AGENT)</span>
+          </Button>
+          <Button kind="plain" onClick={handleDownloadPdf} disabled={busy}>
+            <span>DOWNLOAD A4 PDF</span>
+          </Button>
+          <Button kind="plain" onClick={handlePreviewPdf} disabled={busy}>
+            <span>PREVIEW VECTOR PDF</span>
           </Button>
           <Button kind="plain" onClick={handleCopy}>
             <span>{copied ? "COPIED TO CLIPBOARD ✓" : "COPY LINK"}</span>
@@ -744,6 +861,19 @@ function QrPosterModal({
             <span>CLOSE</span>
           </Button>
         </div>
+
+        {printingStatus && (
+          <div
+            style={{
+              marginTop: 10,
+              fontSize: 13,
+              fontWeight: 700,
+              color: printingStatus.includes("Error") ? "red" : "green",
+            }}
+          >
+            {printingStatus}
+          </div>
+        )}
       </div>
     </>
   )
@@ -2323,7 +2453,10 @@ export default function App() {
         open={qrModalOpen}
         onClose={() => setQrModalOpen(false)}
         shopName={liveShop.name || "HKBK Student Point"}
+        address={liveShop.address}
         studentUrl={studentUrl}
+        printers={livePrinters}
+        rates={liveShop.rates}
       />
       {!shopOpen && <div className="closed-overlay"><div><span>SHOP CLOSED</span><strong>Orders are paused</strong><p>Open the shop from the top bar when you’re ready.</p></div></div>}
       {view === "orders" && nextUp && (
