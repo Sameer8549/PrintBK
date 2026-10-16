@@ -317,7 +317,7 @@ export async function generateQrVectorPdf(qrUrl: string, shopInfo?: QrShopInfo):
 
 export async function downloadQrPdf(qrUrl: string, shopInfo?: QrShopInfo): Promise<void> {
   const bytes = await generateQrVectorPdf(qrUrl, shopInfo);
-  const blob = new Blob([bytes], { type: "application/pdf" });
+  const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -330,7 +330,7 @@ export async function downloadQrPdf(qrUrl: string, shopInfo?: QrShopInfo): Promi
 
 export async function previewQrPdf(qrUrl: string, shopInfo?: QrShopInfo): Promise<void> {
   const bytes = await generateQrVectorPdf(qrUrl, shopInfo);
-  const blob = new Blob([bytes], { type: "application/pdf" });
+  const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
   window.open(url, "_blank");
 }

@@ -2,6 +2,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const catalyst = require('zcatalyst-sdk-node');
+const { computePaymentStatus, getPaymentLabel } = require('./shared/paymentStatus');
 
 const router = express.Router();
 
@@ -326,10 +327,12 @@ router.get('/live', async (req, res) => {
     const activeStatuses = "'pending_cash', 'upi_claimed', 'cash_collected', 'processing', 'printing', 'ready', 'waiting_quote', 'quote_sent'";
     
     const ordersMap = new Map();
+    const includeTest = req.query.include_test === 'true' || req.headers['x-include-test'] === 'true';
     if (zcql) {
       try {
+        const testFilter = includeTest ? '' : '(is_test IS NULL OR is_test = false) AND ';
         const orderRows = await zcql.executeZCQLQuery(
-          `SELECT id, order_number, status, total, quote_pending, basket, is_test, created_at, updated_at FROM orders WHERE (is_test IS NULL OR is_test = false) AND status IN (${activeStatuses}) ORDER BY created_at ASC`
+          `SELECT id, order_number, status, total, quote_pending, basket, is_test, created_at, updated_at FROM orders WHERE ${testFilter}status IN (${activeStatuses}) ORDER BY created_at ASC`
         ).catch(async () => {
           return zcql.executeZCQLQuery(
             `SELECT id, order_number, status, total, quote_pending, basket, created_at, updated_at FROM orders WHERE status IN (${activeStatuses}) ORDER BY created_at ASC`
@@ -363,7 +366,7 @@ router.get('/live', async (req, res) => {
     for (const o of ordersMap.values()) {
       let b = {};
       try { b = typeof o.basket === 'string' ? JSON.parse(o.basket || '{}') : (o.basket || {}); } catch (_) {}
-      if (o.is_test === true || String(o.is_test) === 'true' || b.is_test === true) {
+      if (!includeTest && (o.is_test === true || String(o.is_test) === 'true' || b.is_test === true)) {
         continue;
       }
 
@@ -379,8 +382,8 @@ router.get('/live', async (req, res) => {
         quotePending: !!o.quote_pending,
         pickupCode: b.pickupCode || (num ? String(num).slice(-4) : '—'),
         pickup_code: b.pickupCode || (num ? String(num).slice(-4) : '—'),
-        payment: o.status === 'cash_collected' ? 'cash_collected' : (o.status === 'pending_cash' ? 'cash_due' : (o.status === 'upi_claimed' ? 'upi' : 'paid')),
-        payment_status: o.status,
+        payment: computePaymentStatus(o),
+        payment_status: computePaymentStatus(o),
         createdAt: Number(o.created_at || now),
         updatedAt: Number(o.updated_at || now)
       };
@@ -412,7 +415,7 @@ router.get('/live', async (req, res) => {
             quantity: 1,
             price: Number(it.price || 0),
             status: it.status,
-            payment_status: o.status,
+            payment_status: computePaymentStatus(o),
             pages_done: 0,
             pages_total: 1,
             created_at: new Date(orderObj.createdAt * 1000).toISOString(),
@@ -440,7 +443,7 @@ router.get('/live', async (req, res) => {
             quantity: item.quantity || 1,
             price: item.computedPricing?.lineTotal || 0,
             status: (o.status === 'cash_collected' || o.status === 'upi_claimed') ? 'ready_to_print' : (o.status === 'pending_cash' ? 'preparing' : 'waiting_payment'),
-            payment_status: o.status,
+            payment_status: computePaymentStatus(o),
             pages_done: 0,
             pages_total: 1,
             created_at: new Date(orderObj.createdAt * 1000).toISOString(),
@@ -1464,8 +1467,8 @@ router.get('/history', async (req, res) => {
         code: b.pickupCode || (o.order_number ? String(o.order_number).slice(-4) : '—'),
         files: (b.files || []).map(f => f.name).join(' · ') || 'Document',
         pages: (b.files || []).reduce((acc, f) => acc + (f.pages || 1), 0),
-        colour: (b.files || []).some(f => f.settings?.colorMode !== 'bw') ? 'Colour' : 'B&W',
-        payment: o.status === 'cash_collected' ? 'cash_collected' : (o.status === 'pending_cash' ? 'cash_due' : (o.status === 'upi_claimed' ? 'upi' : 'paid')),
+        payment: computePaymentStatus(o),
+        payment_status: computePaymentStatus(o),
         amount: Number(o.total || 0),
         status: o.status ? (o.status.charAt(0).toUpperCase() + o.status.slice(1)) : 'Unknown',
         speed: speedStr

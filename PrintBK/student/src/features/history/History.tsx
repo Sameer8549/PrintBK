@@ -3,9 +3,11 @@ import { Icon, Topbar } from '../../components/ui';
 import { Screen, Sheet } from '../../lib/types';
 import { notify } from '../../lib/store';
 import { useHistory, useBasket } from '../../store/basket';
+import { api } from '../../services/api';
+import { computePaymentStatus, getPaymentBadgeDetails, type PaymentStatus } from '@printbk/shared';
 
 function History({ go, setSheet }: { go: (screen: Screen) => void; setSheet?: (sheet: Sheet) => void }) {
-  const { orders } = useHistory();
+  const { orders, updateOrder } = useHistory();
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
   useEffect(() => {
@@ -18,6 +20,26 @@ function History({ go, setSheet }: { go: (screen: Screen) => void; setSheet?: (s
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  // Sync latest status from server for any active/unfinalized orders
+  useEffect(() => {
+    const activeOrders = orders.filter(
+      o => !['completed', 'cancelled', 'rejected', 'expired'].includes(o.status) && !o.id.startsWith('local-')
+    );
+    activeOrders.forEach(async (ord) => {
+      try {
+        const live = await api.getOrder(ord.id, ord.accessToken);
+        if (live && (live.status !== ord.status || live.payment_status !== ord.payment_status)) {
+          updateOrder(ord.id, {
+            status: live.status,
+            payment_status: live.payment_status,
+            pickupCode: live.pickupCode || ord.pickupCode,
+            orderNumber: live.orderNumber || ord.orderNumber
+          });
+        }
+      } catch (_) {}
+    });
+  }, [orders, updateOrder]);
 
   const handlePrintAgain = (order: any) => {
     const { addFile } = useBasket.getState();
@@ -56,21 +78,24 @@ function History({ go, setSheet }: { go: (screen: Screen) => void; setSheet?: (s
     go('basket');
   };
 
-  const getStatusBadge = (status: string) => {
+  const getOrderStatusBadge = (status: string) => {
     switch (status) {
       case 'ready':
         return { label: 'Ready for Pickup', bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' };
       case 'printing':
-        return { label: 'Printing Now', bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' };
+        return { label: 'Printing', bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' };
       case 'processing':
         return { label: 'Queued to Print', bg: '#fefce8', color: '#ca8a04', border: '#fef08a' };
       case 'completed':
         return { label: 'Completed', bg: '#f1f5f9', color: '#475569', border: '#e2e8f0' };
       case 'cancelled':
-      case 'rejected':
         return { label: 'Cancelled', bg: '#fef2f2', color: '#dc2626', border: '#fecaca' };
+      case 'rejected':
+        return { label: 'Rejected', bg: '#fef2f2', color: '#dc2626', border: '#fecaca' };
+      case 'expired':
+        return { label: 'Expired', bg: '#fef2f2', color: '#dc2626', border: '#fecaca' };
       default:
-        return { label: 'Pending Payment', bg: '#fff7ed', color: '#ea580c', border: '#fed7aa' };
+        return { label: 'Order Placed', bg: '#f8fafc', color: '#475569', border: '#e2e8f0' };
     }
   };
 
@@ -144,7 +169,7 @@ function History({ go, setSheet }: { go: (screen: Screen) => void; setSheet?: (s
           </div>
         ) : (
           <>
-            {/* ── Section Title (Clean, no overlap) ── */}
+            {/* ── Section Title ── */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px 4px' }}>
               <div>
                 <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0b1020', margin: 0 }}>
@@ -169,7 +194,10 @@ function History({ go, setSheet }: { go: (screen: Screen) => void; setSheet?: (s
             {/* ── Order Cards ── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {orders.map((order) => {
-                const badge = getStatusBadge(order.status);
+                const orderBadge = getOrderStatusBadge(order.status);
+                const paymentStatus: PaymentStatus = (order.payment_status as PaymentStatus) || computePaymentStatus(order);
+                const payBadge = getPaymentBadgeDetails(paymentStatus, order.total, order.status);
+
                 const orderNumStr = order.orderNumber
                   ? `#${order.orderNumber}`
                   : `#${order.id.slice(-6).toUpperCase()}`;
@@ -195,8 +223,8 @@ function History({ go, setSheet }: { go: (screen: Screen) => void; setSheet?: (s
                       transition: 'border-color 0.15s ease'
                     }}
                   >
-                    {/* Header Row: Order Number & Status Badge */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    {/* Header Row: Order Number & Separate Status Chips */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                         <span style={{ fontSize: 18, fontWeight: 900, color: '#0b1020', letterSpacing: -0.5 }}>
                           {orderNumStr}
@@ -205,17 +233,35 @@ function History({ go, setSheet }: { go: (screen: Screen) => void; setSheet?: (s
                           · {dateStr}
                         </span>
                       </div>
-                      <span style={{
-                        background: badge.bg,
-                        color: badge.color,
-                        border: `1px solid ${badge.border}`,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        padding: '3px 9px',
-                        borderRadius: 99
-                      }}>
-                        {badge.label}
-                      </span>
+
+                      {/* Two Distinct Chips: Order Status + Payment Status */}
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{
+                          background: orderBadge.bg,
+                          color: orderBadge.color,
+                          border: `1px solid ${orderBadge.border}`,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: 99,
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {orderBadge.label}
+                        </span>
+
+                        <span style={{
+                          background: payBadge.bg,
+                          color: payBadge.color,
+                          border: `1px solid ${payBadge.border}`,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: '3px 9px',
+                          borderRadius: 99,
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {payBadge.label}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Files & Amount Row */}
@@ -232,7 +278,7 @@ function History({ go, setSheet }: { go: (screen: Screen) => void; setSheet?: (s
                     </div>
 
                     {/* Footer Row: Pickup code & Action button */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 2 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 2, flexWrap: 'wrap', gap: 8 }}>
                       <div style={{ fontSize: 12, color: '#64748b' }}>
                         {order.pickupCode && order.pickupCode !== '——' ? (
                           <span>Pickup code: <b style={{ color: '#0f172a', letterSpacing: 1.5 }}>{order.pickupCode}</b></span>
@@ -264,7 +310,7 @@ function History({ go, setSheet }: { go: (screen: Screen) => void; setSheet?: (s
                           ⟳ Print again
                         </button>
                         <button
-                          onClick={() => go(`/order/${order.id}`)}
+                          onClick={() => go(`/receipt/${order.id}`)}
                           style={{
                             background: '#0b1020',
                             color: '#ffffff',
@@ -279,7 +325,7 @@ function History({ go, setSheet }: { go: (screen: Screen) => void; setSheet?: (s
                             gap: 6
                           }}
                         >
-                          View Ticket <Icon name="arrow" size={14} />
+                          View Receipt <Icon name="arrow" size={14} />
                         </button>
                       </div>
                     </div>

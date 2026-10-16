@@ -2,6 +2,19 @@ import { Basket, ShopConfig, OrderStatus, OrderItem, defaultShopConfig } from '@
 
 const API_BASE = import.meta.env.VITE_API_URL || '/server/api';
 
+export function getDeviceId(): string {
+  try {
+    let id = localStorage.getItem('printbk_device_id');
+    if (!id) {
+      id = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem('printbk_device_id', id);
+    }
+    return id;
+  } catch {
+    return 'anon_device';
+  }
+}
+
 export interface CreateOrderResponse {
   orderId: string;
   orderNumber: number;
@@ -40,7 +53,10 @@ export const api = {
   async createOrder(basket: Basket & { payment?: string; expectedTotal?: number; settingsVersion?: number; phone?: string }): Promise<CreateOrderResponse> {
     const res = await fetch(`${API_BASE}/orders`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Device-Id': getDeviceId()
+      },
       body: JSON.stringify(basket),
     });
     if (!res.ok) {
@@ -53,7 +69,9 @@ export const api = {
   },
 
   async getOrder(orderId: string, token?: string): Promise<any> {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = {
+      'X-Device-Id': getDeviceId()
+    };
     if (token) {
       headers['X-Order-Token'] = token;
     }
@@ -82,7 +100,10 @@ export const api = {
   },
 
   async chooseCash(orderId: string, token?: string): Promise<any> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Device-Id': getDeviceId()
+    };
     if (token) headers['X-Order-Token'] = token;
     const res = await fetch(`${API_BASE}/orders/${orderId}/choose-cash`, {
       method: 'POST',
@@ -96,7 +117,10 @@ export const api = {
   },
 
   async startUpi(orderId: string, token?: string): Promise<any> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Device-Id': getDeviceId()
+    };
     if (token) headers['X-Order-Token'] = token;
     const res = await fetch(`${API_BASE}/orders/${orderId}/start-upi`, {
       method: 'POST',
@@ -110,7 +134,10 @@ export const api = {
   },
 
   async upiReturn(orderId: string, token?: string, utr?: string): Promise<any> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Device-Id': getDeviceId()
+    };
     if (token) headers['X-Order-Token'] = token;
     const res = await fetch(`${API_BASE}/orders/${orderId}/upi-return`, {
       method: 'POST',

@@ -58,6 +58,9 @@ async function staffFetch(endpoint: string, options: RequestInit = {}): Promise<
   if (token && !headers.has("X-Staff-Device-Token")) {
     headers.set("X-Staff-Device-Token", token)
   }
+  if (typeof localStorage !== 'undefined' && localStorage.getItem("printbk_include_test") === "true") {
+    headers.set("X-Include-Test", "true")
+  }
   if (!headers.has("Content-Type") && options.body && typeof options.body === "string") {
     headers.set("Content-Type", "application/json")
   }

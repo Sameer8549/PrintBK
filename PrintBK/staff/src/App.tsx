@@ -144,7 +144,7 @@ const tables: TableConfig[] = [
 
 const paymentLabel: Record<Payment, string> = {
   paid: "PAID ONLINE",
-  upi: "UPI PAID",
+  upi: "UPI PAID, VERIFY",
   cash_due: "COLLECT",
   cash_collected: "CASH COLLECTED",
 }
@@ -179,6 +179,7 @@ function mapKindToService(kind: string): Service {
 function mapPaymentStatus(status: string): Payment {
   switch (status) {
     case "paid_online":
+    case "paid_verified":
     case "paid":
       return "paid"
     case "upi_claimed":
@@ -830,7 +831,7 @@ function QrPosterModal({
             ) : (
               printers.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} ({p.role.toUpperCase()}) — {p.online ? "Online" : "Offline"}
+                  {p.name} ({(p.role || "bw").toUpperCase()}) — {p.online ? "Online" : "Offline"}
                 </option>
               ))
             )}

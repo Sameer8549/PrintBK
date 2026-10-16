@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Topbar } from '../../components/ui';
 import { Screen } from '../../lib/types';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
 import { useHistory, useBasket } from '../../store/basket';
 import { notify } from '../../lib/store';
@@ -12,6 +12,7 @@ function PaymentState({
   go: (screen: Screen) => void;
 }) {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { orders, updateOrder } = useHistory();
   const order = id ? orders.find(o => o.id === id) : orders[0];
 
@@ -30,17 +31,21 @@ function PaymentState({
   } | null>(null);
 
   const [showQR, setShowQR] = useState(false);
-  const [utrInput, setUtrInput] = useState('');
-  const [claiming, setClaiming] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [appOpened, setAppOpened] = useState(false);
-  const [returnedFromApp, setReturnedFromApp] = useState(false);
+  const [failedLaunch, setFailedLaunch] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   // Platform detection
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
   const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
   const isAndroid = /android/i.test(ua);
   const isDesktop = !isIOS && !isAndroid;
+
+  // Tracking timestamps
+  const launchTimeRef = useRef<number | null>(null);
+  const hiddenAtRef = useRef<number | null>(null);
+  const claimedRef = useRef<boolean>(false);
+  const qrShownAtRef = useRef<number>(Date.now());
 
   // 1. Fetch UPI payload from server
   useEffect(() => {
@@ -51,10 +56,21 @@ function PaymentState({
     async function loadUpi() {
       try {
         setLoading(true);
-        const data = await api.startUpi(orderId, order?.accessToken);
+        let data = null;
+        let lastErr = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            data = await api.startUpi(orderId, order?.accessToken);
+            if (data) break;
+          } catch (e: any) {
+            lastErr = e;
+            await new Promise(r => setTimeout(r, 800));
+          }
+        }
+        if (!data) throw lastErr || new Error('Failed to initiate UPI payment');
         if (active) {
           setUpiData(data);
-          // Auto-show QR code on desktop
+          qrShownAtRef.current = Date.now();
           if (isDesktop) setShowQR(true);
         }
       } catch (err: any) {
@@ -68,25 +84,101 @@ function PaymentState({
     return () => { active = false; };
   }, [id, order?.accessToken, isDesktop]);
 
-  // 2. Return-from-UPI hook (Visibility Change + Window Focus)
+  // Execute automatic UPI return claim and redirect straight to receipt
+  const executeAutoClaim = async () => {
+    if (!id || claimedRef.current) return;
+    claimedRef.current = true;
+    setRedirecting(true);
+
+    try {
+      const res = await api.upiReturn(id, order?.accessToken);
+      if (order) {
+        updateOrder(id, {
+          status: res.status || 'upi_claimed',
+          payment_status: 'upi_claimed',
+          orderNumber: res.orderNumber || order?.orderNumber,
+          paymentMethod: 'upi'
+        });
+      } else {
+        useHistory.getState().addOrder({
+          id,
+          orderNumber: res.orderNumber || upiData?.orderNumber,
+          date: Date.now(),
+          files: [],
+          total: upiData?.amount || 0,
+          pickupCode: '——',
+          status: 'upi_claimed',
+          payment_status: 'upi_claimed',
+          paymentMethod: 'upi'
+        });
+      }
+      useBasket.getState().clear();
+      notify('Payment recorded! Redirecting to confirmed receipt…');
+      // Zero-tap direct redirect to receipt
+      navigate(`/receipt/${id}`);
+    } catch (err: any) {
+      claimedRef.current = false;
+      setRedirecting(false);
+      notify(err?.message || 'Failed to record return. Please try again.');
+    }
+  };
+
+  // 2. Return-from-UPI hook with strict guards
   useEffect(() => {
-    const handleReturn = () => {
-      if (appOpened) {
-        setReturnedFromApp(true);
+    const handleVisibilityChange = () => {
+      const now = Date.now();
+
+      if (document.visibilityState === 'hidden') {
+        hiddenAtRef.current = now;
+        return;
+      }
+
+      if (document.visibilityState === 'visible') {
+        const launchedAt = launchTimeRef.current;
+        if (launchedAt) {
+          // Guard 1: Ignore returns > 15 minutes after launch
+          if ((now - launchedAt) > 15 * 60 * 1000) {
+            launchTimeRef.current = null;
+            return;
+          }
+
+          // Guard 2: Require page to have been hidden for at least 2 seconds (2000ms)
+          const hiddenStart = hiddenAtRef.current || launchedAt;
+          const hiddenDuration = now - hiddenStart;
+
+          if (hiddenDuration < 2000) {
+            // False return: UPI app did not open or failed to launch
+            setFailedLaunch(true);
+            return;
+          }
+
+          // Valid return: Auto-claim and redirect straight to receipt
+          executeAutoClaim();
+        } else if (isDesktop || showQR) {
+          // Desktop QR flow: If QR has been visible >= 20s and user returns to tab
+          if ((now - qrShownAtRef.current) >= 20000) {
+            executeAutoClaim();
+          }
+        }
       }
     };
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && appOpened) {
-        setReturnedFromApp(true);
+
+    const handleWindowFocus = () => {
+      if (document.visibilityState === 'visible') {
+        handleVisibilityChange();
       }
     };
-    window.addEventListener('focus', handleReturn);
-    document.addEventListener('visibilitychange', handleVisibility);
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('pageshow', handleWindowFocus);
+
     return () => {
-      window.removeEventListener('focus', handleReturn);
-      document.removeEventListener('visibilitychange', handleVisibility);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('pageshow', handleWindowFocus);
     };
-  }, [appOpened]);
+  }, [id, order?.accessToken, isDesktop, showQR]);
 
   const handleCopyUpiId = () => {
     if (!upiData) return;
@@ -97,43 +189,28 @@ function PaymentState({
     }).catch(() => {});
   };
 
-  const handleClaimPayment = async () => {
-    if (!id) return;
-    setClaiming(true);
-    try {
-      const res = await api.upiReturn(id, order?.accessToken, utrInput.trim() || undefined);
-      updateOrder(id, {
-        status: res.status || 'upi_claimed',
-        orderNumber: res.orderNumber || order?.orderNumber,
-        paymentMethod: 'upi'
-      });
-      // Clear basket now that payment has been claimed
-      useBasket.getState().clear();
-      notify('Payment recorded! Shop will verify and release your print.');
-      go(`/order/${id}`);
-    } catch (err: any) {
-      notify(err?.message || 'Could not record claim. Please try again.');
-    } finally {
-      setClaiming(false);
-    }
-  };
-
   const handleSwitchToCash = async () => {
     if (!id) return;
     try {
       const res = await api.chooseCash(id, order?.accessToken);
       updateOrder(id, {
         status: res.status || 'pending_cash',
+        payment_status: 'cash_due',
         orderNumber: res.orderNumber || order?.orderNumber,
         paymentMethod: 'cash'
       });
-      // Clear basket now that order is confirmed as cash
       useBasket.getState().clear();
       notify('Switched to Cash at counter.');
-      go(`/order/${id}`);
+      navigate(`/receipt/${id}`);
     } catch (err: any) {
       notify(err?.message || 'Failed to switch to cash');
     }
+  };
+
+  const handleLaunchUpi = () => {
+    launchTimeRef.current = Date.now();
+    hiddenAtRef.current = Date.now();
+    setFailedLaunch(false);
   };
 
   if (loading) {
@@ -229,7 +306,85 @@ function PaymentState({
           </div>
         </div>
 
-        {/* ── 1-Tap App Launch Section: Only Pay with Installed UPI Apps ── */}
+        {/* ── Auto-Redirecting Banner ── */}
+        {redirecting && (
+          <div style={{
+            background: '#ecfdf5',
+            borderRadius: 16,
+            border: '1.5px solid #10b981',
+            padding: '16px 20px',
+            textAlign: 'center',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12
+          }}>
+            <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #a7f3d0', borderTopColor: '#059669', animation: 'spin 0.8s linear infinite' }} />
+            <span style={{ fontSize: 14, fontWeight: 800, color: '#065f46' }}>
+              Return detected! Opening confirmed receipt…
+            </span>
+          </div>
+        )}
+
+        {/* ── False Return Notice (Friendly fallback when app did not open) ── */}
+        {failedLaunch && !redirecting && (
+          <div style={{
+            background: '#fffbeb',
+            borderRadius: 16,
+            border: '1.5px solid #f59e0b',
+            padding: '16px 18px',
+            marginBottom: 16,
+            boxShadow: '0 4px 14px rgba(245, 158, 11, 0.12)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 18 }}>📱</span>
+              <strong style={{ fontSize: 14, color: '#92400e' }}>
+                UPI App Didn't Open
+              </strong>
+            </div>
+            <p style={{ fontSize: 13, color: '#b45309', margin: '0 0 12px', lineHeight: 1.4 }}>
+              It looks like your UPI app did not launch or was closed quickly. You can try again or scan the QR code instead.
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <a
+                href={upiData.intentUrl}
+                onClick={handleLaunchUpi}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  background: '#2563eb',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  textDecoration: 'none',
+                  textAlign: 'center'
+                }}
+              >
+                Try Again
+              </a>
+              <button
+                onClick={() => setShowQR(true)}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  background: '#ffffff',
+                  border: '1.5px solid #cbd5e1',
+                  color: '#1e293b',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  cursor: 'pointer'
+                }}
+              >
+                Show QR Code
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── 1-Tap App Launch Section ── */}
         <div style={{
           background: '#ffffff',
           borderRadius: 20,
@@ -239,12 +394,9 @@ function PaymentState({
           boxShadow: '0 4px 16px rgba(0,0,0,0.03)'
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {/* Primary Action Button: Pay with Installed UPI Apps */}
             <a
               href={upiData.intentUrl}
-              onClick={() => {
-                setAppOpened(true);
-              }}
+              onClick={handleLaunchUpi}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -261,7 +413,7 @@ function PaymentState({
                 textAlign: 'center'
               }}
             >
-              <span>⚡ Pay with Installed UPI Apps</span>
+              <span>⚡ Pay with UPI</span>
             </a>
 
             {/* QR Toggle Button */}
@@ -303,128 +455,6 @@ function PaymentState({
             </div>
           )}
         </div>
-
-        {/* ── Return-From-UPI Claim Card: Gated until app is opened & student returns ── */}
-        {!appOpened && !showQR && !isDesktop && (
-          <div style={{
-            background: '#ffffff',
-            borderRadius: 20,
-            border: '1.5px dashed #cbd5e1',
-            padding: '20px',
-            textAlign: 'center',
-            color: '#64748b',
-            marginBottom: 16
-          }}>
-            <div style={{ fontSize: 24, marginBottom: 6 }}>👆</div>
-            <strong style={{ display: 'block', fontSize: 14, color: '#1e293b', marginBottom: 4 }}>
-              Step 1: Open Your UPI App
-            </strong>
-            <p style={{ fontSize: 12, margin: 0, lineHeight: 1.4 }}>
-              Tap the blue button above to pay. The confirmation button will unlock as soon as you complete payment and return here.
-            </p>
-          </div>
-        )}
-
-        {appOpened && !returnedFromApp && (
-          <div style={{
-            background: '#fffbeb',
-            borderRadius: 20,
-            border: '1.5px solid #fde68a',
-            padding: '20px',
-            textAlign: 'center',
-            color: '#92400e',
-            marginBottom: 16
-          }}>
-            <div style={{ fontSize: 24, marginBottom: 6 }}>⏳</div>
-            <strong style={{ display: 'block', fontSize: 14, color: '#92400e', marginBottom: 4 }}>
-              Waiting for you to return from UPI app…
-            </strong>
-            <p style={{ fontSize: 12, margin: 0, lineHeight: 1.4, color: '#b45309' }}>
-              Approve payment in Google Pay / PhonePe / Paytm, then switch back to this tab.
-            </p>
-            <button
-              onClick={() => setReturnedFromApp(true)}
-              style={{
-                marginTop: 12,
-                background: '#fef3c7',
-                border: '1px solid #f59e0b',
-                color: '#92400e',
-                padding: '6px 14px',
-                borderRadius: 8,
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              I have paid and returned →
-            </button>
-          </div>
-        )}
-
-        {((appOpened && returnedFromApp) || isDesktop || showQR) && (
-          <div style={{
-            background: '#ecfdf5',
-            borderRadius: 20,
-            border: '2px solid #10b981',
-            padding: '20px',
-            boxShadow: '0 4px 20px rgba(16,185,129,0.18)',
-            marginBottom: 16
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 20 }}>🎉</span>
-              <span style={{ fontSize: 16, fontWeight: 800, color: '#065f46' }}>
-                Payment Verification
-              </span>
-            </div>
-            <p style={{ fontSize: 12, color: '#047857', margin: '0 0 14px', lineHeight: 1.4 }}>
-              Tap below to submit your payment claim and immediately view your confirmed order receipt.
-            </p>
-
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#065f46', display: 'block', marginBottom: 4 }}>
-                12-digit UPI Reference / UTR <small style={{ fontWeight: 400, color: '#047857' }}>(optional — found in UPI receipt)</small>
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. 428901234567"
-                value={utrInput}
-                onChange={e => setUtrInput(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '11px 13px',
-                  borderRadius: 10,
-                  border: '1.5px solid #a7f3d0',
-                  background: '#ffffff',
-                  fontSize: 13,
-                  boxSizing: 'border-box'
-                }}
-              />
-            </div>
-
-            <button
-              onClick={handleClaimPayment}
-              disabled={claiming}
-              style={{
-                width: '100%',
-                padding: '16px',
-                borderRadius: 14,
-                border: 'none',
-                background: '#059669',
-                color: '#ffffff',
-                fontSize: 16,
-                fontWeight: 800,
-                cursor: claiming ? 'not-allowed' : 'pointer',
-                boxShadow: '0 4px 14px rgba(5, 150, 105, 0.4)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8
-              }}
-            >
-              {claiming ? 'Confirming…' : `✓ I've Paid (₹${upiData.amount.toFixed(2)})`}
-            </button>
-          </div>
-        )}
 
         {/* Fallback to cash */}
         <div style={{ textAlign: 'center', marginTop: 20 }}>

@@ -13,41 +13,77 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
   const { orders, updateOrder } = useHistory();
   const [alertFired, setAlertFired] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [utrLast4, setUtrLast4] = useState('');
+  const [savedUtr, setSavedUtr] = useState(false);
 
   // Find the specific order from history by ID (or fall back to latest)
-  const order = id ? orders.find(o => o.id === id) ?? orders[0] : orders[0];
+  const localOrder = id ? orders.find(o => o.id === id) : orders[0];
+  const [liveOrder, setLiveOrder] = useState<any>(null);
+  const order = liveOrder
+    ? { ...liveOrder, accessToken: localOrder?.accessToken || liveOrder.accessToken }
+    : localOrder;
+
+  const handleUtrLast4Change = async (val: string) => {
+    const cleaned = val.replace(/\D/g, '').slice(0, 4);
+    setUtrLast4(cleaned);
+    if (cleaned.length === 4 && order?.id) {
+      try {
+        const token = localOrder?.accessToken || order?.accessToken;
+        await api.upiReturn(order.id, token, cleaned);
+        setSavedUtr(true);
+        setTimeout(() => setSavedUtr(false), 3000);
+      } catch (_) {}
+    }
+  };
 
   // Poll server for live status updates if not a local-only order
   useEffect(() => {
-    if (!order?.id || order.id.startsWith('local-')) return;
+    const targetId = id || localOrder?.id;
+    if (!targetId || targetId.startsWith('local-')) return;
     let isMounted = true;
 
     const poll = async () => {
       try {
-        const data = await api.getOrder(order.id, order.accessToken);
+        const data = await api.getOrder(targetId, localOrder?.accessToken);
         if (!isMounted || !data) return;
-        updateOrder(order.id, {
+        setLiveOrder((prev: any) => ({
+          ...localOrder,
+          ...prev,
+          id: targetId,
+          orderNumber: data.orderNumber || prev?.orderNumber || localOrder?.orderNumber,
           status: data.status,
-          pickupCode: data.pickupCode || order.pickupCode,
-          orderNumber: data.orderNumber || order.orderNumber,
-          deleteAfter: data.deleteAfter || order.deleteAfter,
-          filesDeletedAt: data.filesDeletedAt || order.filesDeletedAt,
-        });
+          payment_status: data.payment_status || prev?.payment_status || localOrder?.payment_status,
+          total: data.total || prev?.total || localOrder?.total,
+          files: data.fileNames || prev?.files || localOrder?.files || [],
+          pickupCode: data.pickupCode || prev?.pickupCode || localOrder?.pickupCode,
+          deleteAfter: data.deleteAfter || prev?.deleteAfter || localOrder?.deleteAfter,
+          filesDeletedAt: data.filesDeletedAt || prev?.filesDeletedAt || localOrder?.filesDeletedAt
+        }));
+        if (localOrder) {
+          updateOrder(targetId, {
+            status: data.status,
+            payment_status: data.payment_status || localOrder.payment_status,
+            pickupCode: data.pickupCode || localOrder.pickupCode,
+            orderNumber: data.orderNumber || localOrder.orderNumber,
+            deleteAfter: data.deleteAfter || localOrder.deleteAfter,
+            filesDeletedAt: data.filesDeletedAt || localOrder.filesDeletedAt,
+          });
+        }
       } catch (err) {
         // Silently retain cached state
       }
     };
 
     poll();
-    const isFinal = ['completed', 'cancelled', 'rejected', 'expired'].includes(order.status);
+    const currStatus = liveOrder?.status || localOrder?.status;
+    const isFinal = ['completed', 'cancelled', 'rejected', 'expired'].includes(currStatus);
     if (!isFinal) {
-      // Adaptive polling: 1s while printing/processing, 3s otherwise
-      const interval = (order.status === 'printing' || order.status === 'processing') ? 1000 : 3000;
+      const interval = (currStatus === 'printing' || currStatus === 'processing') ? 1000 : 3000;
       const timer = setInterval(poll, interval);
       return () => { isMounted = false; clearInterval(timer); };
     }
     return () => { isMounted = false; };
-  }, [order?.id, order?.status, order?.accessToken]);
+  }, [id, localOrder?.id, localOrder?.status, localOrder?.accessToken]);
 
   const status = order?.status ?? 'pending_cash';
   const orderNumber = (status === 'pending_payment' || (!order?.orderNumber && !order?.id))
@@ -421,9 +457,16 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
         <section className="ticket-card" style={{ margin: '16px', background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.06)', border: '1.5px solid #e2e8f0' }}>
           {/* Header */}
           <div style={{ background: 'var(--color-primary,#0b1020)', color: '#fff', padding: '22px 24px 18px' }}>
-            <div style={{ fontSize: 11, letterSpacing: 2, opacity: 0.6, marginBottom: 4 }}>PRINTBK ORDER</div>
-            <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: -1 }}>{orderNumber}</div>
-            <div style={{ fontSize: 13, opacity: 0.75, marginTop: 4 }}>
+            <div style={{ fontSize: 13, letterSpacing: 1.5, opacity: 0.85, marginBottom: 4, fontWeight: 800, textTransform: 'uppercase' }}>
+              Order confirmed
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: -1 }}>{orderNumber}</div>
+              <div style={{ fontSize: 12, opacity: 0.7, fontFamily: 'monospace' }}>
+                ID: {order?.id ? order.id.slice(0, 18) : '—'}
+              </div>
+            </div>
+            <div style={{ fontSize: 13, opacity: 0.85, marginTop: 4 }}>
               {order?.files?.length ?? 0} file{(order?.files?.length ?? 0) !== 1 ? 's' : ''} · ₹{total.toFixed(2)}
             </div>
           </div>
@@ -443,9 +486,101 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
                 </button>
               )}
             </div>
-            <p style={{ margin: '12px 0 0', fontSize: 13, color: stage === 2 ? '#059669' : '#64748b', fontWeight: stage === 2 ? 700 : 500 }}>
-              {statusMessage}
-            </p>
+
+            {/* Truthful Payment & Processing Line */}
+            {(() => {
+              const isShopApproved = ['processing', 'printing', 'ready', 'completed'].includes(status) || order?.payment_status === 'paid_verified' || order?.payment_status === 'cash_collected';
+              const isUpi = order?.paymentMethod === 'upi' || status === 'upi_claimed' || status === 'upi_started' || order?.payment_status === 'upi_claimed';
+
+              let line = "Payment: waiting for the shop to verify";
+              if (isDeleted) {
+                const deletedTimeStr = order?.filesDeletedAt
+                  ? new Date(order.filesDeletedAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : (deleteAfterTime || 'recently');
+                line = `Files deleted at ${deletedTimeStr}`;
+              } else if (status === 'ready' || status === 'completed') {
+                line = `Printed, show code ${pickupCode}`;
+              } else if (status === 'printing') {
+                line = "Printing";
+              } else if (isShopApproved) {
+                line = "Payment verified";
+              } else if (status === 'cash_collected' || order?.payment_status === 'cash_collected') {
+                line = "Paid in cash";
+              } else if (status === 'pending_cash' || order?.payment_status === 'cash_due') {
+                line = `Pay ₹${total.toFixed(2)} at the counter`;
+              } else if (['cancelled', 'rejected', 'expired'].includes(status)) {
+                line = `Not paid (${status})`;
+              } else {
+                line = "Payment: waiting for the shop to verify";
+              }
+
+              return (
+                <div style={{ marginTop: 14 }}>
+                  <p style={{ margin: 0, fontSize: 15, color: (status === 'ready' || status === 'completed' || isShopApproved) ? '#059669' : '#0f172a', fontWeight: 800 }}>
+                    {line}
+                  </p>
+
+                  {/* Pay Again Link & Last 4 digits UPI Reference visible until shop approves */}
+                  {!isShopApproved && isUpi && order?.id && (
+                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                      <button
+                        onClick={() => go(`/pay/${order.id}`)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#2563eb',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          padding: 4
+                        }}
+                      >
+                        Pay again
+                      </button>
+
+                      <div style={{
+                        width: '100%',
+                        maxWidth: 320,
+                        padding: '10px 14px',
+                        background: '#f8fafc',
+                        borderRadius: 12,
+                        border: '1.5px solid #e2e8f0',
+                        textAlign: 'left'
+                      }}>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>
+                          Last 4 digits of UPI ref <small style={{ fontWeight: 400, color: '#94a3b8' }}>(optional — helps shop verify)</small>
+                        </label>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <input
+                            type="text"
+                            maxLength={4}
+                            placeholder="1234"
+                            value={utrLast4}
+                            onChange={(e) => handleUtrLast4Change(e.target.value)}
+                            style={{
+                              width: 90,
+                              padding: '6px 10px',
+                              borderRadius: 8,
+                              border: '1.5px solid #cbd5e1',
+                              fontSize: 14,
+                              fontWeight: 700,
+                              letterSpacing: 2,
+                              fontFamily: 'monospace'
+                            }}
+                          />
+                          {savedUtr && (
+                            <span style={{ fontSize: 11, color: '#059669', fontWeight: 700 }}>
+                              ✓ Saved for counter
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Student-Facing Files Deletion Countdown / Status */}
             <div style={{ marginTop: 12, fontSize: 12, color: isDeleted ? '#059669' : '#64748b', fontWeight: 500 }}>
@@ -481,7 +616,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
               <div style={{ fontSize: 11, letterSpacing: 1, color: '#94a3b8', margin: '14px 0 8px', fontWeight: 700, textTransform: 'uppercase' }}>
                 Documents in this job
               </div>
-              {order!.files.map((name, i) => (
+              {order!.files.map((name: string, i: number) => (
                 <div key={i} style={{ fontSize: 13, padding: '7px 0', display: 'flex', alignItems: 'center', gap: 10, borderBottom: i < order!.files.length - 1 ? '1px solid #f8fafc' : 'none' }}>
                   <Icon name="file" size={15} />
                   <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isDeleted ? '#94a3b8' : '#1e293b' }}>{name}</span>

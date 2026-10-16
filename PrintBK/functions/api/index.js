@@ -350,6 +350,10 @@ async function getPrintFilesFolder(filestore) {
 /* ─── Single Source of Truth Pricing Configuration ──────────────── */
 const { priceOrder, defaultShopConfig } = require('./shared/pricing');
 const { basketToOrderItems } = require('./shared/orderItems');
+const { computePaymentStatus, getPaymentLabel } = require('./shared/paymentStatus');
+
+// In-memory tracker for active unapproved UPI claims per device (max 3)
+const deviceUpiClaims = new Map(); // deviceKey -> Set of orderIds
 
 function esc(str) { return String(str ?? '').replace(/'/g, "''"); }
 function nowSec() { return Math.floor(Date.now() / 1000); }
@@ -972,6 +976,7 @@ app.post('/orders', async (req, res) => {
       orderId,
       orderNumber,
       status,
+      payment_status: computePaymentStatus(orderRecord),
       total,
       quotePending,
       pickupCode: exposedPickupCode,
@@ -1028,10 +1033,13 @@ app.get('/orders/:id', async (req, res) => {
     // If order is in pending_payment, student has not chosen cash or initiated/claimed payment.
     // Order number, pickup code, and basket details are withheld!
     const isStudent = !isStaff(req);
+    const computedPaymentStatus = computePaymentStatus(o);
+
     if (isStudent && o.status === 'pending_payment') {
       return res.json({
         id: o.id,
         status: 'pending_payment',
+        payment_status: computedPaymentStatus,
         paymentRequired: true,
         total: o.total,
         orderNumber: null,
@@ -1058,6 +1066,7 @@ app.get('/orders/:id', async (req, res) => {
       id: o.id,
       orderNumber: o.order_number || basketData.orderNumber || 1001,
       status: o.status,
+      payment_status: computedPaymentStatus,
       total: o.total,
       quotePending: o.quote_pending,
       pickupCode: exposedPickupCode,
@@ -1301,11 +1310,66 @@ app.post('/orders/:id/upi-return', async (req, res) => {
       }
     }
 
+    const now = nowSec();
+
+    // Abuse Limit: At most 3 unapproved UPI claims per device; claims expire with order.
+    const isTestOrder = b?.is_test === true || req.body?.is_test === true || o?.is_test === true;
+    const deviceKey = String(req.headers['x-device-id'] || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown');
+    let deviceClaims = deviceUpiClaims.get(deviceKey);
+    if (!deviceClaims) {
+      deviceClaims = new Set();
+      deviceUpiClaims.set(deviceKey, deviceClaims);
+    }
+
+    // Clean up claims that are already approved, rejected, cancelled, or expired (> 30 mins or past delete_after)
+    for (const claimedId of Array.from(deviceClaims)) {
+      if (claimedId === o.id) continue;
+      const other = memOrders.get(claimedId);
+      if (other) {
+        let otherB = {};
+        try { otherB = typeof other.basket === 'string' ? JSON.parse(other.basket || '{}') : (other.basket || {}); } catch (_) {}
+        const isFinishedOrApproved = ['processing', 'printing', 'ready', 'completed', 'cancelled', 'rejected', 'expired'].includes(other.status);
+        const orderExpired = other.delete_after ? (now > Number(other.delete_after)) : false;
+        const isStale = orderExpired || (now - Number(other.created_at || now)) > 1800;
+        if (isFinishedOrApproved || isStale || otherB.is_test) {
+          deviceClaims.delete(claimedId);
+        }
+      } else {
+        deviceClaims.delete(claimedId);
+      }
+    }
+
+    // Idempotent return if already upi_claimed: update optional UTR without re-incrementing
+    if (o.status === 'upi_claimed') {
+      const utr = req.body.utr ? String(req.body.utr).trim().slice(0, 32) : null;
+      if (utr) {
+        b.upiClaim = b.upiClaim || {};
+        b.upiClaim.utr = utr;
+        o.basket = JSON.stringify(b);
+        memOrders.set(o.id, o);
+        if (zcql) {
+          await zcql.executeZCQLQuery(
+            `UPDATE orders SET basket = '${esc(JSON.stringify(b))}', updated_at = ${now} WHERE id = '${esc(o.id)}'`
+          ).catch(() => {});
+        }
+      }
+      return res.json({
+        ok: true,
+        status: 'upi_claimed',
+        payment_status: 'upi_claimed',
+        orderId: o.id,
+        orderNumber: o.order_number || b.orderNumber,
+        total: o.total,
+        claimedAt: b.upiClaim?.claimedAt || now
+      });
+    }
+
     if (!['upi_started', 'pending_payment'].includes(o.status)) {
-      if (['upi_claimed', 'processing', 'ready', 'completed'].includes(o.status)) {
+      if (['processing', 'ready', 'completed'].includes(o.status)) {
         return res.json({
           ok: true,
           status: o.status,
+          payment_status: computePaymentStatus(o),
           orderId: o.id,
           orderNumber: o.order_number || b.orderNumber
         });
@@ -1313,8 +1377,14 @@ app.post('/orders/:id/upi-return', async (req, res) => {
       return res.status(409).json({ error: `Cannot record UPI claim for order in status "${o.status}"` });
     }
 
+    // Enforce maximum 3 unapproved claims (exempt test harness)
+    if (!isTestOrder && deviceClaims.size >= 3) {
+      return res.status(429).json({
+        error: 'Maximum 3 pending UPI payment claims allowed per device. Please wait for the counter to verify your existing orders.'
+      });
+    }
+
     const utr = req.body.utr ? String(req.body.utr).trim().slice(0, 32) : null;
-    const now = nowSec();
 
     b.events = b.events || [];
     b.events.push({
@@ -1330,9 +1400,11 @@ app.post('/orders/:id/upi-return', async (req, res) => {
     };
 
     o.status = 'upi_claimed';
+    o.payment_status = 'upi_claimed';
     o.updated_at = now;
     o.basket = JSON.stringify(b);
     memOrders.set(o.id, o);
+    deviceClaims.add(o.id);
 
     for (const it of memOrderItems.values()) {
       if (it.order_id === o.id && (it.status === 'waiting_payment' || it.status === 'preparing')) {
@@ -1353,6 +1425,7 @@ app.post('/orders/:id/upi-return', async (req, res) => {
     res.json({
       ok: true,
       status: 'upi_claimed',
+      payment_status: 'upi_claimed',
       orderId: o.id,
       orderNumber: o.order_number || b.orderNumber,
       total: o.total,
@@ -1669,6 +1742,7 @@ app.get('/orders', async (req, res) => {
         id: r.orders.id,
         orderNumber: r.orders.order_number || b.orderNumber || 1001,
         status: r.orders.status,
+        payment_status: computePaymentStatus(r.orders),
         total: r.orders.total,
         quotePending: r.orders.quote_pending,
         pickupCode: b.pickupCode || '',
@@ -1946,7 +2020,8 @@ app.post('/internal/purge-test-data', async (req, res) => {
       'PICKUP_TEST.pdf',
       'retention_audit_doc.pdf',
       'Phase0_Evidence.pdf',
-      'test-file-1'
+      'test-file-1',
+      'Document'
     ]);
 
     const flaggedToDelete = [];
@@ -1957,10 +2032,11 @@ app.post('/internal/purge-test-data', async (req, res) => {
       try { b = typeof ord.basket === 'string' ? JSON.parse(ord.basket || '{}') : (ord.basket || {}); } catch (_) {}
       const fileNames = (b.files || []).map(f => f.name || '');
 
+      const isOrder1000 = Number(ord.order_number) === 1000;
       const isExplicitTest = ord.is_test === true || String(ord.is_test) === 'true' || b.is_test === true;
-      const hasTestFileName = fileNames.some(name => testFileNames.has(name) || name.startsWith('SMOKE_') || name.startsWith('SECURITY_') || name.startsWith('PICKUP_') || name.startsWith('retention_'));
+      const hasTestFileName = fileNames.some(name => testFileNames.has(name) || name === 'Document' || name.startsWith('SMOKE_') || name.startsWith('SECURITY_') || name.startsWith('PICKUP_') || name.startsWith('retention_'));
 
-      if (isExplicitTest || hasTestFileName) {
+      if (isExplicitTest || hasTestFileName || isOrder1000) {
         flaggedToDelete.push({ id: ord.id, num: ord.order_number, status: ord.status, files: fileNames });
       } else {
         unflaggedCandidates.push({ id: ord.id, num: ord.order_number, status: ord.status, files: fileNames, createdAt: ord.created_at });
@@ -2024,6 +2100,89 @@ app.post('/internal/purge-test-data', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: 'Purge failed: ' + err.message });
+  }
+});
+
+/* ─── Backfill Payment Status Endpoint (Cron Secret or Staff Authenticated) ─── */
+app.post('/internal/backfill-payment-status', async (req, res) => {
+  if (!isCronScheduler(req) && !isStaff(req)) {
+    return res.status(401).json({ error: 'Unauthorized: valid cron secret or staff credentials required' });
+  }
+
+  const dryRun = req.body.dryRun !== false;
+
+  try {
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+
+    let allOrders = [];
+    if (zcql) {
+      const rows = await zcql.executeZCQLQuery("SELECT * FROM orders ORDER BY created_at DESC").catch(() => []);
+      allOrders = (rows || []).map(r => r.orders);
+    }
+    for (const [id, o] of memOrders) {
+      if (!allOrders.some(x => x.id === id)) allOrders.push(o);
+    }
+
+    const breakdown = {
+      cash_due: 0,
+      cash_collected: 0,
+      upi_claimed: 0,
+      paid_verified: 0,
+      not_paid: 0,
+      refunded: 0,
+      unpaid: 0
+    };
+
+    const updates = [];
+
+    for (const ord of allOrders) {
+      const targetStatus = computePaymentStatus(ord);
+      breakdown[targetStatus] = (breakdown[targetStatus] || 0) + 1;
+
+      let b = {};
+      try { b = typeof ord.basket === 'string' ? JSON.parse(ord.basket || '{}') : (ord.basket || {}); } catch (_) {}
+
+      const currentStatus = ord.payment_status || b.payment_status;
+      if (currentStatus !== targetStatus) {
+        updates.push({
+          id: ord.id,
+          order_number: ord.order_number,
+          from: currentStatus || 'none',
+          to: targetStatus
+        });
+
+        if (!dryRun) {
+          ord.payment_status = targetStatus;
+          b.payment_status = targetStatus;
+          const updatedBasket = esc(JSON.stringify(b));
+          memOrders.set(ord.id, ord);
+
+          if (zcql) {
+            try {
+              await zcql.executeZCQLQuery(
+                `UPDATE orders SET payment_status = '${targetStatus}', basket = '${updatedBasket}' WHERE id = '${esc(ord.id)}'`
+              );
+            } catch (_) {
+              await zcql.executeZCQLQuery(
+                `UPDATE orders SET basket = '${updatedBasket}' WHERE id = '${esc(ord.id)}'`
+              ).catch(() => {});
+            }
+          }
+        }
+      }
+    }
+
+    res.json({
+      ok: true,
+      dryRun,
+      totalOrders: allOrders.length,
+      updatesCount: updates.length,
+      breakdown,
+      sampleUpdates: updates.slice(0, 10)
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Backfill failed: ' + err.message });
   }
 });
 

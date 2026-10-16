@@ -113,6 +113,7 @@ export interface OrderRecord {
   total: number;
   pickupCode: string;
   status: string;
+  payment_status?: string;
   paymentMethod?: string;
   accessToken?: string;
   deleteAfter?: number;

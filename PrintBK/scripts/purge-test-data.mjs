@@ -9,12 +9,29 @@
  */
 
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const env = fs.readFileSync('functions/api/.env', 'utf8');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const envPaths = [
+  path.resolve(__dirname, '../functions/api/.env'),
+  path.resolve(process.cwd(), 'functions/api/.env'),
+  path.resolve(process.cwd(), 'PrintBK/functions/api/.env')
+];
+
 let cronSecret = '';
-for (const line of env.split(/\r?\n/)) {
-  if (line.startsWith('CRON_SECRET=')) {
-    cronSecret = line.split('=')[1].trim().replace(/^['"]|['"]$/g, '');
+for (const p of envPaths) {
+  if (fs.existsSync(p)) {
+    const env = fs.readFileSync(p, 'utf8');
+    for (const line of env.split(/\r?\n/)) {
+      if (line.startsWith('CRON_SECRET=')) {
+        cronSecret = line.split('=')[1].trim().replace(/^['"]|['"]$/g, '');
+        break;
+      }
+    }
+    if (cronSecret) break;
   }
 }
 

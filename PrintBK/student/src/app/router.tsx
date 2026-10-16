@@ -138,7 +138,7 @@ function RouteMapper() {
   };
 
   // Determine if current route should display closed barrier
-  const isExemptRoute = ['/history', '/settings', '/about', '/privacy'].includes(location.pathname) || location.pathname.startsWith('/order/');
+  const isExemptRoute = ['/history', '/settings', '/about', '/privacy'].includes(location.pathname) || location.pathname.startsWith('/order/') || location.pathname.startsWith('/receipt/');
   const showClosedBarrier = !shopOpen && !isExemptRoute;
 
   return (
@@ -151,6 +151,7 @@ function RouteMapper() {
         <Route path="/checkout"  element={<Checkout go={go} setSheet={setSheet} services={[]} />} />
         <Route path="/pay/:id"   element={<PaymentState go={go} />} />
         <Route path="/order/:id" element={<Ticket go={go} setSheet={setSheet} />} />
+        <Route path="/receipt/:id" element={<Ticket go={go} setSheet={setSheet} />} />
         <Route path="/history"   element={<History go={go} />} />
         <Route path="/settings"  element={<Settings go={go} />} />
         <Route path="/about"     element={<About go={go} />} />

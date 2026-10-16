@@ -3,9 +3,11 @@ import { fetchLiveFeed, isStaffPaired, getStaffToken } from "./client"
 
 export interface LiveShop {
   open: boolean
+  version?: number
   announcement?: string
   rates?: Record<string, number>
   mixed_colour_mode?: string
+  delete_delay_minutes?: number
   name?: string
   phone?: string
   address?: string
