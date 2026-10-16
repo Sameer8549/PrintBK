@@ -120,7 +120,10 @@ if (fs.existsSync(path.join(rootDir, 'student', 'dist'))) {
   console.log('  -> Scanning student/dist production bundle...');
   scanDir(path.join(rootDir, 'student', 'dist'), true);
 }
-
+if (fs.existsSync(path.join(rootDir, 'client'))) {
+  console.log('  -> Scanning client unified production bundle...');
+  scanDir(path.join(rootDir, 'client'), true);
+}
 console.log('\n📊 [no-mock-data] Results:');
 if (totalViolations === 0) {
   console.log('  ✅ PASSED: No mock data or fake timer markers detected in production sources or bundles.\n');

@@ -119,7 +119,7 @@ function priceOrder(basket, config = defaultConfig_1.defaultShopConfig, now = ne
         }
     }
     for (const svc of (basket.services || [])) {
-        if (svc.type === 'request' || svc.type === 'typing_request' || svc.category === 'typing_request' || svc.category === 'typing' || (svc.price === 0 && ((svc.name || svc.title || '').toLowerCase().includes('typing') || (svc.name || svc.title || '').toLowerCase().includes('resume')))) {
+        if (svc.type === 'request' || svc.category === 'typing_request' || svc.category === 'typing' || (svc.price === 0 && ((svc.name || svc.title || '').toLowerCase().includes('typing') || (svc.name || svc.title || '').toLowerCase().includes('resume')))) {
             quotePending = true;
             continue;
         }

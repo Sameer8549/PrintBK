@@ -1,6 +1,6 @@
 {
   "client": {
-    "source": "student/dist"
+    "source": "client"
   },
   "functions": {
     "targets": [

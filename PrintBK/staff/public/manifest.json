@@ -2,18 +2,18 @@
   "name": "PrintBK Counter",
   "short_name": "PrintBK",
   "description": "PrintBK Counter Operations App",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#f7f4ee",
   "theme_color": "#0b1020",
   "icons": [
     {
-      "src": "/hkbk-logo.jpg",
+      "src": "hkbk-logo.jpg",
       "sizes": "192x192",
       "type": "image/jpeg"
     },
     {
-      "src": "/hkbk-logo.jpg",
+      "src": "hkbk-logo.jpg",
       "sizes": "512x512",
       "type": "image/jpeg"
     }

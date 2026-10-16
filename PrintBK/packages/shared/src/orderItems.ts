@@ -63,7 +63,7 @@ export function basketToOrderItems(basket: Basket, cfg?: ShopConfig): OrderItem[
       colorPages = 0;
       bwPages = physicalPages;
     } else if (colorMode === 'custom') {
-      const colorSet = new Set(s.colorPlan?.colorPages || s.colorPages || []);
+      const colorSet = new Set<number>(s.colorPlan?.colorPages || (s as any).colorPages || []);
       if (s.booklet) {
         for (let i = 0; i < pages.length; i += 2) {
           const slot = pages.slice(i, i + 2);

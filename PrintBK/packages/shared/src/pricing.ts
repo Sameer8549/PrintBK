@@ -212,7 +212,7 @@ export function computeFilePrintDetails(file: PrintFile): FilePrintDetails {
   const colorMode = s.colorPlan?.mode ?? s.colorMode ?? 'bw';
 
   const { pages } = parsePageRange(range, file.pages || 1);
-  const colorSet = new Set(s.colorPlan?.colorPages || s.colorPages || []);
+  const colorSet = new Set<number>(s.colorPlan?.colorPages || (s as any).colorPages || []);
 
   const colorPrintedPages: number[] = [];
   const bwPrintedPages: number[] = [];

@@ -8,8 +8,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="PrintBK" />
-    <link rel="manifest" href="/manifest.json" />
-    <link rel="icon" type="image/jpeg" href="/hkbk-logo.jpg" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" type="image/jpeg" href="hkbk-logo.jpg" />
     <title>PrintBK Counter</title>
   </head>
   <body>
@@ -18,7 +18,7 @@
     <script>
       if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
+          navigator.serviceWorker.register('sw.js').catch(() => {});
         });
       }
     </script>

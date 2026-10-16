@@ -12,6 +12,7 @@ dist/
 student/dist/
 staff/dist/
 agent/dist/
+client/
 agent-config.json
 agent/agent-config.json
 *.agent-token

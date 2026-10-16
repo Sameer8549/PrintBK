@@ -1,7 +1,7 @@
 // PrintBK Staff Service Worker
 // Cache app shell only. NEVER cache live feeds, staff API, agent API, or items.
 const CACHE_NAME = "printbk-staff-shell-v1"
-const SHELL_ASSETS = ["/", "/index.html", "/hkbk-logo.jpg"]
+const SHELL_ASSETS = ["./", "./index.html", "hkbk-logo.jpg"]
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
