@@ -273,7 +273,8 @@ router.get('/live', async (req, res) => {
             rates: typeof s.rates === 'string' ? JSON.parse(s.rates || '{}') : s.rates || shop.rates,
             services: typeof s.services === 'string' ? JSON.parse(s.services || '{}') : s.services || {},
             payments: typeof s.payments === 'string' ? JSON.parse(s.payments || '{}') : s.payments || shop.payments,
-            shop_info: typeof s.shop_info === 'string' ? JSON.parse(s.shop_info || '{}') : s.shop_info || shop.shop_info
+            shop_info: typeof s.shop_info === 'string' ? JSON.parse(s.shop_info || '{}') : s.shop_info || shop.shop_info,
+            printer_mapping: (typeof s.shop_info === 'string' ? JSON.parse(s.shop_info || '{}') : s.shop_info || {}).printer_mapping || {}
           };
         }
       } catch (_) {}
@@ -313,13 +314,8 @@ router.get('/live', async (req, res) => {
       }
     }
 
-    // Default fallback if no agent reported yet
-    if (printers.length === 0) {
-      printers = [
-        { id: 'bw-1', name: 'EPSON L3110 Series', role: 'bw', online: true, status: 'ready', lastSeen: now },
-        { id: 'colour-1', name: 'EPSON L3110 Series', role: 'colour', online: true, status: 'ready', lastSeen: now }
-      ];
-    }
+    // No agent connected yet — return empty list so the UI shows "no printers" state
+    // (instead of fake placeholder printers that appear online but cannot print)
 
     // 3. Fetch active orders
     const deleteCutoff = now - (shop.delete_delay_minutes * 60);
@@ -419,7 +415,7 @@ router.get('/live', async (req, res) => {
         const typed = b.typedItems || [];
         for (const item of typed) {
           items.push({
-            id: item.id || crypto.randomUUID(),
+            id: item.id || `${o.id}_${item.type || 'doc'}`,
             orderId: o.id,
             order_id: o.id,
             orderNumber: orderObj.orderNumber,
@@ -685,12 +681,31 @@ router.post('/items/:id/approve-print', async (req, res) => {
       return res.status(409).json({ error: `Item is already in status '${itemStatus}'` });
     }
 
+    if (!orderId && zcql) {
+      try {
+        const activeOrderRows = await zcql.executeZCQLQuery(
+          `SELECT id, order_number, status, basket FROM orders WHERE status IN ('pending_cash', 'upi_claimed', 'cash_collected', 'processing', 'printing') ORDER BY created_at DESC LIMIT 50`
+        );
+        for (const r of (activeOrderRows || [])) {
+          try {
+            const b = typeof r.orders.basket === 'string' ? JSON.parse(r.orders.basket || '{}') : (r.orders.basket || {});
+            if (b.typedItems && b.typedItems.some(it => it.id === itemId)) {
+              orderId = r.orders.id;
+              order = r.orders;
+              break;
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
+    }
+
     if (!orderId) {
       for (const [oid, o] of memOrders) {
         try {
           const b = typeof o.basket === 'string' ? JSON.parse(o.basket || '{}') : (o.basket || {});
           if (b.typedItems && b.typedItems.some(it => it.id === itemId)) {
             orderId = oid;
+            order = o;
             break;
           }
         } catch (_) {}
@@ -701,16 +716,20 @@ router.post('/items/:id/approve-print', async (req, res) => {
       return res.status(400).json({ error: 'Order ID is required to verify payment' });
     }
 
-    let order = memOrders.get(orderId);
-    if (!order && zcql) {
-      const orderRows = await zcql.executeZCQLQuery(`SELECT id, order_number, status FROM orders WHERE id = '${esc(orderId)}' OR order_number = ${Number(orderId) || 0}`).catch(() => null);
-      if (orderRows && orderRows.length > 0) order = orderRows[0].orders;
-    }
-    if (!order && !isNaN(Number(orderId))) {
-      for (const ord of memOrders.values()) {
-        if (ord.order_number === Number(orderId)) { order = ord; break; }
+    if (!order) {
+      let oRecord = memOrders.get(orderId);
+      if (!oRecord && zcql) {
+        const orderRows = await zcql.executeZCQLQuery(`SELECT id, order_number, status, basket FROM orders WHERE id = '${esc(orderId)}' OR order_number = ${Number(orderId) || 0}`).catch(() => null);
+        if (orderRows && orderRows.length > 0) oRecord = orderRows[0].orders;
       }
+      if (!oRecord && !isNaN(Number(orderId))) {
+        for (const ord of memOrders.values()) {
+          if (ord.order_number === Number(orderId)) { oRecord = ord; break; }
+        }
+      }
+      order = oRecord;
     }
+
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
     const isPaid = ['cash_collected', 'upi_claimed', 'paid', 'processing', 'printing'].includes(order.status);
@@ -718,9 +737,66 @@ router.post('/items/:id/approve-print', async (req, res) => {
       return res.status(409).json({ error: 'Cannot print: payment has not been collected or verified' });
     }
 
+    // Determine target printer based on assigned printer mapping or registered printers
+    let targetPrinter = '';
+    if (zcql) {
+      try {
+        const sRows = await zcql.executeZCQLQuery(`SELECT shop_info FROM shop_settings WHERE id = 'default' LIMIT 1`);
+        if (sRows && sRows.length > 0) {
+          const sInfo = typeof sRows[0].shop_settings.shop_info === 'string' ? JSON.parse(sRows[0].shop_settings.shop_info || '{}') : (sRows[0].shop_settings.shop_info || {});
+          if (sInfo.printer_mapping) {
+            targetPrinter = kind.includes('colour') ? sInfo.printer_mapping.colour : sInfo.printer_mapping.bw;
+          }
+        }
+      } catch (_) {}
+    }
+    if (!targetPrinter && zcql) {
+      try {
+        const pRows = await zcql.executeZCQLQuery(`SELECT name, role FROM printers WHERE role = '${kind.includes('colour') ? 'colour' : 'bw'}' OR role = 'both' ORDER BY online DESC LIMIT 1`);
+        if (pRows && pRows.length > 0) targetPrinter = pRows[0].printers.name;
+      } catch (_) {}
+    }
+    if (!targetPrinter && global.__printbk_printers) {
+      for (const [pName, p] of global.__printbk_printers) {
+        if ((kind.includes('colour') && (p.role === 'colour' || p.role === 'both')) || (!kind.includes('colour') && (p.role === 'bw' || p.role === 'both'))) {
+          targetPrinter = p.name || pName;
+          break;
+        }
+      }
+    }
+    if (!targetPrinter) {
+      targetPrinter = kind.includes('colour') ? 'Colour Printer' : 'B&W Printer';
+    }
+
+    // Ensure item record exists for print agent dispatch
+    if (!itemRecord && order) {
+      let b = {};
+      try { b = typeof order.basket === 'string' ? JSON.parse(order.basket || '{}') : (order.basket || {}); } catch (_) {}
+      const matched = (b.typedItems || []).find(it => it.id === itemId);
+      if (matched) {
+        itemRecord = {
+          id: itemId,
+          order_id: orderId,
+          order_number: order.order_number,
+          kind: matched.type,
+          status: 'sending',
+          payload: JSON.stringify(matched.specifications || {}),
+          file_refs: JSON.stringify(matched.specifications?.fileId ? [matched.specifications.fileId] : []),
+          printer_role: kind.includes('colour') ? 'colour' : 'bw'
+        };
+        memOrderItems.set(itemId, itemRecord);
+        if (zcql) {
+          const payloadStr = esc(itemRecord.payload);
+          const fileRefsStr = esc(itemRecord.file_refs);
+          await zcql.executeZCQLQuery(
+            `INSERT INTO order_items (id, order_id, kind, status, payload, price, file_refs, printer_role, created_at) VALUES ('${itemId}', '${orderId}', '${itemRecord.kind}', 'sending', '${payloadStr}', ${Number(matched.computedPricing?.lineTotal || 0)}, '${fileRefsStr}', '${itemRecord.printer_role}', ${now})`
+          ).catch(() => {});
+        }
+      }
+    }
+
     // Queue print job for print agent
     const printJobId = crypto.randomUUID();
-    const targetPrinter = kind.includes('colour') ? 'EPSON L3110 (Colour)' : 'EPSON L3110 (B&W)';
 
     memPrintJobs.set(printJobId, {
       id: printJobId,
@@ -1044,29 +1120,122 @@ router.post('/printers/:id/print-qr', async (req, res) => {
   }
 });
 
-// H. Update Shop Settings
+// G4. Manually Add / Configure Printer
+router.post('/printers/add', async (req, res) => {
+  try {
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    const { name, role = 'both', online = true } = req.body;
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Printer name is required' });
+    }
+    const printerName = name.trim();
+    const now = nowSec();
+    const printerId = crypto.randomUUID();
+
+    if (zcql) {
+      try {
+        const existing = await zcql.executeZCQLQuery(`SELECT id FROM printers WHERE name = '${esc(printerName)}' LIMIT 1`);
+        if (existing && existing.length > 0) {
+          await zcql.executeZCQLQuery(`UPDATE printers SET role = '${esc(role)}', online = ${!!online}, last_seen = ${now} WHERE id = '${existing[0].printers.id}'`);
+        } else {
+          await zcql.executeZCQLQuery(`INSERT INTO printers (id, name, role, online, status, last_seen) VALUES ('${printerId}', '${esc(printerName)}', '${esc(role)}', ${!!online}, 'ready', ${now})`);
+        }
+      } catch (_) {}
+    }
+
+    if (global.__printbk_printers) {
+      global.__printbk_printers.set(printerName, {
+        id: printerId,
+        name: printerName,
+        role,
+        online: !!online,
+        status: 'ready',
+        last_seen: now
+      });
+    }
+
+    res.json({ ok: true, printer: { id: printerId, name: printerName, role, online: !!online, status: 'ready' } });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add printer: ' + err.message });
+  }
+});
+
+// H. Update Shop Settings (Partial Merge Safe)
 router.put('/settings', async (req, res) => {
   try {
     const catalystApp = getCatalystApp(req);
     const zcql = catalystApp ? catalystApp.zcql() : null;
-    const { rates, services, payments, shop_info, delete_delay_minutes = 5, mixed_colour_mode = 'split', open = true, announcement = '' } = req.body;
     const now = nowSec();
 
-    const ratesJson = esc(JSON.stringify(rates || {}));
-    const servicesJson = esc(JSON.stringify(services || {}));
-    const paymentsJson = esc(JSON.stringify(payments || {}));
-    const shopJson = esc(JSON.stringify(shop_info || {}));
-
-    try {
-      await zcql.executeZCQLQuery(
-        `UPDATE shop_settings SET rates = '${ratesJson}', services = '${servicesJson}', payments = '${paymentsJson}', shop_info = '${shopJson}', delete_delay_minutes = ${Number(delete_delay_minutes)}, mixed_colour_mode = '${esc(mixed_colour_mode)}', open = ${!!open}, announcement = '${esc(announcement)}', updated_at = ${now} WHERE id = 'default'`
-      );
-    } catch (_) {
+    let existing = {};
+    if (zcql) {
       try {
-        await zcql.executeZCQLQuery(
-          `INSERT INTO shop_settings (id, rates, services, payments, shop_info, delete_delay_minutes, mixed_colour_mode, open, announcement, updated_at) VALUES ('default', '${ratesJson}', '${servicesJson}', '${paymentsJson}', '${shopJson}', ${Number(delete_delay_minutes)}, '${esc(mixed_colour_mode)}', ${!!open}, '${esc(announcement)}', ${now})`
-        );
+        const rows = await zcql.executeZCQLQuery("SELECT * FROM shop_settings WHERE id = 'default' LIMIT 1");
+        if (rows && rows.length > 0) {
+          existing = rows[0].shop_settings || {};
+        }
       } catch (_) {}
+    }
+
+    // Merge existing shop_info values so partial updates never wipe data
+    let existingShopInfo = {};
+    try {
+      existingShopInfo = typeof existing.shop_info === 'string' ? JSON.parse(existing.shop_info) : (existing.shop_info || {});
+    } catch (_) {}
+
+    const shopInfoMerged = {
+      ...existingShopInfo,
+      ...(req.body.shop_info || {})
+    };
+    if (req.body.printer_mapping) {
+      shopInfoMerged.printer_mapping = {
+        ...(existingShopInfo.printer_mapping || {}),
+        ...req.body.printer_mapping
+      };
+    }
+
+    const updates = [];
+    if (typeof req.body.open !== 'undefined') {
+      const isOpen = req.body.open === true || req.body.open === 'true';
+      updates.push(`open = ${isOpen}`);
+    }
+    if (typeof req.body.announcement !== 'undefined') {
+      updates.push(`announcement = '${esc(req.body.announcement)}'`);
+    }
+    if (typeof req.body.rates !== 'undefined') {
+      updates.push(`rates = '${esc(JSON.stringify(req.body.rates))}'`);
+    }
+    if (typeof req.body.services !== 'undefined') {
+      updates.push(`services = '${esc(JSON.stringify(req.body.services))}'`);
+    }
+    if (typeof req.body.payments !== 'undefined') {
+      updates.push(`payments = '${esc(JSON.stringify(req.body.payments))}'`);
+    }
+    if (typeof req.body.shop_info !== 'undefined' || typeof req.body.printer_mapping !== 'undefined') {
+      updates.push(`shop_info = '${esc(JSON.stringify(shopInfoMerged))}'`);
+    }
+    if (typeof req.body.delete_delay_minutes !== 'undefined') {
+      updates.push(`delete_delay_minutes = ${Number(req.body.delete_delay_minutes) || 5}`);
+    }
+    if (typeof req.body.mixed_colour_mode !== 'undefined') {
+      updates.push(`mixed_colour_mode = '${esc(req.body.mixed_colour_mode)}'`);
+    }
+    updates.push(`updated_at = ${now}`);
+
+    if (zcql && updates.length > 0) {
+      try {
+        await zcql.executeZCQLQuery(`UPDATE shop_settings SET ${updates.join(', ')} WHERE id = 'default'`);
+      } catch (_) {
+        const isOpen = typeof req.body.open !== 'undefined' ? (req.body.open === true || req.body.open === 'true') : (existing.open !== false && String(existing.open) !== 'false');
+        const ratesJson = esc(JSON.stringify(req.body.rates || existing.rates || {}));
+        const servicesJson = esc(JSON.stringify(req.body.services || existing.services || {}));
+        const paymentsJson = esc(JSON.stringify(req.body.payments || existing.payments || {}));
+        const shopJson = esc(JSON.stringify(shopInfoMerged));
+        await zcql.executeZCQLQuery(
+          `INSERT INTO shop_settings (id, rates, services, payments, shop_info, delete_delay_minutes, mixed_colour_mode, open, announcement, updated_at) VALUES ('default', '${ratesJson}', '${servicesJson}', '${paymentsJson}', '${shopJson}', ${Number(req.body.delete_delay_minutes || existing.delete_delay_minutes || 5)}, '${esc(req.body.mixed_colour_mode || existing.mixed_colour_mode || 'split')}', ${isOpen}, '${esc(req.body.announcement || existing.announcement || '')}', ${now})`
+        ).catch(() => {});
+      }
     }
 
     res.json({ ok: true, updated: true });

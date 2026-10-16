@@ -33,9 +33,10 @@ function Entry({
 
   const isOpen = cfg.open !== false;
   const shopName = cfg.shopInfo?.name || "HKBK Student Point";
-  const bwSingle = cfg.rates?.bwSingle ?? 1.5;
-  const bwDouble = cfg.rates?.bwDouble ?? 0.85;
-  const colourRate = cfg.rates?.colour ?? 8.0;
+  const rates = cfg.rates as (typeof cfg.rates & { bwSingle?: number; bwDouble?: number; colour?: number }) | undefined;
+  const bwSingle = rates?.bwSingle ?? rates?.bw ?? 1.5;
+  const bwDouble = rates?.bwDouble ?? (rates?.bw ? Number((rates.bw * 0.85).toFixed(2)) : 0.85);
+  const colourRate = rates?.colour ?? rates?.color ?? 8.0;
 
   const handleUploadClick = () => {
     if (!isOpen) {

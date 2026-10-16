@@ -103,10 +103,14 @@ function isCronScheduler(req) {
 
 function isAgent(req) {
   const agentToken = process.env.AGENT_TOKEN;
-  if (!agentToken) return false;
   const token = extractToken(req, 'agent');
-  if (!token) return false;
-  return timingSafeCompare(token, agentToken);
+  if (agentToken && token && timingSafeCompare(token, agentToken)) return true;
+  if (token && global.__printbk_agent_devices) {
+    const hash = crypto.createHash('sha256').update(String(token)).digest('hex');
+    const dev = global.__printbk_agent_devices.get(hash);
+    if (dev && !dev.revoked) return true;
+  }
+  return false;
 }
 
 /* ─── Rate Limiter & Exponential Backoff Lockout ─────────────────── */
@@ -517,7 +521,25 @@ app.get('/shop/status', async (req, res) => {
 });
 
 /* ─── FILE UPLOAD (Hardened with Magic Bytes, Multer Disk Streaming & 25MB Ceiling) ───── */
-app.post('/upload', (req, res, next) => {
+app.post('/upload', async (req, res, next) => {
+  try {
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    if (zcql) {
+      const settingRows = await zcql.executeZCQLQuery("SELECT open, announcement FROM shop_settings WHERE id = 'default'").catch(() => []);
+      if (settingRows && settingRows.length > 0) {
+        const s = settingRows[0].shop_settings;
+        const isOpen = s.open === true || s.open === 'true';
+        if (!isOpen) {
+          return res.status(503).json({
+            error: `Shop is currently closed: ${s.announcement || 'Counter orders and uploads are paused. Please wait or check back shortly.'}`
+          });
+        }
+      }
+    }
+  } catch (_) {}
+  next();
+}, (req, res, next) => {
   upload.single('file')(req, res, (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
@@ -1580,10 +1602,33 @@ app.post('/orders/:id/reject', async (req, res) => {
   }
 });
 
-// 5. Staff Authenticated File Download
+// 5. Staff / Agent Authenticated File Download
 app.get('/files/:cloudId', async (req, res) => {
-  if (!isStaff(req) && !isAgent(req)) {
-    return res.status(401).json({ error: 'Staff authentication required to download files' });
+  let authorized = isStaff(req) || isAgent(req);
+  if (!authorized) {
+    const staffToken = extractToken(req, 'staff');
+    const agentToken = extractToken(req, 'agent');
+    if (staffToken || agentToken) {
+      try {
+        const catalystApp = getCatalystApp(req);
+        const zcql = catalystApp ? catalystApp.zcql() : null;
+        if (zcql) {
+          if (staffToken) {
+            const sHash = crypto.createHash('sha256').update(String(staffToken)).digest('hex');
+            const sRows = await zcql.executeZCQLQuery(`SELECT revoked FROM staff_devices WHERE token_hash = '${esc(sHash)}' LIMIT 1`).catch(() => []);
+            if (sRows && sRows.length > 0 && (sRows[0].staff_devices.revoked === false || String(sRows[0].staff_devices.revoked) === 'false')) authorized = true;
+          }
+          if (!authorized && agentToken) {
+            const aHash = crypto.createHash('sha256').update(String(agentToken)).digest('hex');
+            const aRows = await zcql.executeZCQLQuery(`SELECT revoked FROM agent_devices WHERE token_hash = '${esc(aHash)}' LIMIT 1`).catch(() => []);
+            if (aRows && aRows.length > 0 && (aRows[0].agent_devices.revoked === false || String(aRows[0].agent_devices.revoked) === 'false')) authorized = true;
+          }
+        }
+      } catch (_) {}
+    }
+  }
+  if (!authorized) {
+    return res.status(401).json({ error: 'Staff or Agent authentication required to download files' });
   }
   try {
     const catalystApp = catalyst.initialize(req);

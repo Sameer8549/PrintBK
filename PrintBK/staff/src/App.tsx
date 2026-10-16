@@ -15,6 +15,7 @@ import {
   updateShopSettings,
   testPrintPrinter,
   printQrPrinter,
+  addStaffPrinter,
   purgeStaleOrders,
 } from "./api/client"
 import { useStaffLive, LiveItem, LivePrinter, LiveShop, LiveRecentlyPrinted } from "./api/useStaffLive"
@@ -412,8 +413,8 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
   return <svg className="icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
 }
 
-function Button({ children, onClick, kind = "plain", disabled = false, className = "" }: { children: React.ReactNode; onClick?: (event: React.MouseEvent) => void; kind?: "primary" | "plain" | "ghost"; disabled?: boolean; className?: string }) {
-  return <button className={`button button--${kind} ${className}`} type="button" onClick={onClick} disabled={disabled}>{children}</button>
+function Button({ children, onClick, kind = "plain", disabled = false, className = "", style }: { children: React.ReactNode; onClick?: (event: React.MouseEvent) => void; kind?: "primary" | "plain" | "ghost"; disabled?: boolean; className?: string; style?: React.CSSProperties }) {
+  return <button className={`button button--${kind} ${className}`} type="button" onClick={onClick} disabled={disabled} style={style}>{children}</button>
 }
 
 function LiveIndicator({ offline = false }: { offline?: boolean }) {
@@ -501,20 +502,60 @@ function PrinterDropdownRow({
   onSelect?: (printerName: string) => void
   onTest: () => void
 }) {
+  const [addingCustom, setAddingCustom] = useState(false)
+  const [customName, setCustomName] = useState("")
+
+  const handleCustomSubmit = () => {
+    if (customName.trim()) {
+      onSelect?.(customName.trim())
+      setAddingCustom(false)
+      setCustomName("")
+    }
+  }
+
   return (
-    <div className="printer-select-row">
-      <select value={value} onChange={(e) => onSelect?.(e.target.value)}>
-        {printers.length > 0 ? (
-          printers.map((p) => (
+    <div className="printer-select-row-wrap" style={{ width: "100%" }}>
+      <div className="printer-select-row">
+        <select
+          value={value}
+          onChange={(e) => {
+            if (e.target.value === "__custom__") {
+              setAddingCustom(true)
+            } else {
+              onSelect?.(e.target.value)
+            }
+          }}
+        >
+          {printers.map((p) => (
             <option key={p.id} value={p.name}>
               {p.name} ({p.online ? "Online" : "Offline"})
             </option>
-          ))
-        ) : (
-          <option value={value}>{value || "Default Printer"}</option>
-        )}
-      </select>
-      <Button onClick={onTest}>TEST PRINT</Button>
+          ))}
+          {value && !printers.some((p) => p.name === value) && (
+            <option value={value}>{value} (Configured)</option>
+          )}
+          <option value="__custom__">➕ Add / Type printer name…</option>
+        </select>
+        <Button onClick={onTest}>TEST PRINT</Button>
+      </div>
+      {addingCustom && (
+        <div className="custom-printer-input" style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <input
+            type="text"
+            placeholder="Type printer name (e.g. EPSON L3110 Series, Canon G3010)"
+            value={customName}
+            onChange={(e) => setCustomName(e.target.value)}
+            style={{ flex: 1, padding: "8px 12px", border: "2px solid var(--ink)", borderRadius: 8, fontSize: 14 }}
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleCustomSubmit()
+              if (e.key === "Escape") setAddingCustom(false)
+            }}
+          />
+          <Button kind="primary" onClick={handleCustomSubmit} style={{ minHeight: 44, padding: "0 14px" }}>SAVE</Button>
+          <Button kind="ghost" onClick={() => setAddingCustom(false)} style={{ minHeight: 44, padding: "0 12px" }}>CANCEL</Button>
+        </div>
+      )}
     </div>
   )
 }
@@ -552,7 +593,6 @@ function Header({
     <header className="topbar">
       <div className="brand" role="button" tabIndex={0} onClick={onOrders}>
         <img src="./hkbk-logo.jpg" alt="HKBK Group of Institutions" />
-        <img src="./printbk-logo.svg" alt="PrintBK" style={{ height: 32, marginLeft: 6 }} />
         <div><strong>PrintBK</strong><span>COUNTER</span></div>
       </div>
       <button className={`shop-switch ${open ? "is-open" : ""}`} type="button" onClick={() => setOpen(!open)}>
@@ -761,17 +801,51 @@ function PrinterSettingsPanel({
     delete: "5",
   })
 
-  const bwPrinter = printers.find((p) => p.role === "bw") || printers[0]
-  const colourPrinter = printers.find((p) => p.role === "colour") || printers[1] || bwPrinter
+  const configuredBw = (shop as any)?.printer_mapping?.bw || (shop as any)?.shop_info?.printer_mapping?.bw || ""
+  const configuredColour = (shop as any)?.printer_mapping?.colour || (shop as any)?.shop_info?.printer_mapping?.colour || ""
 
-  const handleTestPrint = async (printerId?: string) => {
-    if (!printerId) return
+  const [selectedBw, setSelectedBw] = useState<string>(configuredBw)
+  const [selectedColour, setSelectedColour] = useState<string>(configuredColour)
+
+  useEffect(() => {
+    if (configuredBw && !selectedBw) setSelectedBw(configuredBw)
+    if (configuredColour && !selectedColour) setSelectedColour(configuredColour)
+  }, [configuredBw, configuredColour])
+
+  const bwPrinter = printers.find((p) => p.name === selectedBw) || printers.find((p) => p.role === "bw") || printers[0]
+  const colourPrinter = printers.find((p) => p.name === selectedColour) || printers.find((p) => p.role === "colour") || printers[1] || bwPrinter
+
+  const handleAssignPrinter = async (role: "bw" | "colour", name: string) => {
+    if (role === "bw") setSelectedBw(name)
+    if (role === "colour") setSelectedColour(name)
     try {
-      setTestStatus((prev) => ({ ...prev, [printerId]: "Sending test print…" }))
-      await testPrintPrinter(printerId)
-      setTestStatus((prev) => ({ ...prev, [printerId]: "Sent to printer successfully" }))
+      await updateShopSettings({
+        printer_mapping: {
+          bw: role === "bw" ? name : (selectedBw || bwPrinter?.name || "B&W Printer"),
+          colour: role === "colour" ? name : (selectedColour || colourPrinter?.name || "Colour Printer"),
+        }
+      })
+      await addStaffPrinter(name, role)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+      onRefreshLive()
     } catch (err: any) {
-      setTestStatus((prev) => ({ ...prev, [printerId]: err.message || "Test print failed" }))
+      alert("Failed to assign printer: " + err.message)
+    }
+  }
+
+  const handleTestPrint = async (printerIdOrName?: string) => {
+    const target = printerIdOrName || (printers[0]?.id || printers[0]?.name)
+    if (!target) {
+      alert("No printer available to test. Please add or connect a printer first.")
+      return
+    }
+    try {
+      setTestStatus((prev) => ({ ...prev, [target]: "Sending test print…" }))
+      await testPrintPrinter(target)
+      setTestStatus((prev) => ({ ...prev, [target]: "Sent to printer successfully" }))
+    } catch (err: any) {
+      setTestStatus((prev) => ({ ...prev, [target]: err.message || "Test print failed" }))
     }
   }
 
@@ -848,21 +922,72 @@ function PrinterSettingsPanel({
               </div>
 
               <section className="setting-card printer-choice">
-                <div className="setting-card-title"><div><span>Black &amp; White printer</span><strong><i className="status-dot" /> {bwPrinter ? (bwPrinter.online ? "Online" : "Offline") : "None"}</strong></div><Icon name="printer" size={28} /></div>
-                <PrinterDropdownRow value={bwPrinter?.name || "No B&W printer"} printers={printers} onTest={() => handleTestPrint(bwPrinter?.id)} />
-                {bwPrinter && testStatus[bwPrinter.id] && <div className="test-result success"><Icon name="check" />{testStatus[bwPrinter.id]}</div>}
+                <div className="setting-card-title"><div><span>Black &amp; White printer</span><strong><i className="status-dot" /> {bwPrinter ? (bwPrinter.online ? "Online" : "Offline") : selectedBw ? "Configured" : "None"}</strong></div><Icon name="printer" size={28} /></div>
+                <PrinterDropdownRow
+                  value={selectedBw || bwPrinter?.name || "No B&W printer"}
+                  printers={printers}
+                  onSelect={(name) => handleAssignPrinter("bw", name)}
+                  onTest={() => handleTestPrint(bwPrinter?.id || selectedBw || bwPrinter?.name)}
+                />
+                {(bwPrinter || selectedBw) && testStatus[bwPrinter?.id || selectedBw || ""] && (
+                  <div className="test-result success"><Icon name="check" />{testStatus[bwPrinter?.id || selectedBw || ""]}</div>
+                )}
               </section>
 
               <section className="setting-card printer-choice">
-                <div className="setting-card-title"><div><span>Colour printer</span><strong><i className="status-dot" /> {colourPrinter ? (colourPrinter.online ? "Online" : "Offline") : "None"}</strong></div><Icon name="colour" size={28} /></div>
-                <PrinterDropdownRow value={colourPrinter?.name || "No colour printer"} printers={printers} onTest={() => handleTestPrint(colourPrinter?.id)} />
-                {colourPrinter && testStatus[colourPrinter.id] && <div className="test-result success"><Icon name="check" />{testStatus[colourPrinter.id]}</div>}
+                <div className="setting-card-title"><div><span>Colour printer</span><strong><i className="status-dot" /> {colourPrinter ? (colourPrinter.online ? "Online" : "Offline") : selectedColour ? "Configured" : "None"}</strong></div><Icon name="colour" size={28} /></div>
+                <PrinterDropdownRow
+                  value={selectedColour || colourPrinter?.name || "No colour printer"}
+                  printers={printers}
+                  onSelect={(name) => handleAssignPrinter("colour", name)}
+                  onTest={() => handleTestPrint(colourPrinter?.id || selectedColour || colourPrinter?.name)}
+                />
+                {(colourPrinter || selectedColour) && testStatus[colourPrinter?.id || selectedColour || ""] && (
+                  <div className="test-result success"><Icon name="check" />{testStatus[colourPrinter?.id || selectedColour || ""]}</div>
+                )}
               </section>
 
               <section className="setting-card qr-print-card">
                 <div><span>SHOP QR POSTER</span><strong>Print your QR</strong><p>Students scan this to start an order.</p><Button onClick={onOpenQrModal}>PRINT YOUR QR</Button></div>
                 <div className="mini-poster" onClick={onOpenQrModal} style={{ cursor: "pointer" }}><img src="./hkbk-logo.jpg" alt="" /><RealQRCode text={studentUrl} size={64} /><b>SCAN TO PRINT</b></div>
               </section>
+
+              <details className="setting-card printer-setup-guide">
+                <summary><span>HOW TO CONNECT PRINTERS</span><strong>Printer setup guide</strong></summary>
+                <div className="setup-guide-body">
+                  <p>The <strong>PrintBK Print Agent</strong> is a small background program you run on the counter PC. It discovers your local USB and network printers and sends jobs directly — no dialogs, no manual steps.</p>
+                  <ol>
+                    <li>
+                      <strong>Step 1 — Open a terminal on the counter PC</strong>
+                      <p>Press <kbd>Win + R</kbd>, type <code>cmd</code>, press Enter.</p>
+                    </li>
+                    <li>
+                      <strong>Step 2 — Navigate to the agent folder</strong>
+                      <p>Type: <code>cd C:\PrintBK\agent</code> (adjust if installed elsewhere).</p>
+                    </li>
+                    <li>
+                      <strong>Step 3 — Start the agent</strong>
+                      <p>Run: <code>pnpm start</code> or <code>node agent.js</code></p>
+                      <p style={{ color: "var(--muted)", fontSize: 13 }}>Keep this terminal window open while the shop is running. Your printers will appear here within 10 seconds of the agent starting.</p>
+                    </li>
+                    <li>
+                      <strong>Step 4 — Verify connection</strong>
+                      <p>Click <strong>REFRESH</strong> above. The status will change to <span style={{ color: "var(--success)", fontWeight: 700 }}>● PRINT AGENT ONLINE</span> and your printers will be listed.</p>
+                    </li>
+                  </ol>
+                  <div className="setup-guide-tips">
+                    <strong>Student Settings &amp; Real Document Printing</strong>
+                    <ul>
+                      <li>When students submit documents, all their selected settings (<strong>Double-sided / Duplex</strong>, <strong>Copies</strong>, <strong>Paper Size A4/A3</strong>, <strong>Orientation</strong>, and <strong>Page Ranges</strong>) are passed directly to the printer spooler.</li>
+                      <li>Clicking <strong>APPROVE &amp; PRINT</strong> sends the exact file to the local printer queue immediately. No manual print dialogs needed.</li>
+                      <li>USB printers: Connect directly to the counter PC — the agent picks them up automatically.</li>
+                      <li>Network/WiFi printers: Make sure the printer is on the same local network and is added in Windows Settings → Printers &amp; scanners.</li>
+                      <li>To start the agent automatically on boot, create a shortcut to <code>agent.js</code> in your Windows Startup folder (<kbd>Win + R</kbd> → <code>shell:startup</code>).</li>
+                      <li>If a printer appears offline, power-cycle the printer and click REFRESH.</li>
+                    </ul>
+                  </div>
+                </div>
+              </details>
 
               <section className="setting-card">
                 <div className="setting-card-title"><div><span>MIXED COLOUR DOCUMENTS</span><strong>Choose how pages are routed</strong></div></div>
@@ -1210,7 +1335,6 @@ function TodayView({ onHistory, onOrders }: { onHistory: () => void; onOrders: (
         <article className="day-summary-sheet">
           <div className="summary-logo">
             <img src="./hkbk-logo.jpg" alt="" />
-            <img src="./printbk-logo.svg" alt="PrintBK" style={{ height: 26, marginLeft: 6 }} />
             <div><strong>PrintBK</strong><span>Counter Summary</span></div>
           </div>
           {[
@@ -1227,7 +1351,9 @@ function TodayView({ onHistory, onOrders }: { onHistory: () => void; onOrders: (
 }
 
 function HistoryPayment({ payment }: { payment: Payment }) {
-  return <span className={`history-payment history-payment--${payment}`}><Icon name={payment === "upi" ? "eye" : payment === "cash_due" ? "cash" : "check"} size={16} />{payment === "upi" ? "UPI VERIFY" : payment === "paid" ? "PAID ONLINE" : payment === "cash_due" ? "CASH DUE" : "CASH PAID"}</span>
+  const label = payment === "upi" ? "UPI PAID" : payment === "paid" ? "PAID ONLINE" : payment === "cash_due" ? "CASH DUE" : "CASH PAID"
+  const icon = payment === "upi" ? "check" : payment === "cash_due" ? "cash" : "check"
+  return <span className={`history-payment history-payment--${payment}`}><Icon name={icon} size={16} />{label}</span>
 }
 
 function HistoryView({ onBack, onOrders, onOpen }: { onBack: () => void; onOrders: () => void; onOpen: (job: Job) => void }) {
@@ -1314,7 +1440,7 @@ function OwnerPhoneView({
   return (
     <div className="owner-phone">
       <header className="owner-topbar">
-        <div className="owner-brand"><img src="./hkbk-logo.jpg" alt="HKBK Group of Institutions" /><img src="./printbk-logo.svg" alt="PrintBK" style={{ height: 26, marginLeft: 6 }} /><strong>PrintBK</strong></div>
+        <div className="owner-brand"><img src="./hkbk-logo.jpg" alt="HKBK Group of Institutions" /><strong>PrintBK</strong></div>
         <button className={`owner-shop-switch ${shopOpen ? "open" : ""}`} type="button" onClick={() => setShopOpen(!shopOpen)}><i /><span>{shopOpen ? "OPEN" : "CLOSED"}</span></button>
       </header>
 

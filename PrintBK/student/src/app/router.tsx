@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
 import Entry from '../features/entry/Entry';
 import Uploading from '../features/entry/Uploading';
@@ -29,9 +29,85 @@ import About from '../features/about/About';
 import { useBasket } from '../store/basket';
 import type { ServiceLine } from '@printbk/shared';
 
+function ShopClosedBarrier({
+  announcement,
+  onCheckStatus,
+  onViewHistory,
+  checking,
+}: {
+  announcement?: string;
+  onCheckStatus: () => void;
+  onViewHistory: () => void;
+  checking: boolean;
+}) {
+  return (
+    <div className="shop-closed-barrier">
+      <div className="shop-closed-card">
+        <div className="shop-closed-badge">
+          <span className="dot" /> SHOP IS CURRENTLY CLOSED
+        </div>
+        <div className="shop-closed-brand">
+          <img src="./hkbk-logo.jpg" alt="HKBK" className="shop-closed-logo" />
+          <div>
+            <strong>HKBK Student Point</strong>
+            <span>PrintBK Counter Service</span>
+          </div>
+        </div>
+        <h2>Counter Orders Paused</h2>
+        <p className="shop-closed-msg">
+          {announcement ||
+            "The print shop counter is currently closed by staff. New uploads, document printing, and walk-in service orders are temporarily disabled."}
+        </p>
+        <div className="shop-closed-pulse">
+          <span className="pulse-dot" /> Auto-checking status live — will reopen automatically
+        </div>
+        <div className="shop-closed-actions">
+          <button type="button" className="barrier-btn barrier-btn-primary" onClick={onCheckStatus} disabled={checking}>
+            {checking ? "Checking counter..." : "Check Status Now"}
+          </button>
+          <button type="button" className="barrier-btn barrier-btn-secondary" onClick={onViewHistory}>
+            View My Orders &amp; Pickup Codes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RouteMapper() {
   const navigate = useNavigate();
+  const location = useLocation();
   const basket = useBasket();
+
+  // Live shop open/closed polling
+  const [shopOpen, setShopOpen] = useState<boolean>(true);
+  const [shopAnnouncement, setShopAnnouncement] = useState<string>('');
+  const [checkingStatus, setCheckingStatus] = useState<boolean>(false);
+
+  const checkShopStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/server/api/shop/status');
+      if (res.ok) {
+        const data = await res.json();
+        setShopOpen(data.open !== false);
+        setShopAnnouncement(data.announcement || '');
+      }
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => {
+    checkShopStatus();
+    const interval = setInterval(checkShopStatus, 5000);
+    const handleFocus = () => checkShopStatus();
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') checkShopStatus();
+    });
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [checkShopStatus]);
 
   const go = (screen: string) => {
     if (screen.startsWith('/')) return navigate(screen);
@@ -58,9 +134,9 @@ function RouteMapper() {
   const [customNote, setCustomNote] = useState<string>("");
 
   const addService = (s: any) => {
+    if (!shopOpen) return;
     basket.addService(s);
     setSheet(null);
-    // Navigate to basket after adding so user can see it
     navigate('/basket');
   };
 
@@ -77,6 +153,10 @@ function RouteMapper() {
       default: return null;
     }
   };
+
+  // Determine if current route should display closed barrier
+  const isExemptRoute = ['/history', '/settings', '/about', '/privacy'].includes(location.pathname) || location.pathname.startsWith('/order/');
+  const showClosedBarrier = !shopOpen && !isExemptRoute;
 
   return (
     <>
@@ -97,6 +177,18 @@ function RouteMapper() {
         <Route path="*"          element={<Entry go={go} setSheet={setSheet} openPhoto={() => navigate('/photos')} />} />
       </Routes>
       {renderSheet()}
+      {showClosedBarrier && (
+        <ShopClosedBarrier
+          announcement={shopAnnouncement}
+          checking={checkingStatus}
+          onCheckStatus={async () => {
+            setCheckingStatus(true);
+            await checkShopStatus();
+            setCheckingStatus(false);
+          }}
+          onViewHistory={() => navigate('/history')}
+        />
+      )}
     </>
   );
 }

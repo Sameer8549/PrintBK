@@ -284,6 +284,18 @@ export async function printQrPrinter(printerId: string) {
   return data
 }
 
+export async function addStaffPrinter(name: string, role: string = "both") {
+  const res = await staffFetch("/staff/printers/add", {
+    method: "POST",
+    body: JSON.stringify({ name, role }),
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    throw new StaffApiError(data.error || "Failed to add printer", res.status, data)
+  }
+  return data
+}
+
 export async function purgeStaleOrders() {
   const res = await staffFetch("/staff/orders/purge-stale", {
     method: "POST",

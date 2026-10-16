@@ -31,19 +31,19 @@ kbd { min-width: 32px; height: 32px; display: inline-grid; place-items: center; 
 .button--ghost { min-height: 52px; border-color: transparent; background: transparent; }
 .button:disabled { cursor: not-allowed; opacity: .35; box-shadow: none; }
 
-.topbar { position: sticky; z-index: 30; top: 0; min-height: 86px; display: flex; align-items: center; gap: 18px; padding: 12px 28px; background: rgba(247,244,238,.98); border-bottom: 1px solid var(--line); }
-.brand { min-width: 168px; display: flex; align-items: center; gap: 10px; }
-.brand img { width: 48px; height: 48px; border-radius: 50%; }
+.topbar { position: sticky; z-index: 30; top: 0; min-height: 86px; display: flex; align-items: center; gap: 14px; padding: 10px 20px; background: rgba(247,244,238,.98); border-bottom: 1px solid var(--line); flex-wrap: nowrap; overflow: hidden; }
+.brand { min-width: 148px; display: flex; align-items: center; gap: 10px; }
+.brand img { width: 44px; height: 44px; border-radius: 50%; }
 .brand div { display: flex; flex-direction: column; }
-.brand strong { font: 700 23px "Space Grotesk", sans-serif; letter-spacing: -.04em; }
-.brand span { color: var(--muted); font-size: 14px; font-weight: 700; letter-spacing: .14em; }
-.shop-switch { min-height: 58px; display: flex; align-items: center; gap: 10px; border: 2px solid var(--ink); border-radius: 999px; background: var(--sand); padding: 7px 14px 7px 8px; cursor: pointer; }
+.brand strong { font: 700 21px "Space Grotesk", sans-serif; letter-spacing: -.04em; }
+.brand span { color: var(--muted); font-size: 13px; font-weight: 700; letter-spacing: .14em; }
+.shop-switch { min-height: 54px; display: flex; align-items: center; gap: 10px; border: 2px solid var(--ink); border-radius: 999px; background: var(--sand); padding: 7px 14px 7px 8px; cursor: pointer; flex-shrink: 0; }
 .switch-track { width: 46px; height: 28px; display: flex; align-items: center; padding: 3px; border-radius: 99px; background: var(--ink-2); }
 .switch-track span { width: 22px; height: 22px; display: block; border-radius: 50%; background: white; transition: transform .2s; }
 .shop-switch.is-open { border-color: var(--success); background: var(--success-tint); }
 .shop-switch.is-open .switch-track { background: var(--success); }
 .shop-switch.is-open .switch-track span { transform: translateX(18px); }
-.live-status { min-width: 122px; display: flex; align-items: center; gap: 9px; }
+.live-status { min-width: 110px; display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
 .live-status > i { width: 11px; height: 11px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 5px var(--success-tint); animation: pulse 1.8s infinite; }
 .live-status span, .printer-pill span { display: flex; flex-direction: column; }
 .live-status b { font-size: 14px; letter-spacing: .08em; }
@@ -52,12 +52,15 @@ kbd { min-width: 32px; height: 32px; display: inline-grid; place-items: center; 
 .live-status.is-offline > i, .printer-pill.is-offline i { background: var(--error); box-shadow: 0 0 0 5px var(--error-tint); }
 .printer-pill.is-offline { color: var(--error); background: var(--error-tint); }
 @keyframes pulse { 50% { box-shadow: 0 0 0 8px transparent; } }
-.printer-pills { display: flex; gap: 8px; margin-left: auto; }
-.printer-pill { min-width: 180px; height: 56px; display: flex; align-items: center; gap: 9px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: white; font-size: 14px; font-weight: 600; }
+.printer-pills { display: none; gap: 8px; margin-left: auto; }
+.printer-pill { min-width: 160px; height: 52px; display: flex; align-items: center; gap: 9px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: white; font-size: 14px; font-weight: 600; }
 .printer-pill i { width: 10px; height: 10px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px var(--success-tint); }
-.nav-actions { display: flex; }
+.nav-actions { display: flex; margin-left: auto; flex-shrink: 0; }
 .nav-actions .button span { display: none; }
 .nav-actions .button.is-active { background: var(--sand); }
+@media (min-width: 1300px) {
+  .printer-pills { display: flex; }
+}
 @media (min-width: 1400px) {
   .nav-actions .button span { display: inline; }
 }
@@ -521,7 +524,7 @@ kbd { min-width: 32px; height: 32px; display: inline-grid; place-items: center; 
 .history-search input { flex: 1; border: 0; outline: 0; background: transparent; font-size: 16px; }
 .history-table { overflow-x: auto; border: 2px solid var(--ink); border-radius: var(--radius); background: white; box-shadow: 4px 4px 0 var(--ink); width: 100%; }
 .history-table-head, .history-row { min-width: 1140px; width: 100%; display: grid; grid-template-columns: 110px 85px minmax(220px, 1.5fr) 70px 105px 160px 100px 130px 110px; align-items: center; }
-.history-table-head { min-height: 52px; position: sticky; top: 86px; z-index: 10; background: var(--ink); color: white; }
+.history-table-head { min-height: 52px; position: sticky; top: 0; z-index: 10; background: var(--ink); color: white; }
 .history-table-head span { padding: 0 12px; font-size: 14px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
 .history-row { width: 100%; min-height: 72px; border: 0; border-bottom: 1px dotted var(--line); background: white; text-align: left; cursor: pointer; }
 .history-row:hover { background: var(--sand); }
@@ -530,11 +533,11 @@ kbd { min-width: 32px; height: 32px; display: inline-grid; place-items: center; 
 .history-row > b { font: 700 16px "JetBrains Mono"; }
 .history-row > b:nth-of-type(1) { text-align: right; }
 .history-row > b:nth-of-type(2) { text-align: right; }
-.history-payment { min-height: 42px; display: flex; align-items: center; gap: 6px; padding: 0 9px; border: 1px solid var(--ink); font-size: 14px; font-weight: 700; }
+.history-payment { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 10px; border: 1px solid var(--ink); border-radius: 6px; font-size: 13px; font-weight: 700; max-width: 140px; }
 .history-payment--paid, .history-payment--cash_collected { background: var(--success); color: white; }
-.history-payment--upi { background: var(--warning); }
+.history-payment--upi { background: var(--warning); color: var(--ink); }
 .history-payment--cash_due { background: var(--error); color: white; }
-.history-status { display: inline-flex; align-items: center; justify-content: center; justify-self: start; min-height: 32px; margin-left: 10px; padding: 0 9px !important; border: 1px solid var(--ink); border-radius: 999px; font-size: 14px; font-weight: 700; }
+.history-status { display: inline-flex; align-items: center; justify-content: center; justify-self: start; min-height: 32px; margin: 0; padding: 0 10px !important; border: 1px solid var(--ink); border-radius: 999px; font-size: 13px; font-weight: 700; text-transform: capitalize; }
 .status-printed { background: var(--success-tint); color: var(--success); }
 .status-rejected, .status-failed { background: var(--error-tint); color: var(--error); }
 .status-cancelled, .status-expired { background: var(--sand); color: var(--muted); }
@@ -558,6 +561,26 @@ kbd { min-width: 32px; height: 32px; display: inline-grid; place-items: center; 
 .printer-agent-status .status-badge.offline { color: var(--muted); }
 .printer-agent-status p { margin: 0; font-size: 14px; color: var(--ink); }
 .printer-agent-status code { background: white; padding: 2px 6px; border: 1px solid var(--ink); border-radius: 4px; font-weight: bold; }
+
+/* Printer Setup Guide (collapsible) */
+.printer-setup-guide { cursor: pointer; }
+.printer-setup-guide summary { display: flex; flex-direction: column; gap: 3px; list-style: none; padding: 2px 0 0; }
+.printer-setup-guide summary::-webkit-details-marker { display: none; }
+.printer-setup-guide summary > span { color: var(--muted); font-size: 14px; font-weight: 700; letter-spacing: .14em; }
+.printer-setup-guide summary > strong { font: 700 18px "Space Grotesk"; display: flex; align-items: center; gap: 8px; }
+.printer-setup-guide summary > strong::after { content: "▸ Tap to expand"; font-size: 13px; color: var(--muted); font-family: "Inter"; font-weight: 600; letter-spacing: 0; }
+.printer-setup-guide[open] summary > strong::after { content: "▾ Tap to collapse"; }
+.setup-guide-body { padding-top: 16px; border-top: 1px dotted var(--line); margin-top: 14px; cursor: default; }
+.setup-guide-body > p { margin: 0 0 14px; font-size: 15px; line-height: 1.5; }
+.setup-guide-body ol { margin: 0 0 16px; padding-left: 20px; display: flex; flex-direction: column; gap: 14px; }
+.setup-guide-body ol li strong { display: block; margin-bottom: 4px; font-size: 15px; }
+.setup-guide-body ol li p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.4; }
+.setup-guide-body code { background: var(--sand); padding: 2px 7px; border: 1px solid var(--line); border-radius: 4px; font-family: "JetBrains Mono", monospace; font-size: 13px; font-weight: 600; color: var(--ink); }
+.setup-guide-body kbd { font-size: 13px; min-width: 28px; height: 28px; }
+.setup-guide-tips { margin-top: 14px; padding: 14px; background: var(--info-tint); border: 1px solid var(--info); border-radius: 8px; }
+.setup-guide-tips > strong { display: block; margin-bottom: 8px; font-size: 14px; letter-spacing: .1em; color: var(--info); }
+.setup-guide-tips ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.setup-guide-tips ul li { font-size: 14px; line-height: 1.4; }
 
 /* Real QR Code Poster Modal & Print Styles */
 .qr-modal-scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.65); backdrop-filter: blur(4px); z-index: 1000; }

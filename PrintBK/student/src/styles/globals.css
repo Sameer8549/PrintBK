@@ -772,6 +772,134 @@ h2 { font-size: 24px; line-height: 1.08; }
   .checkout-ticket ~ .field-label, .checkout-ticket ~ .phone-field, .checkout-ticket ~ .payment-section { margin-left: 52%; }
 }
 
+/* Shop Closed Barrier Overlay */
+.shop-closed-barrier {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(247, 244, 238, 0.98);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.shop-closed-card {
+  width: 100%;
+  max-width: 480px;
+  background: white;
+  border: 3px solid var(--ink, #0b1020);
+  border-radius: 18px;
+  padding: 32px 24px;
+  box-shadow: 8px 8px 0 var(--ink, #0b1020);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.shop-closed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  font: 700 12px "JetBrains Mono", monospace;
+  letter-spacing: 0.1em;
+  margin-bottom: 20px;
+}
+.shop-closed-badge .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+.shop-closed-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  text-align: left;
+}
+.shop-closed-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.shop-closed-brand strong {
+  display: block;
+  font: 700 18px "Space Grotesk", sans-serif;
+}
+.shop-closed-brand span {
+  font-size: 13px;
+  color: var(--muted, #7a7f90);
+}
+.shop-closed-card h2 {
+  font: 700 28px/1.2 "Space Grotesk", sans-serif;
+  letter-spacing: -0.03em;
+  margin: 0 0 12px;
+  color: var(--ink, #0b1020);
+}
+.shop-closed-msg {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--muted, #7a7f90);
+  margin: 0 0 20px;
+}
+.shop-closed-pulse {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted, #7a7f90);
+  margin-bottom: 24px;
+}
+.shop-closed-pulse .pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f59e0b;
+  animation: pulse 1.6s infinite;
+}
+.shop-closed-actions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.barrier-btn {
+  width: 100%;
+  min-height: 52px;
+  border-radius: 10px;
+  border: 2px solid var(--ink, #0b1020);
+  font: 700 15px "Space Grotesk", sans-serif;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.barrier-btn-primary {
+  background: var(--lime, #c8f031);
+  color: #1b2300;
+  box-shadow: 4px 4px 0 var(--ink, #0b1020);
+}
+.barrier-btn-primary:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--ink, #0b1020);
+}
+.barrier-btn-secondary {
+  background: var(--sand, #ece6d8);
+  color: var(--ink, #0b1020);
+}
+.barrier-btn-secondary:hover {
+  background: var(--sand-deep, #e2dac8);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
