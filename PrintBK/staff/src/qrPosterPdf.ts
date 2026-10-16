@@ -48,9 +48,24 @@ export async function generateQrVectorPdf(qrUrl: string, shopInfo?: QrShopInfo):
 
   // 2. Embed Single Canonical Logo (HKBK official logo)
   try {
-    const res = await fetch("./hkbk-logo.jpg");
-    if (res.ok) {
-      const logoBytes = await res.arrayBuffer();
+    const candidateUrls = [
+      "./hkbk-logo.jpg",
+      "/staff/hkbk-logo.jpg",
+      "/hkbk-logo.jpg",
+      "/app/staff/hkbk-logo.jpg",
+      "hkbk-logo.jpg"
+    ];
+    let logoBytes: ArrayBuffer | null = null;
+    for (const u of candidateUrls) {
+      try {
+        const res = await fetch(u);
+        if (res.ok) {
+          logoBytes = await res.arrayBuffer();
+          break;
+        }
+      } catch (_) {}
+    }
+    if (logoBytes) {
       const logoImage = await doc.embedJpg(logoBytes);
       page.drawImage(logoImage, {
         x: 48,
@@ -163,8 +178,14 @@ export async function generateQrVectorPdf(qrUrl: string, shopInfo?: QrShopInfo):
     },
   });
 
-  const qrRes = await fetch(qrDataUrl);
-  const qrPngBytes = await qrRes.arrayBuffer();
+  // Decode base64 PNG directly into Uint8Array without calling fetch() to prevent CSP connect-src blocks
+  const base64Data = qrDataUrl.includes(",") ? qrDataUrl.split(",")[1] : qrDataUrl;
+  const binaryString = atob(base64Data);
+  const qrPngBytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    qrPngBytes[i] = binaryString.charCodeAt(i);
+  }
+
   const qrImage = await doc.embedPng(qrPngBytes);
   page.drawImage(qrImage, {
     x: qrX,
