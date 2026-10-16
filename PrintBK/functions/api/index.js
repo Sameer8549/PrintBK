@@ -713,6 +713,9 @@ app.post('/orders', async (req, res) => {
       typedItems
     };
 
+    const isTest = Boolean(req.body.is_test || req.headers['x-test-suite'] || process.env.NODE_ENV === 'test');
+    basketPayload.is_test = isTest;
+
     const orderRecord = {
       id: orderId,
       order_number: orderNumber,
@@ -722,6 +725,7 @@ app.post('/orders', async (req, res) => {
       file_names: JSON.stringify(files.map(f => f.name)),
       quote_pending: quotePending,
       total,
+      is_test: isTest,
       created_at: now,
       updated_at: now
     };
@@ -731,15 +735,15 @@ app.post('/orders', async (req, res) => {
     const filesJson  = esc(JSON.stringify(files.map(f => f.name)));
 
     if (zcql) {
-      // Insert order with resilient column fallback
+      // Insert order with resilient column fallback (supports is_test column when configured)
       try {
         await zcql.executeZCQLQuery(
-          `INSERT INTO orders (id, order_number, access_token_hash, status, basket, file_names, quote_pending, total, created_at, updated_at) VALUES ('${orderId}', ${orderNumber}, '${accessTokenHash}', '${status}', '${basketJson}', '${filesJson}', ${quotePending}, ${total}, ${now}, ${now})`
+          `INSERT INTO orders (id, order_number, access_token_hash, status, basket, file_names, quote_pending, total, is_test, created_at, updated_at) VALUES ('${orderId}', ${orderNumber}, '${accessTokenHash}', '${status}', '${basketJson}', '${filesJson}', ${quotePending}, ${total}, ${isTest}, ${now}, ${now})`
         );
       } catch (insertErr) {
         try {
           await zcql.executeZCQLQuery(
-            `INSERT INTO orders (id, status, basket, file_names, quote_pending, total, created_at, updated_at) VALUES ('${orderId}', '${status}', '${basketJson}', '${filesJson}', ${quotePending}, ${total}, ${now}, ${now})`
+            `INSERT INTO orders (id, order_number, access_token_hash, status, basket, file_names, quote_pending, total, created_at, updated_at) VALUES ('${orderId}', ${orderNumber}, '${accessTokenHash}', '${status}', '${basketJson}', '${filesJson}', ${quotePending}, ${total}, ${now}, ${now})`
           );
         } catch (_) {}
       }
@@ -1735,6 +1739,118 @@ app.post(['/cron/cleanup-files', '/cron/cleanup'], async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (err) {
     res.status(500).json({ error: 'Cleanup job failed: ' + err.message });
+  }
+});
+
+/* ─── Purge Test Data Endpoint (Cron Secret or Staff Authenticated) ── */
+app.post('/internal/purge-test-data', async (req, res) => {
+  if (!isCronScheduler(req) && !isStaff(req)) {
+    return res.status(401).json({ error: 'Unauthorized: valid cron secret or staff credentials required' });
+  }
+
+  const dryRun = req.body.dryRun !== false;
+  const forceUnflagged = req.body.forceUnflagged === true;
+
+  try {
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    const filestore = catalystApp ? catalystApp.filestore() : null;
+    const folder = filestore ? await getPrintFilesFolder(filestore).catch(() => null) : null;
+
+    let allOrders = [];
+    if (zcql) {
+      const rows = await zcql.executeZCQLQuery("SELECT * FROM orders ORDER BY created_at DESC").catch(() => []);
+      allOrders = (rows || []).map(r => r.orders);
+    }
+    // Also include memory orders
+    for (const [id, o] of memOrders) {
+      if (!allOrders.some(x => x.id === id)) allOrders.push(o);
+    }
+
+    const testFileNames = new Set([
+      'SMOKE_TEST_DOC.pdf',
+      'SECURITY_TEST_DOC.pdf',
+      'PICKUP_TEST.pdf',
+      'retention_audit_doc.pdf',
+      'Phase0_Evidence.pdf',
+      'test-file-1'
+    ]);
+
+    const flaggedToDelete = [];
+    const unflaggedCandidates = [];
+
+    for (const ord of allOrders) {
+      let b = {};
+      try { b = typeof ord.basket === 'string' ? JSON.parse(ord.basket || '{}') : (ord.basket || {}); } catch (_) {}
+      const fileNames = (b.files || []).map(f => f.name || '');
+
+      const isExplicitTest = ord.is_test === true || String(ord.is_test) === 'true' || b.is_test === true;
+      const hasTestFileName = fileNames.some(name => testFileNames.has(name) || name.startsWith('SMOKE_') || name.startsWith('SECURITY_') || name.startsWith('PICKUP_') || name.startsWith('retention_'));
+
+      if (isExplicitTest || hasTestFileName) {
+        flaggedToDelete.push({ id: ord.id, num: ord.order_number, status: ord.status, files: fileNames });
+      } else {
+        unflaggedCandidates.push({ id: ord.id, num: ord.order_number, status: ord.status, files: fileNames, createdAt: ord.created_at });
+      }
+    }
+
+    const targets = forceUnflagged ? [...flaggedToDelete, ...unflaggedCandidates] : flaggedToDelete;
+
+    if (dryRun) {
+      return res.json({
+        ok: true,
+        dryRun: true,
+        flaggedToDeleteCount: flaggedToDelete.length,
+        flaggedToDelete,
+        unflaggedCandidatesCount: unflaggedCandidates.length,
+        unflaggedCandidates
+      });
+    }
+
+    // Execute actual purge
+    let deletedFilesCount = 0;
+    for (const target of targets) {
+      // 1. Delete files
+      if (folder) {
+        let b = {};
+        const ord = allOrders.find(x => x.id === target.id);
+        if (ord) {
+          try { b = typeof ord.basket === 'string' ? JSON.parse(ord.basket || '{}') : (ord.basket || {}); } catch (_) {}
+          for (const f of (b.files || [])) {
+            if (f.cloudId) {
+              try {
+                await folder.deleteFile(f.cloudId);
+                deletedFilesCount++;
+              } catch (_) {}
+            }
+          }
+        }
+      }
+
+      // 2. Delete ZCQL records
+      if (zcql) {
+        await zcql.executeZCQLQuery(`DELETE FROM order_items WHERE order_id = '${esc(target.id)}'`).catch(() => {});
+        await zcql.executeZCQLQuery(`DELETE FROM print_jobs WHERE order_id = '${esc(target.id)}'`).catch(() => {});
+        await zcql.executeZCQLQuery(`DELETE FROM order_events WHERE order_id = '${esc(target.id)}'`).catch(() => {});
+        await zcql.executeZCQLQuery(`DELETE FROM orders WHERE id = '${esc(target.id)}'`).catch(() => {});
+      }
+
+      // 3. Clear memory
+      memOrders.delete(target.id);
+      for (const [k, it] of memOrderItems) {
+        if (it.order_id === target.id) memOrderItems.delete(k);
+      }
+    }
+
+    res.json({
+      ok: true,
+      dryRun: false,
+      deletedOrdersCount: targets.length,
+      deletedFilesCount,
+      unflaggedRemainingCount: forceUnflagged ? 0 : unflaggedCandidates.length
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Purge failed: ' + err.message });
   }
 });
 

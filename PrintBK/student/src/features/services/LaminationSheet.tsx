@@ -37,7 +37,7 @@ function LaminationSheet({
           price,
           mode: "walkin",
           label: "Pay now, hand over at counter",
-          counterNote: `Bring: ${quantity} ${item}${quantity > 1 ? "s" : ""} for lamination. Show code 4821.`
+          counterNote: `Bring: ${quantity} ${item}${quantity > 1 ? "s" : ""} for lamination. Show order pickup code at counter.`
         });
         close();
       }}>Add to basket</button></div>

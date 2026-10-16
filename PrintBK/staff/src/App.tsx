@@ -1272,7 +1272,14 @@ function OrderDetailPanel({
 }
 
 function Sparkline({ values }: { values: number[] }) {
-  const points = values.map((value, index) => `${index * 19},${38 - value}`).join(" ")
+  if (!values || values.length === 0) {
+    return (
+      <svg className="sparkline" viewBox="0 0 115 42" aria-hidden="true">
+        <line x1="0" y1="40" x2="115" y2="40" stroke="currentColor" strokeWidth="1" strokeDasharray="3 3" opacity="0.3" />
+      </svg>
+    )
+  }
+  const points = values.map((value, index) => `${index * (115 / Math.max(1, values.length - 1))},${38 - Math.min(35, Math.max(0, value))}`).join(" ")
   return <svg className="sparkline" viewBox="0 0 115 42" aria-hidden="true"><polyline points={points} fill="none" stroke="currentColor" strokeWidth="3" /><line x1="0" y1="40" x2="115" y2="40" stroke="currentColor" strokeWidth="1" /></svg>
 }
 
@@ -1317,10 +1324,10 @@ function TodayView({ onHistory, onOrders }: { onHistory: () => void; onOrders: (
 
       <section className="kpi-grid">
         {[
-          ["Collected", collectedStr, "+0%", [10, 15, 18, 22, 25, 30]],
-          ["Orders", ordersStr, "+0", [5, 8, 12, 16, 20, 24]],
-          ["Pages printed", pagesStr, "+0%", [10, 20, 30, 40, 50, 60]],
-          ["Average wait", avgWaitStr, "—", [20, 18, 16, 15, 14, 12]],
+          ["Collected", collectedStr, stats && stats.orders > 0 ? `${stats.orders} orders` : "0 orders", stats && stats.orders > 0 ? [stats.collected] : []],
+          ["Orders", ordersStr, stats && stats.orders > 0 ? `${stats.orders} total` : "0 total", stats && stats.orders > 0 ? [stats.orders] : []],
+          ["Pages printed", pagesStr, stats && stats.orders > 0 ? `${stats.pages} pages` : "0 pages", stats && stats.orders > 0 ? [stats.pages] : []],
+          ["Average wait", avgWaitStr, "real-time", []],
         ].map((kpi, index) => <KpiTile key={kpi[0] as string} label={kpi[0] as string} value={kpi[1] as string} change={kpi[2] as string} spark={kpi[3] as number[]} lime={index === 0} />)}
       </section>
 

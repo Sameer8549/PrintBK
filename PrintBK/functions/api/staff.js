@@ -325,8 +325,12 @@ router.get('/live', async (req, res) => {
     if (zcql) {
       try {
         const orderRows = await zcql.executeZCQLQuery(
-          `SELECT id, order_number, status, total, quote_pending, basket, created_at, updated_at FROM orders WHERE status IN (${activeStatuses}) ORDER BY created_at ASC`
-        );
+          `SELECT id, order_number, status, total, quote_pending, basket, is_test, created_at, updated_at FROM orders WHERE (is_test IS NULL OR is_test = false) AND status IN (${activeStatuses}) ORDER BY created_at ASC`
+        ).catch(async () => {
+          return zcql.executeZCQLQuery(
+            `SELECT id, order_number, status, total, quote_pending, basket, created_at, updated_at FROM orders WHERE status IN (${activeStatuses}) ORDER BY created_at ASC`
+          ).catch(() => []);
+        });
         for (const r of (orderRows || [])) {
           ordersMap.set(r.orders.id, r.orders);
         }
@@ -355,18 +359,22 @@ router.get('/live', async (req, res) => {
     for (const o of ordersMap.values()) {
       let b = {};
       try { b = typeof o.basket === 'string' ? JSON.parse(o.basket || '{}') : (o.basket || {}); } catch (_) {}
+      if (o.is_test === true || String(o.is_test) === 'true' || b.is_test === true) {
+        continue;
+      }
 
+      const num = Number(o.order_number || 0);
       const orderObj = {
         id: o.id,
         orderId: o.id,
         order_id: o.id,
-        orderNumber: Number(o.order_number || 1000),
-        order_number: Number(o.order_number || 1000),
+        orderNumber: num,
+        order_number: num,
         status: o.status,
         total: Number(o.total || 0),
         quotePending: !!o.quote_pending,
-        pickupCode: b.pickupCode || String(o.order_number || '0000').slice(-4),
-        pickup_code: b.pickupCode || String(o.order_number || '0000').slice(-4),
+        pickupCode: b.pickupCode || (num ? String(num).slice(-4) : '—'),
+        pickup_code: b.pickupCode || (num ? String(num).slice(-4) : '—'),
         payment: o.status === 'cash_collected' ? 'cash_collected' : (o.status === 'pending_cash' ? 'cash_due' : (o.status === 'upi_claimed' ? 'upi' : 'paid')),
         payment_status: o.status,
         createdAt: Number(o.created_at || now),
@@ -1251,30 +1259,44 @@ router.get('/history', async (req, res) => {
     const zcql = catalystApp ? catalystApp.zcql() : null;
     const search = req.query.search ? esc(req.query.search.trim()) : '';
 
-    let query = `SELECT id, order_number, status, total, basket, created_at FROM orders WHERE status IN ('completed', 'cancelled', 'rejected', 'expired')`;
+    let query = `SELECT id, order_number, status, total, basket, created_at, updated_at, is_test FROM orders WHERE (is_test IS NULL OR is_test = false) AND status IN ('completed', 'cancelled', 'rejected', 'expired')`;
     if (search) {
       query += ` AND order_number = ${Number(search) || 0}`;
     }
     query += ` ORDER BY created_at DESC LIMIT 50`;
 
-    const rows = zcql ? (await zcql.executeZCQLQuery(query).catch(() => [])) : [];
+    const rows = zcql ? (await zcql.executeZCQLQuery(query).catch(async () => {
+      // Fallback if is_test column is not yet added in table schema
+      const fallbackQuery = `SELECT id, order_number, status, total, basket, created_at, updated_at FROM orders WHERE status IN ('completed', 'cancelled', 'rejected', 'expired') ${search ? `AND order_number = ${Number(search) || 0}` : ''} ORDER BY created_at DESC LIMIT 50`;
+      return zcql.executeZCQLQuery(fallbackQuery).catch(() => []);
+    })) : [];
+
     const list = (rows || []).map(r => {
       const o = r.orders;
       let b = {};
       try { b = JSON.parse(o.basket || '{}'); } catch (_) {}
+      if (o.is_test === true || String(o.is_test) === 'true' || b.is_test === true) {
+        return null;
+      }
+
+      const created = Number(o.created_at || 0);
+      const updated = Number(o.updated_at || 0);
+      const durationSec = (updated > created) ? (updated - created) : 0;
+      const speedStr = durationSec > 0 ? `${Math.floor(durationSec / 60)}m ${String(durationSec % 60).padStart(2, '0')}s` : '—';
+
       return {
-        order: Number(o.order_number || 1000),
-        time: new Date(Number(o.created_at) * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        code: b.pickupCode || String(o.order_number || '0000').slice(-4),
+        order: Number(o.order_number || 0),
+        time: created > 0 ? new Date(created * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—',
+        code: b.pickupCode || (o.order_number ? String(o.order_number).slice(-4) : '—'),
         files: (b.files || []).map(f => f.name).join(' · ') || 'Document',
         pages: (b.files || []).reduce((acc, f) => acc + (f.pages || 1), 0),
         colour: (b.files || []).some(f => f.settings?.colorMode !== 'bw') ? 'Colour' : 'B&W',
-        payment: o.status === 'cash_collected' ? 'cash_collected' : 'upi',
+        payment: o.status === 'cash_collected' ? 'cash_collected' : (o.status === 'pending_cash' ? 'cash_due' : (o.status === 'upi_claimed' ? 'upi' : 'paid')),
         amount: Number(o.total || 0),
-        status: o.status.charAt(0).toUpperCase() + o.status.slice(1),
-        speed: '5m 30s'
+        status: o.status ? (o.status.charAt(0).toUpperCase() + o.status.slice(1)) : 'Unknown',
+        speed: speedStr
       };
-    });
+    }).filter(Boolean);
 
     res.json({ ok: true, orders: list });
   } catch (err) {
@@ -1294,10 +1316,20 @@ router.get('/today', async (req, res) => {
     let upi = 0;
     let orderCount = 0;
     let totalPages = 0;
+    const waitTimes = [];
 
-    const rows = zcql ? (await zcql.executeZCQLQuery(`SELECT status, total, basket FROM orders WHERE created_at >= ${startOfDay}`).catch(() => [])) : [];
+    const rows = zcql ? (await zcql.executeZCQLQuery(`SELECT status, total, basket, created_at, updated_at, is_test FROM orders WHERE created_at >= ${startOfDay}`).catch(async () => {
+      return zcql.executeZCQLQuery(`SELECT status, total, basket, created_at, updated_at FROM orders WHERE created_at >= ${startOfDay}`).catch(() => []);
+    })) : [];
+
     for (const r of (rows || [])) {
       const o = r.orders;
+      let b = {};
+      try { b = JSON.parse(o.basket || '{}'); } catch (_) {}
+      if (o.is_test === true || String(o.is_test) === 'true' || b.is_test === true) {
+        continue;
+      }
+
       if (['cash_collected', 'upi_claimed', 'processing', 'printing', 'ready', 'completed'].includes(o.status)) {
         orderCount++;
         const tot = Number(o.total || 0);
@@ -1305,14 +1337,20 @@ router.get('/today', async (req, res) => {
         if (o.status === 'cash_collected') cash += tot;
         else upi += tot;
 
-        try {
-          const b = JSON.parse(o.basket || '{}');
-          for (const f of (b.files || [])) {
-            totalPages += Number(f.pages || 1) * Number(f.settings?.copies || 1);
-          }
-        } catch (_) {}
+        for (const f of (b.files || [])) {
+          totalPages += Number(f.pages || 1) * Number(f.settings?.copies || 1);
+        }
+
+        const created = Number(o.created_at || 0);
+        const updated = Number(o.updated_at || 0);
+        if (['completed', 'ready'].includes(o.status) && updated > created) {
+          waitTimes.push(updated - created);
+        }
       }
     }
+
+    const avgSec = waitTimes.length > 0 ? Math.round(waitTimes.reduce((a, b) => a + b, 0) / waitTimes.length) : 0;
+    const averageWait = avgSec > 0 ? `${Math.floor(avgSec / 60)}m ${String(avgSec % 60).padStart(2, '0')}s` : '—';
 
     res.json({
       ok: true,
@@ -1321,7 +1359,7 @@ router.get('/today', async (req, res) => {
       pages: totalPages,
       cash,
       online: upi,
-      averageWait: '5m 12s'
+      averageWait
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to aggregate today KPI: ' + err.message });

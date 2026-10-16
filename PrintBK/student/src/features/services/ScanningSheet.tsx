@@ -28,7 +28,7 @@ function ScanningSheet({
           price: pages * 5,
           mode: method === "Walk-in" ? "walkin" : "addon",
           label: method,
-          counterNote: method === "Walk-in" ? `Bring: ${pages} pages for scanning. Show code 4821.` : undefined
+          counterNote: method === "Walk-in" ? `Bring: ${pages} pages for scanning. Show order pickup code at counter.` : undefined
         });
         close();
       }}>Add to basket</button></div>

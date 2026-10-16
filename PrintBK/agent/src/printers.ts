@@ -62,10 +62,7 @@ export async function discoverPrinters(dryRun = false, fallbackProfiles?: Record
   }
 
   // Fallback / Dry Run Simulated Profiles
-  const profiles = fallbackProfiles || {
-    bw: 'EPSON L3110 Series (B&W)',
-    colour: 'EPSON L3110 Series (Colour)'
-  };
+  const profiles = fallbackProfiles || {};
 
   const results: DiscoveredPrinter[] = [];
   for (const [role, name] of Object.entries(profiles)) {

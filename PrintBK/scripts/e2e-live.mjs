@@ -37,6 +37,13 @@ process.env.CRON_SECRET = process.env.CRON_SECRET || 'TEST_CRON_SECRET_XYZ99';
 process.env.STAFF_TOKEN = process.env.STAFF_TOKEN || 'legacy-test-staff-token';
 process.env.NODE_ENV = 'test';
 
+// Safety Guard: Refuse to execute against production URL
+const targetUrl = process.env.API_BASE || process.env.TARGET_URL || '';
+if (targetUrl.includes('production') || targetUrl.includes('prod-printbk')) {
+  console.error('\n🚨 [SAFETY LOCK] Refusing to run E2E test suite against a production URL target!\n');
+  process.exit(1);
+}
+
 // Import Express app
 const appModule = await import('../functions/api/index.js');
 const app = appModule.default || appModule;
@@ -497,6 +504,11 @@ async function runE2E() {
     console.log('  🎉 ALL 16 REAL-TIME END-TO-END SCENARIOS VERIFIED 100%!       ');
     console.log('===============================================================\n');
   } finally {
+    try {
+      if (server) {
+        await apiCall('/internal/purge-test-data', 'POST', { dryRun: false }, { 'X-Cron-Secret': process.env.CRON_SECRET });
+      }
+    } catch (_) {}
     await stopServer();
   }
 }

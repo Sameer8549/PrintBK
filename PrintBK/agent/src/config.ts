@@ -30,11 +30,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   heartbeatIntervalMs: 5000,
   sumatraPath: process.env.SUMATRA_PATH,
   libreOfficePath: process.env.LIBREOFFICE_PATH,
-  printerProfiles: {
-    bw: 'EPSON L3110 Series',
-    colour: 'EPSON L3110 Series',
-    photo: 'EPSON L3110 Series'
-  }
+  printerProfiles: {}
 };
 
 export function loadConfig(cliArgs: string[] = process.argv.slice(2)): AgentConfig {
