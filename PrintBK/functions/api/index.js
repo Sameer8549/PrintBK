@@ -520,30 +520,47 @@ async function generateUniquePickupCode(zcql) {
   return String(crypto.randomInt(10000, 100000));
 }
 
+let orderNumberMutex = Promise.resolve();
+let lastAssignedOrderNumber = null;
+
 async function getNextOrderNumber(zcql) {
-  if (zcql) {
-    try {
-      const rows = await zcql.executeZCQLQuery(`SELECT order_number FROM orders ORDER BY order_number DESC LIMIT 1`);
-      if (rows && rows.length > 0 && rows[0].orders?.order_number) {
-        return Number(rows[0].orders.order_number) + 1;
+  return new Promise((resolve) => {
+    orderNumberMutex = orderNumberMutex.then(async () => {
+      try {
+        let maxFound = 1000;
+        if (zcql) {
+          try {
+            const rows = await zcql.executeZCQLQuery(`SELECT order_number FROM orders ORDER BY order_number DESC LIMIT 1`);
+            if (rows && rows.length > 0) {
+              const val = Number(rows[0].orders?.order_number);
+              if (Number.isFinite(val) && val > maxFound) {
+                maxFound = val;
+              }
+            }
+          } catch (_) {}
+        }
+        for (const o of memOrders.values()) {
+          const num = Number(o.order_number);
+          if (Number.isFinite(num) && num > maxFound) {
+            maxFound = num;
+          }
+        }
+        if (lastAssignedOrderNumber !== null && lastAssignedOrderNumber > maxFound) {
+          maxFound = lastAssignedOrderNumber;
+        }
+        lastAssignedOrderNumber = maxFound + 1;
+        resolve(lastAssignedOrderNumber);
+      } catch (err) {
+        const fallback = Math.max(lastAssignedOrderNumber || 1000, 1000) + 1;
+        lastAssignedOrderNumber = fallback;
+        resolve(fallback);
       }
-    } catch (e) {}
-    try {
-      const allRows = await zcql.executeZCQLQuery(`SELECT id FROM orders`);
-      if (allRows && allRows.length > 0) {
-        return 1001 + allRows.length;
-      }
-    } catch (e) {}
-  }
-  if (memOrders.size > 0) {
-    let max = 1000;
-    for (const o of memOrders.values()) {
-      const num = Number(o.order_number);
-      if (num > max) max = num;
-    }
-    return max + 1;
-  }
-  return 1001;
+    }).catch(() => {
+      const fallback = Math.max(lastAssignedOrderNumber || 1000, 1000) + 1;
+      lastAssignedOrderNumber = fallback;
+      resolve(fallback);
+    });
+  });
 }
 
 /* ─── PUBLIC ENDPOINTS ───────────────────────────────────────────── */

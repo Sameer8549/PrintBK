@@ -481,15 +481,38 @@ router.get('/live', async (req, res) => {
         const printedRows = await zcql.executeZCQLQuery(
           `SELECT id, order_id, kind, status, payload, price, printed_at, delete_after FROM order_items WHERE printed_at >= ${deleteCutoff} ORDER BY printed_at DESC LIMIT 20`
         );
+        const missingOrderIds = [];
         for (const pr of (printedRows || [])) {
           const item = pr.order_items;
+          if (item?.order_id && !ordersMap.has(item.order_id) && !memOrders.has(item.order_id)) {
+            missingOrderIds.push(`'${item.order_id}'`);
+          }
+        }
+        const fetchedOrderNumbers = new Map();
+        if (missingOrderIds.length > 0) {
+          try {
+            const ordRows = await zcql.executeZCQLQuery(
+              `SELECT id, order_number FROM orders WHERE id IN (${missingOrderIds.join(',')})`
+            );
+            for (const or of (ordRows || [])) {
+              if (or.orders?.id) {
+                fetchedOrderNumbers.set(or.orders.id, Number(or.orders.order_number || 0));
+              }
+            }
+          } catch (_) {}
+        }
+
+        for (const pr of (printedRows || [])) {
+          const item = pr.order_items;
+          const ord = ordersMap.get(item.order_id) || memOrders.get(item.order_id);
+          const resolvedNumber = Number(ord?.order_number || fetchedOrderNumbers.get(item.order_id) || 0);
           recentlyPrinted.push({
             itemId: item.id,
             item_id: item.id,
             orderId: item.order_id,
             order_id: item.order_id,
-            orderNumber: 1000,
-            order_number: 1000,
+            orderNumber: resolvedNumber,
+            order_number: resolvedNumber,
             pickup_code: '',
             kind: item.kind,
             printedAt: Number(item.printed_at),
@@ -505,16 +528,17 @@ router.get('/live', async (req, res) => {
     for (const it of memOrderItems.values()) {
       if (it.status === 'printed' && it.printed_at && it.printed_at >= deleteCutoff) {
         if (!recentlyPrinted.some(rp => rp.itemId === it.id || rp.item_id === it.id)) {
-          const ord = memOrders.get(it.order_id);
+          const ord = ordersMap.get(it.order_id) || memOrders.get(it.order_id);
           let b = {};
           try { b = typeof ord?.basket === 'string' ? JSON.parse(ord.basket || '{}') : (ord?.basket || {}); } catch (_) {}
+          const resolvedNumber = Number(ord?.order_number || 0);
           recentlyPrinted.push({
             itemId: it.id,
             item_id: it.id,
             orderId: it.order_id,
             order_id: it.order_id,
-            orderNumber: Number(ord?.order_number || 1000),
-            order_number: Number(ord?.order_number || 1000),
+            orderNumber: resolvedNumber,
+            order_number: resolvedNumber,
             pickup_code: b.pickupCode || '',
             kind: it.kind,
             printedAt: Number(it.printed_at),
