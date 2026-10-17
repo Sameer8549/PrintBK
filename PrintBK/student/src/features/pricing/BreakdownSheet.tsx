@@ -46,7 +46,7 @@ function BreakdownSheet({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  📄 {line.name}
+                  {line.name}
                 </div>
                 <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
                   {line.detail}
@@ -72,7 +72,7 @@ function BreakdownSheet({
                 fontFamily: 'monospace',
                 marginTop: 2
               }}>
-                <span style={{ fontSize: 13 }}>🧮</span>
+                
                 <span style={{ fontWeight: 600 }}>{line.formula}</span>
               </div>
             )}
@@ -89,7 +89,7 @@ function BreakdownSheet({
         {pricing.rushFee > 0 && (
           <div style={{ background: '#fffbeb', border: '1.5px solid #fef3c7', borderRadius: 12, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <span style={{ fontWeight: 700, color: '#b45309', fontSize: 13 }}>⚡ Rush Priority</span>
+              <span style={{ fontWeight: 700, color: '#b45309', fontSize: 13 }}>Rush Priority</span>
               <small style={{ display: 'block', color: '#d97706', fontSize: 11 }}>Jump to front of print queue</small>
             </div>
             <b style={{ color: '#b45309', fontSize: 15 }}>₹{pricing.rushFee.toFixed(2)}</b>
@@ -112,7 +112,7 @@ function BreakdownSheet({
           fontSize: 12,
           fontWeight: 600
         }}>
-          <span>💡</span>
+          
           <span>{pricing.savingsTip}</span>
         </div>
       )}
@@ -128,7 +128,7 @@ function BreakdownSheet({
           fontSize: 12,
           fontWeight: 600
         }}>
-          ⚠ Some custom services require physical confirmation at counter.
+          Some custom services require physical confirmation at counter.
         </div>
       )}
 
@@ -172,7 +172,7 @@ function BreakdownSheet({
           gap: 8
         }}
       >
-        ✕ Close Price Breakdown
+        Close Price Breakdown
       </button>
     </SheetShell>
   );

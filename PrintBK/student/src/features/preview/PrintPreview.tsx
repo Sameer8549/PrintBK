@@ -119,7 +119,7 @@ function PrintPreview({
                   whiteSpace: 'nowrap'
                 }}
               >
-                📄 {f.name}
+                {f.name}
               </button>
             ))}
           </div>
@@ -134,10 +134,10 @@ function PrintPreview({
         {/* Orientation & Duplex Banner */}
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
           <span style={{ background: '#e2e8f0', color: '#334155', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
-            📄 {layoutResult.paper} ({currentSheet?.orientation})
+            {layoutResult.paper} ({currentSheet?.orientation})
           </span>
           <span style={{ background: '#dbeafe', color: '#1d4ed8', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
-            🔄 Flip on {layoutResult.duplexEdge}-edge
+            Flip on {layoutResult.duplexEdge}-edge
           </span>
           {activeFile.settings.sided === 'double' && (
             <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
@@ -149,7 +149,7 @@ function PrintPreview({
         {/* Auto Notes (e.g. Mixed slide notice) */}
         {layoutResult.notes.length > 0 && (
           <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '8px 12px', marginBottom: 14, fontSize: 12, color: '#166534', fontWeight: 600 }}>
-            💡 {layoutResult.notes.join(' ')}
+            {layoutResult.notes.join(' ')}
           </div>
         )}
 
@@ -360,7 +360,7 @@ function PrintPreview({
           style={{ width: '100%', padding: 15, fontSize: 16, fontWeight: 700, borderRadius: 14 }}
           onClick={() => go('checkout')}
         >
-          ✓ Preview looks good — Proceed to Checkout
+          Preview looks good — Proceed to Checkout
         </button>
       </div>
     </main>

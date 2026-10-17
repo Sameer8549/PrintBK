@@ -537,7 +537,7 @@ function PrinterDropdownRow({
           {value && !printers.some((p) => p.name === value) && (
             <option value={value}>{value} (Configured)</option>
           )}
-          <option value="__custom__">➕ Add / Type printer name…</option>
+          <option value="__custom__">+ Add / Type printer name…</option>
         </select>
         <Button onClick={onTest}>TEST PRINT</Button>
       </div>
@@ -826,7 +826,7 @@ function QrPosterModal({
           {/* 3. Clean high-contrast App-Coloured CSS-Styled QR code */}
           <div className="poster-qr-frame">
             <RealQRCode text={studentUrl} size={240} />
-            <div className="qr-scan-badge">⚡ SCAN TO PRINT</div>
+            <div className="qr-scan-badge">SCAN TO PRINT</div>
           </div>
 
           {/* 4. 3 Simple steps */}
@@ -861,7 +861,7 @@ function QrPosterModal({
               <strong>{studentUrl}</strong>
             </div>
             <div className="footer-secure">
-              <span>🔒 High-speed campus network · Files deleted 5 minutes after printing</span>
+              <span>High-speed campus network · Files deleted 5 minutes after printing</span>
             </div>
           </div>
         </div>

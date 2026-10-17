@@ -1,5 +1,6 @@
 
 export * from './Icon';
+export * from './GoldBadge';
 export * from './Brand';
 export * from './Topbar';
 export * from './MobileNav';

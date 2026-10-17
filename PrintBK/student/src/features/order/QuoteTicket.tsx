@@ -19,7 +19,7 @@ function QuoteTicket({
       <div className="order-no"><span>REQUEST</span><b>#Q1043</b></div>
       <h2>We’re checking the details.</h2>
       <p>The shop will confirm the price before anything is printed or charged.</p>
-      <div className="tear"><span>✂</span></div>
+      <div className="tear"><span style={{ borderTop: '2px dashed #94a3b8', display: 'block', width: '100%' }} /></div>
       <div className="ticket-files">{requests.map(service => <div key={service.id}><span>{service.name}<small>{service.detail}</small></span><b>Quote pending</b></div>)}</div>
       <div className="dotted" />
       <div className="ticket-total"><span>Amount due now</span><b>₹0.00</b></div>

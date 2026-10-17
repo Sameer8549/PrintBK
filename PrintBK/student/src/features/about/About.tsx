@@ -95,7 +95,7 @@ export function About({ go }: AboutProps) {
           boxShadow: '0 2px 14px rgba(0,0,0,0.03)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-            <span style={{ fontSize: 20 }}>🏛️</span>
+            <div style={{ display: 'grid', placeItems: 'center', color: '#0f172a' }}><Icon name="home" size={20} /></div>
             <div>
               <strong style={{ display: 'block', fontSize: 15, color: '#0f172a' }}>HKBK College of Engineering</strong>
               <small style={{ color: '#64748b', fontSize: 12 }}>Nagawara, Bengaluru - 560045, Karnataka</small>
@@ -124,14 +124,14 @@ export function About({ go }: AboutProps) {
           padding: '22px 20px',
           boxShadow: '0 2px 14px rgba(0,0,0,0.03)'
         }}>
-          <h2 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>💡</span> Why PrintBK was Built
+          <h2 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: '0 0 14px' }}>
+            Why PrintBK was Built
           </h2>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
               <div style={{ width: 28, height: 28, borderRadius: 8, background: '#fee2e2', color: '#b91c1c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, flexShrink: 0 }}>
-                ✕
+                -
               </div>
               <div>
                 <strong style={{ fontSize: 13, color: '#0f172a', display: 'block' }}>The Old Way (Pen Drives & Rush)</strong>
@@ -143,7 +143,7 @@ export function About({ go }: AboutProps) {
 
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
               <div style={{ width: 28, height: 28, borderRadius: 8, background: '#dcfce7', color: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, flexShrink: 0 }}>
-                ✓
+                +
               </div>
               <div>
                 <strong style={{ fontSize: 13, color: '#0f172a', display: 'block' }}>The PrintBK Way (Instant & Contactless)</strong>
@@ -166,22 +166,22 @@ export function About({ go }: AboutProps) {
           gap: 12
         }}>
           <div style={{ background: '#f8fafc', padding: 14, borderRadius: 14, border: '1px solid #f1f5f9' }}>
-            <div style={{ fontSize: 20, marginBottom: 6 }}>🔒</div>
+            <div style={{ marginBottom: 6, color: '#0f172a' }}><Icon name="file" size={20} /></div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Zero-Trace Privacy</div>
             <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>128-bit cryptographic capability tokens & 5-min server auto-wipe.</div>
           </div>
           <div style={{ background: '#f8fafc', padding: 14, borderRadius: 14, border: '1px solid #f1f5f9' }}>
-            <div style={{ fontSize: 20, marginBottom: 6 }}>⚡</div>
+            <div style={{ marginBottom: 6, color: '#0f172a' }}><Icon name="copy" size={20} /></div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Local File Engine</div>
             <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>High-accuracy PDF page count & PPTX slide-count parser in browser.</div>
           </div>
           <div style={{ background: '#f8fafc', padding: 14, borderRadius: 14, border: '1px solid #f1f5f9' }}>
-            <div style={{ fontSize: 20, marginBottom: 6 }}>🏷️</div>
+            <div style={{ marginBottom: 6, color: '#0f172a' }}><Icon name="check" size={20} /></div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Secure Pickup Codes</div>
             <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Collision-free server-generated 4-digit verification pin.</div>
           </div>
           <div style={{ background: '#f8fafc', padding: 14, borderRadius: 14, border: '1px solid #f1f5f9' }}>
-            <div style={{ fontSize: 20, marginBottom: 6 }}>🔔</div>
+            <div style={{ marginBottom: 6, color: '#0f172a' }}><Icon name="settings" size={20} /></div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Multi-Channel Alerts</div>
             <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Audio chime, device vibration, browser push, & 1-tap WhatsApp alert.</div>
           </div>
@@ -357,7 +357,7 @@ export function About({ go }: AboutProps) {
 
         {/* ── Footer ── */}
         <div style={{ textAlign: 'center', fontSize: 12, color: '#94a3b8', padding: '12px 0 24px', lineHeight: 1.6 }}>
-          PrintBK Platform · Engineered with ❤️ by Abdul Sameer<br />
+          PrintBK Platform · Engineered with care by Abdul Sameer<br />
           Department of Information Science & Engineering · HKBKCE
         </div>
       </div>

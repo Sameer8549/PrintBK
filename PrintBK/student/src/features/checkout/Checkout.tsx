@@ -113,14 +113,14 @@ function Checkout({ go, setSheet, services }: {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
-                📄 {basket.files.length} {basket.files.length === 1 ? 'file' : 'files'}
+                {basket.files.length} {basket.files.length === 1 ? 'file' : 'files'}
               </span>
               <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
-                📑 {basket.files.reduce((s, f) => s + f.pages, 0)} pages
+                {basket.files.reduce((s, f) => s + f.pages, 0)} pages
               </span>
               {basket.services.length > 0 && (
                 <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
-                  ✨ {basket.services.length} services
+                  {basket.services.length} services
                 </span>
               )}
             </div>
@@ -161,7 +161,7 @@ function Checkout({ go, setSheet, services }: {
               alignItems: 'center',
               gap: 6
             }}>
-              <span>💡</span>
+              
               <span>{pricing.savingsTip}</span>
             </div>
           )}
@@ -201,7 +201,7 @@ function Checkout({ go, setSheet, services }: {
                 justifyContent: 'center',
                 fontSize: 20
               }}>
-                ⚡
+                
               </div>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -258,7 +258,7 @@ function Checkout({ go, setSheet, services }: {
                   justifyContent: 'center',
                   fontSize: 20
                 }}>
-                  💵
+                  
                 </div>
                 <div>
                   <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -305,7 +305,7 @@ function Checkout({ go, setSheet, services }: {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ width: 40, height: 40, borderRadius: 10, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
-                  💳
+                  
                 </div>
                 <div>
                   <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a' }}>Online Cards & Netbanking</div>
@@ -331,7 +331,7 @@ function Checkout({ go, setSheet, services }: {
         {/* Notification Phone Input */}
         <div style={{ background: '#ffffff', borderRadius: 16, border: '1.5px solid #e2e8f0', padding: '16px', marginBottom: 16 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: '#475569' }}>
-            📱 WhatsApp / Phone Number <small style={{ fontWeight: 400, color: '#94a3b8' }}>(optional)</small>
+            WhatsApp / Phone Number <small style={{ fontWeight: 400, color: '#94a3b8' }}>(optional)</small>
           </label>
           <input
             type="tel"
@@ -354,12 +354,12 @@ function Checkout({ go, setSheet, services }: {
 
         {error && (
           <div style={{ marginBottom: 16, padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, color: '#dc2626', fontSize: 13, fontWeight: 600 }}>
-            ⚠️ {error}
+            {error}
           </div>
         )}
 
         <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', lineHeight: 1.5 }}>
-          🔒 {cfg.shopInfo?.name || 'HKBK Student Point'} · Files auto-delete {cfg.deleteDelayMinutes || 5} minutes after printing
+          {cfg.shopInfo?.name || 'HKBK Student Point'} · Files auto-delete {cfg.deleteDelayMinutes || 5} minutes after printing
         </div>
       </div>
 
@@ -406,9 +406,9 @@ function Checkout({ go, setSheet, services }: {
           ) : hasQuote ? (
             'Send Documents for Quote'
           ) : payment === 'Cash' ? (
-            `✓ Reserve & Pay ₹${total.toFixed(2)} in Cash at Counter`
+            `Reserve & Pay ₹${total.toFixed(2)} in Cash at Counter`
           ) : (
-            `⚡ Pay ₹${total.toFixed(2)} via UPI`
+            ` Pay ₹${total.toFixed(2)} via UPI`
           )}
         </button>
       </div>

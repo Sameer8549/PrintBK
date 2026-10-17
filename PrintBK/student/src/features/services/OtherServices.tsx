@@ -82,7 +82,7 @@ function OtherServices({
   return <main className="page other-services-page">
       <Topbar title="Other Services" back onBack={() => go("entry")} />
       <div className="services-hero"><span className="kicker">AT HKBK STUDENT POINT</span><h1>Finish the job.</h1><p>Binding, lamination, scanning and document help — all without guessing what to ask for.</p></div>
-      <div className="service-search"><Icon name="file" size={18} /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search services" /><button onClick={() => setQuery("")}>{query ? "Clear" : "🔍"}</button></div>
+      <div className="service-search"><Icon name="file" size={18} /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search services" /><button onClick={() => setQuery("")}>{query ? "Clear" : "Search"}</button></div>
       <div className="service-filters">{["All", "Binding", "Lamination", "Scanning", "Typing", "Other"].map(v => <button className={filter === v ? "active" : ""} onClick={() => setFilter(v)} key={v}>{v}</button>)}</div>
       {visible.length ? <div className="service-list">{visible.map(service => <button className={service.unavailable ? "unavailable" : ""} disabled={service.unavailable} onClick={() => open(service)} key={service.id}><span className="service-mark"><Icon name={service.icon} /></span><span><strong>{service.title}</strong><small>{service.copy}</small><i>{service.tag}</i></span><b>{service.price}</b><Icon name="chevron" size={17} /></button>)}</div> : <div className="service-empty"><h2>No services found</h2><p>Try another search or clear the filter.</p><button onClick={() => { setQuery(""); setFilter("All"); }}>Show all services</button></div>}
       <section className="custom-service-row">

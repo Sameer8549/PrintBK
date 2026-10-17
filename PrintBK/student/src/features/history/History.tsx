@@ -120,7 +120,7 @@ function History({ go, setSheet }: { go: (screen: Screen) => void; setSheet?: (s
           justifyContent: 'center',
           gap: 6
         }}>
-          <span>📡</span>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
           <span>Offline · Your orders are saved on this device; we will sync when reconnected.</span>
         </div>
       )}
@@ -286,7 +286,7 @@ function History({ go, setSheet }: { go: (screen: Screen) => void; setSheet?: (s
                         {order.pickupCode && order.pickupCode !== '——' ? (
                           <span>Pickup code: <b style={{ color: '#0f172a', letterSpacing: 1.5 }}>{order.pickupCode}</b></span>
                         ) : order.filesDeletedAt ? (
-                          <span style={{ color: '#059669' }}>✓ Files deleted</span>
+                          <span style={{ color: '#059669' }}>Files deleted</span>
                         ) : (
                           <span>Show at counter</span>
                         )}

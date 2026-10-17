@@ -17,8 +17,8 @@ const colorOptions: { value: 'bw' | 'color' | 'auto' | 'custom'; label: string; 
   { value: 'custom', label: 'Custom',     sub: 'pick pgs' },
 ];
 const sidedOptions: { value: PrintFile['settings']['sided']; label: string; sub: string; icon: string }[] = [
-  { value: 'single', label: '1-Sided', sub: '₹1.50/sheet', icon: '📄' },
-  { value: 'double', label: '2-Sided', sub: '₹0.85/side · Eco', icon: '⇌' },
+  { value: 'single', label: '1-Sided', sub: '₹1.50/sheet', icon: '1' },
+  { value: 'double', label: '2-Sided', sub: '₹0.85/side · Eco', icon: '2' },
 ];
 const nUpOptions: { value: number; label: string; sub: string; icon: string }[] = [
   { value: 1, label: '1-up', sub: 'Full page', icon: '■' },
@@ -26,14 +26,14 @@ const nUpOptions: { value: number; label: string; sub: string; icon: string }[] 
   { value: 4, label: '4-up', sub: 'Compact grid', icon: '⊞' },
 ];
 const orientationOptions: { value: 'auto' | 'portrait' | 'landscape'; label: string; sub: string; icon: string }[] = [
-  { value: 'auto', label: 'Auto', sub: 'Smart fit', icon: '⚡' },
+  { value: 'auto', label: 'Auto', sub: 'Smart fit', icon: 'A' },
   { value: 'portrait', label: 'Portrait', sub: 'Upright', icon: '▯' },
   { value: 'landscape', label: 'Landscape', sub: 'Wide', icon: '▭' },
 ];
 const layoutModeOptions: { value: 'standard' | 'handout' | 'booklet'; label: string; sub: string; icon: string }[] = [
-  { value: 'standard', label: 'Standard', sub: 'Full sheet', icon: '📄' },
-  { value: 'handout', label: 'Handout', sub: 'Slide + Notes', icon: '📝' },
-  { value: 'booklet', label: 'Booklet', sub: 'Center fold', icon: '📖' },
+  { value: 'standard', label: 'Standard', sub: 'Full sheet', icon: '1:1' },
+  { value: 'handout', label: 'Handout', sub: 'Slide + Notes', icon: '3:1' },
+  { value: 'booklet', label: 'Booklet', sub: 'Center fold', icon: '2-up' },
 ];
 
 function checkZipSafety(zip: any, compressedSize: number) {
@@ -630,7 +630,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
             fontSize: 10,
             fontWeight: 800
           }}>
-            {isBW ? '⬛ B&W' : '🎨 Colour'}
+            {isBW ? 'B&W' : 'Colour'}
           </span>
           <span style={{
             background: '#f1f5f9',
@@ -640,7 +640,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
             fontSize: 10,
             fontWeight: 800
           }}>
-            {effectiveIsLandscape ? '🖼️ Landscape' : '📄 Portrait'}
+            {effectiveIsLandscape ? 'Landscape' : 'Portrait'}
           </span>
           {selectedLayout !== 'standard' && (
             <span style={{
@@ -651,7 +651,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
               fontSize: 10,
               fontWeight: 800
             }}>
-              {selectedLayout === 'handout' ? '📝 Handout' : '📖 Booklet'}
+              {selectedLayout === 'handout' ? 'Handout' : 'Booklet'}
             </span>
           )}
           {(s.nUp ?? 1) > 1 && (
@@ -704,7 +704,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
           boxSizing: 'border-box',
           lineHeight: 1.4
         }}>
-          ⚠️ {officeSecurityError}
+          {officeSecurityError}
         </div>
       )}
 
@@ -721,7 +721,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
           boxSizing: 'border-box',
           lineHeight: 1.4
         }}>
-          ⚠️ Preview generation timed out. The file will still print correctly.
+          Preview generation timed out. The file will still print correctly.
         </div>
       )}
 
@@ -1043,7 +1043,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
             {/* 6. Fallback if not PDF/Image/PPT/DOC or file restored without raw buffer */}
             {!isPdf && !isImage && !isPpt && !isDoc && !loading && (
               <div style={{ padding: 20, textAlign: 'center', color: '#64748b', fontSize: 12 }}>
-                📄 {file.name} · {file.pages} page{file.pages !== 1 ? 's' : ''}
+                {file.name} · {file.pages} page{file.pages !== 1 ? 's' : ''}
               </div>
             )}
           </div>
@@ -1144,7 +1144,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
               gap: 4
             }}
           >
-            {isCurrentPageColor ? '🎨 Colour Page' : '⬛ Set Colour'}
+            {isCurrentPageColor ? 'Colour Page' : 'Set Colour'}
           </button>
         )}
       </div>
@@ -1174,7 +1174,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
             boxShadow: '0 2px 8px rgba(15, 23, 42, 0.15)'
           }}
         >
-          <span>🔍</span> Full Sheet Print Preview
+          Full Sheet Print Preview
         </button>
       )}
 
@@ -1283,7 +1283,7 @@ function FileCard({
     <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #e2e8f0', marginBottom: 10, position: 'relative', overflow: open ? 'visible' : 'hidden' }}>
       {/* ── Header row: Clean single Edit toggle, formula, savings chip ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px' }}>
-        <div style={{ fontSize: 24, lineHeight: 1, marginTop: 2 }}>📄</div>
+        <div style={{ display: 'grid', placeItems: 'center', marginTop: 2 }}><Icon name="file" size={22} /></div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0f172a' }}>{file.name}</div>
           <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
@@ -1307,12 +1307,12 @@ function FileCard({
           <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
             {s.sided === 'double' && s.colorMode !== 'color' && (
               <span style={{ fontSize: 10, fontWeight: 700, background: '#dcfce7', color: '#15803d', padding: '2px 7px', borderRadius: 4 }}>
-                🎉 Saved ₹{((file.pages || 1) * 0.65 * (s.copies || 1)).toFixed(2)} with 2-sided
+                Saved ₹{((file.pages || 1) * 0.65 * (s.copies || 1)).toFixed(2)} with 2-sided
               </span>
             )}
             {(s.nUp ?? 1) > 1 && (
               <span style={{ fontSize: 10, fontWeight: 700, background: '#e0f2fe', color: '#0369a1', padding: '2px 7px', borderRadius: 4 }}>
-                📄 Saved sheets with {s.nUp}-up
+                Saved sheets with {s.nUp}-up
               </span>
             )}
           </div>
@@ -1320,7 +1320,7 @@ function FileCard({
           {/* Upload failure or retry row */}
           {uploadError && (
             <div style={{ marginTop: 8, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '6px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: '#dc2626' }}>
-              <span>⚠️ Upload failed: {uploadError}</span>
+              <span>Upload failed: {uploadError}</span>
               <button
                 type="button"
                 aria-label="Retry upload"
@@ -1332,7 +1332,7 @@ function FileCard({
                     const res = await api.uploadFile(raw);
                     if (res?.cloudId) {
                       useBasket.getState().updateFile(file.id, { cloudId: res.cloudId, uploadStatus: 'done', uploadError: undefined } as any);
-                      notify('✓ Re-uploaded successfully');
+                      notify('Re-uploaded successfully');
                     }
                   } catch (e: any) {
                     useBasket.getState().updateFile(file.id, { uploadError: e?.message || 'Upload retry failed' } as any);
@@ -1361,7 +1361,7 @@ function FileCard({
           aria-label={open ? "Close settings" : "Edit document settings"}
           style={{ ...btn, padding: '8px 14px', background: open ? '#f1f5f9' : '#0b1020', color: open ? '#475569' : '#fff', border: 'none', flexShrink: 0, fontWeight: 700, borderRadius: 10, minHeight: 44 }}
         >
-          {open ? 'Done' : '✏️ Edit'}
+          {open ? 'Done' : 'Edit'}
         </button>
       </div>
 
@@ -1407,7 +1407,7 @@ function FileCard({
                   />
                   {customRangeError && (
                     <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>
-                      ⚠️ {customRangeError}
+                      {customRangeError}
                     </div>
                   )}
                 </div>
@@ -1506,7 +1506,7 @@ function FileCard({
               ))}
             </div>
             <div style={{ fontSize: 11, color: '#64748b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-              💡 {s.sided === 'double' ? 'Double-sided saves paper and costs only ₹0.85/side instead of ₹1.50!' : 'Single-sided prints on one side only (₹1.50 per sheet).'}
+              {s.sided === 'double' ? 'Double-sided saves paper and costs only ₹0.85/side instead of ₹1.50!' : 'Single-sided prints on one side only (₹1.50 per sheet).'}
             </div>
           </div>
 
@@ -1583,7 +1583,7 @@ function FileCard({
                 gap: 6
               }}
             >
-              🗑️ Delete
+              Delete
             </button>
             <button
               onClick={() => setOpen(false)}
@@ -1604,7 +1604,7 @@ function FileCard({
                 gap: 6
               }}
             >
-              ✓ Done · Close Settings
+              Done · Close Settings
             </button>
           </div>
         </div>
@@ -1643,7 +1643,7 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
       <main className="page" style={{ display: 'flex', flexDirection: 'column', background: '#f7f4ee', minHeight: '100dvh' }}>
         <Topbar title="Basket" back onBack={() => go('entry')} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32, textAlign: 'center' }}>
-          <div style={{ fontSize: 56, marginBottom: 16 }}>🛒</div>
+          <div style={{ display: 'grid', placeItems: 'center', marginBottom: 16 }}><Icon name="basket" size={52} /></div>
           <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>Basket is empty</h2>
           <p style={{ margin: '0 0 24px', color: '#718096', fontSize: 15 }}>Upload files or add from Other Services</p>
           <button className="primary" style={{ padding: '14px 32px', fontSize: 15 }} onClick={() => go('entry')}>Browse files</button>
@@ -1721,7 +1721,7 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <div>
             <div style={{ fontSize: 13, color: '#718096' }}>{totalPages} page{totalPages !== 1 ? 's' : ''} to print</div>
-            {pricing.savingsTip && <div style={{ fontSize: 11, color: '#1f9d55', marginTop: 2 }}>💡 {pricing.savingsTip}</div>}
+            {pricing.savingsTip && <div style={{ fontSize: 11, color: '#1f9d55', marginTop: 2 }}>{pricing.savingsTip}</div>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button style={{ fontSize: 12, color: '#718096', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }} onClick={() => setSheet('breakdown')}>

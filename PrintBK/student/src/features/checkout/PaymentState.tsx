@@ -230,7 +230,7 @@ function PaymentState({
       <main className="page" style={{ minHeight: '100dvh', background: '#f7f4ee', display: 'flex', flexDirection: 'column' }}>
         <Topbar title="UPI Payment" back onBack={() => go('checkout')} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
-          <div style={{ fontSize: 44, marginBottom: 12 }}>⚠️</div>
+          <div style={{ display: 'grid', placeItems: 'center', marginBottom: 12 }}><Icon name="arrow" size={36} /></div>
           <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px' }}>Unable to load UPI payment</h2>
           <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 20px', maxWidth: 300 }}>{error}</p>
           <div style={{ display: 'flex', gap: 10 }}>
@@ -261,7 +261,7 @@ function PaymentState({
           boxShadow: '0 4px 16px rgba(0,0,0,0.04)'
         }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#ecfdf5', color: '#059669', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800, marginBottom: 8 }}>
-            <span>✓ Verified Campus Merchant</span>
+            <span>Verified Campus Merchant</span>
           </div>
 
           <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2, color: '#64748b', textTransform: 'uppercase' }}>
@@ -301,7 +301,7 @@ function PaymentState({
                 cursor: 'pointer'
               }}
             >
-              {copied ? '✓ Copied' : '📋 Copy'}
+              {copied ? 'Copied' : 'Copy'}
             </button>
           </div>
         </div>
@@ -338,7 +338,7 @@ function PaymentState({
             boxShadow: '0 4px 14px rgba(245, 158, 11, 0.12)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 18 }}>📱</span>
+              
               <strong style={{ fontSize: 14, color: '#92400e' }}>
                 UPI App Didn't Open
               </strong>
@@ -413,7 +413,7 @@ function PaymentState({
                 textAlign: 'center'
               }}
             >
-              <span>⚡ Pay with UPI</span>
+              <span>Pay with UPI</span>
             </a>
 
             {/* QR Toggle Button */}
@@ -434,7 +434,7 @@ function PaymentState({
                 gap: 6
               }}
             >
-              <span>📷</span>
+              
               <span>{showQR ? 'Hide UPI QR Code' : 'Show QR Code to Scan on Another Phone'}</span>
             </button>
           </div>

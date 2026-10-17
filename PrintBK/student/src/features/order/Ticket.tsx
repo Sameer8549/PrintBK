@@ -142,7 +142,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
       localStorage.setItem('printbk-phone', cleaned);
     } catch (_) {}
     setPhone(cleaned);
-    notify(`✓ Pickup alert active for +91 ${cleaned}!`);
+    notify(`Pickup alert active for +91 ${cleaned}`);
   };
   useEffect(() => {
     if (status === 'ready' && !alertFired) {
@@ -157,7 +157,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
       if ('vibrate' in navigator) {
         navigator.vibrate([250, 100, 250, 100, 300]);
       }
-      notify(`🎉 Order ${orderNumber} is ready for pickup!`);
+      notify(`Order ${orderNumber} is ready for pickup!`);
     }
   }, [status, alertFired, orderNumber, pickupCode]);
 
@@ -166,7 +166,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
     if ('Notification' in window) {
       const perm = await Notification.requestPermission();
       if (perm === 'granted') {
-        notify('✓ Notifications enabled for ready alerts');
+        notify('Notifications enabled for ready alerts');
       } else {
         notify('Notifications blocked in browser');
       }
@@ -279,7 +279,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
             boxShadow: '0 4px 16px rgba(245, 158, 11, 0.15)'
           }}>
             <div style={{ fontSize: 17, fontWeight: 800, color: '#b45309' }}>
-              ⚠️ Payment Method Not Selected
+              Payment Method Not Selected
             </div>
             <p style={{ margin: '6px 0 14px', fontSize: 13, color: '#92400e', lineHeight: 1.4 }}>
               This order has not been confirmed yet. Order details, receipt, and pickup code are withheld until you choose UPI or Cash at counter.
@@ -317,7 +317,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
             boxShadow: '0 4px 16px rgba(239, 68, 68, 0.15)'
           }}>
             <div style={{ fontSize: 18, fontWeight: 900, color: '#b91c1c' }}>
-              ❌ Order Rejected at Counter
+              Order Rejected at Counter
             </div>
             <p style={{ margin: '8px 0 12px', fontSize: 13, color: '#7f1d1d', lineHeight: 1.5 }}>
               The print shop could not process this order (e.g. invalid file format or payment discrepancy). Please contact the counter directly at <b>+91 80 2544 1722</b> or visit HKBK Student Point.
@@ -422,14 +422,14 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
             boxShadow: '0 4px 16px rgba(5, 150, 105, 0.15)'
           }}>
             <div style={{ fontSize: 18, fontWeight: 900, color: '#047857' }}>
-              🎉 Print Job is Ready for Collection!
+              Print Job is Ready for Collection!
             </div>
             <p style={{ margin: '6px 0 10px', fontSize: 13, color: '#065f46', lineHeight: 1.4 }}>
               Present pickup code <b>{pickupCode}</b> at the HKBK Student Point counter to receive your documents.
             </p>
             {phone && (
               <div style={{ fontSize: 12, fontWeight: 600, color: '#047857', marginBottom: 12 }}>
-                🔔 Registered mobile: +91 {phone}
+                Registered mobile: +91 {phone}
               </div>
             )}
             <button
@@ -448,7 +448,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
                 gap: 6
               }}
             >
-              💬 {phone ? `Send Code to WhatsApp (+91 ${phone})` : 'Share Pickup Code to WhatsApp'}
+              {phone ? `Send Code to WhatsApp (+91 ${phone})` : 'Share Pickup Code to WhatsApp'}
             </button>
           </div>
         )}
@@ -571,7 +571,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
                           />
                           {savedUtr && (
                             <span style={{ fontSize: 11, color: '#059669', fontWeight: 700 }}>
-                              ✓ Saved for counter
+                              Saved for counter
                             </span>
                           )}
                         </div>
@@ -585,10 +585,10 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
             {/* Student-Facing Files Deletion Countdown / Status */}
             <div style={{ marginTop: 12, fontSize: 12, color: isDeleted ? '#059669' : '#64748b', fontWeight: 500 }}>
               {isDeleted
-                ? '✓ Files deleted for your privacy'
+                ? 'Files deleted for your privacy'
                 : (status === 'ready' || status === 'completed') && deleteAfterTime
-                  ? `🕒 Files delete at ${deleteAfterTime} (5 min privacy rule)`
-                  : '🕒 Files protected · Deleted 5 mins after printing'}
+                  ? `Files delete at ${deleteAfterTime} (5 min privacy rule)`
+                  : 'Files protected · Deleted 5 mins after printing'}
             </div>
           </div>
 
@@ -637,8 +637,8 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
           boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 10, background: '#f0fdf4', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
-              🔔
+            <div style={{ width: 32, height: 32, borderRadius: 10, background: '#f0fdf4', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="settings" size={16} />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
@@ -729,7 +729,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
             textAlign: 'center'
           }}>
             <div style={{ color: '#059669', fontWeight: 800, fontSize: 14 }}>
-              ✓ Files Permanently Deleted
+              Files Permanently Deleted
             </div>
             <div style={{ color: '#047857', fontSize: 12, marginTop: 4, marginBottom: 14 }}>
               Your documents have been securely wiped from our storage servers.
@@ -797,7 +797,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
             }}
             onClick={() => {
               if (status === 'pending_payment') {
-                notify('⚠️ Choose a payment method first to view receipt');
+                notify('Choose a payment method first to view receipt');
                 return;
               }
               setSheet('receipt');
@@ -823,7 +823,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
             }}
             onClick={() => {
               if (status === 'pending_payment') {
-                notify('⚠️ Complete payment selection first');
+                notify('Complete payment selection first');
                 return;
               }
               const text = `PrintBK order ${orderNumber} — Pickup code ${pickupCode}`;
@@ -869,7 +869,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
               style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}
               onClick={enableNotifications}
             >
-              🔔 Enable browser alerts when print is ready
+              Enable browser alerts when print is ready
             </button>
           )}
         </div>
