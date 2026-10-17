@@ -3,6 +3,7 @@ import { Brand, SheetShell, Icon } from '../../components/ui';
 import { Sheet } from '../../lib/types';
 import { notify } from '../../lib/store';
 import { useHistory, usePricing, useBasket } from '../../store/basket';
+import { computePaymentStatus, getPaymentBadgeDetails } from '@printbk/shared';
 
 function ReceiptSheet({
   setSheet,
@@ -32,7 +33,7 @@ function ReceiptSheet({
     return (
       <SheetShell tall onClose={() => setSheet(null)}>
         <div style={{ textAlign: 'center', padding: '36px 16px' }}>
-          <div style={{ fontSize: 44, marginBottom: 12 }}>🔒</div>
+          <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 12 }}>PAUSED</div>
           <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0b1020', margin: '0 0 8px' }}>Order Not Confirmed</h2>
           <p style={{ fontSize: 14, color: '#64748b', lineHeight: 1.5, margin: '0 0 24px' }}>
             Receipt is not available because this order is still awaiting payment selection. Please choose Cash or UPI at checkout.
@@ -77,27 +78,8 @@ function ReceiptSheet({
   const isUpi = !isCash;
   const method = isCash ? 'Cash at Counter' : 'UPI Transfer';
 
-  let badgeText = isCash ? '💵 CASH AT COUNTER' : '✓ PAID VIA UPI';
-  let badgeBg = isCash ? '#fef3c7' : '#ecfdf5';
-  let badgeColor = isCash ? '#b45309' : '#059669';
-
-  if (targetOrder?.status === 'pending_cash') {
-    badgeText = '💵 CASH DUE AT COUNTER';
-    badgeBg = '#fef3c7';
-    badgeColor = '#b45309';
-  } else if (targetOrder?.status === 'upi_claimed') {
-    badgeText = '⚡ UPI CLAIMED';
-    badgeBg = '#e0e7ff';
-    badgeColor = '#4338ca';
-  } else if (targetOrder?.status === 'upi_started') {
-    badgeText = '⚡ UPI PENDING';
-    badgeBg = '#fef3c7';
-    badgeColor = '#b45309';
-  } else if (targetOrder?.status === 'paid' && isUpi) {
-    badgeText = '✓ UPI VERIFIED';
-    badgeBg = '#ecfdf5';
-    badgeColor = '#059669';
-  }
+  const paymentStatus = computePaymentStatus(targetOrder);
+  const payBadge = getPaymentBadgeDetails(paymentStatus, total, targetOrder?.status);
 
   const saveAsPDF = () => {
     const popup = window.open('', '_blank', 'width=460,height=760');
@@ -107,7 +89,7 @@ function ReceiptSheet({
 
     const paySectionHtml = isCash ? `
       <div class="pay-card cash-card">
-        <div class="pay-badge">💵 PAYMENT: CASH AT COUNTER</div>
+        <div class="pay-badge">PAYMENT: CASH AT COUNTER</div>
         <div class="pay-row"><span>Collection Counter:</span><b>HKBK Student Point Desk</b></div>
         <div class="pay-row"><span>Amount Payable:</span><b class="due">₹${total.toFixed(2)} (Cash Due)</b></div>
         <div class="pay-row"><span>Payment Status:</span><b>DUE ON PICKUP</b></div>
@@ -115,11 +97,11 @@ function ReceiptSheet({
       </div>
     ` : `
       <div class="pay-card upi-card">
-        <div class="pay-badge">⚡ PAYMENT: UPI INSTANT TRANSFER</div>
+        <div class="pay-badge">PAYMENT: UPI INSTANT TRANSFER</div>
         <div class="pay-row"><span>Merchant Payee:</span><b>PrintBK HKBK</b></div>
         <div class="pay-row"><span>Beneficiary VPA:</span><b>Q098686787@ybl</b></div>
         <div class="pay-row"><span>Amount Paid:</span><b class="paid">₹${total.toFixed(2)}</b></div>
-        <div class="pay-row"><span>Transaction Status:</span><b>${targetOrder?.status === 'paid' ? 'VERIFIED ✓' : 'CLAIMED BY STUDENT'}</b></div>
+        <div class="pay-row"><span>Transaction Status:</span><b>${paymentStatus === 'paid_verified' ? 'VERIFIED' : 'CLAIMED BY STUDENT'}</b></div>
         <div class="pay-desc">Payment claimed via UPI to Q098686787@ybl. Shop staff will verify UTR and release prints.</div>
       </div>
     `;
@@ -213,8 +195,8 @@ ${servicesRows}
           gap: 6
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 11, fontWeight: 800, color: isCash ? '#854d0e' : '#1e40af', letterSpacing: 0.5, textTransform: 'uppercase' }}>
-              {isCash ? '💵 CASH AT COUNTER' : '⚡ UPI INSTANT PAYMENT'}
+            <span style={{ fontSize: 11, fontWeight: 800, color: payBadge.color, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+              {isCash ? 'CASH AT COUNTER' : 'UPI INSTANT PAYMENT'}
             </span>
             <span style={{ fontSize: 11, fontWeight: 700, color: isCash ? '#a16207' : '#2563eb' }}>
               {isCash ? 'Due on Pickup' : 'To: Q098686787@ybl'}
@@ -235,8 +217,9 @@ ${servicesRows}
           
           {files.length > 0 ? files.map((name, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '4px 0' }}>
-              <span style={{ color: '#1e293b', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>
-                📄 {name}
+              <span style={{ color: '#1e293b', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Icon name="file" size={15} />
+                <span>{name}</span>
               </span>
               <span style={{ color: '#64748b', fontSize: 12 }}>Print</span>
             </div>

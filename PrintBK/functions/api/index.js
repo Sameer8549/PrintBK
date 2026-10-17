@@ -1008,7 +1008,7 @@ app.get('/orders/:id', async (req, res) => {
     if (zcql) {
       try {
         rows = await zcql.executeZCQLQuery(
-          `SELECT id, order_number, status, total, quote_pending, basket, file_names, delete_after, files_deleted_at, created_at, updated_at FROM orders WHERE id = '${esc(req.params.id)}'`
+          `SELECT id, order_number, status, payment_status, total, quote_pending, basket, file_names, delete_after, files_deleted_at, created_at, updated_at FROM orders WHERE id = '${esc(req.params.id)}'`
         );
       } catch (qErr) {
         try {
@@ -1733,9 +1733,16 @@ app.get('/orders', async (req, res) => {
     const statusFilter = req.query.status ? `WHERE status = '${esc(req.query.status)}'` : '';
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
 
-    const rows = await zcql.executeZCQLQuery(
-      `SELECT id, order_number, status, total, quote_pending, basket, file_names, created_at, updated_at FROM orders ${statusFilter} ORDER BY created_at DESC LIMIT ${limit}`
-    );
+    let rows;
+    try {
+      rows = await zcql.executeZCQLQuery(
+        `SELECT id, order_number, status, payment_status, total, quote_pending, basket, file_names, created_at, updated_at FROM orders ${statusFilter} ORDER BY created_at DESC LIMIT ${limit}`
+      );
+    } catch (_) {
+      rows = await zcql.executeZCQLQuery(
+        `SELECT id, order_number, status, total, quote_pending, basket, file_names, created_at, updated_at FROM orders ${statusFilter} ORDER BY created_at DESC LIMIT ${limit}`
+      ).catch(() => []);
+    }
     res.json((rows || []).map(r => {
       let b = {};
       try { b = JSON.parse(r.orders.basket || '{}'); } catch(e) {}

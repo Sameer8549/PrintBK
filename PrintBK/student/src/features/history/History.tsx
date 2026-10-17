@@ -21,10 +21,13 @@ function History({ go, setSheet }: { go: (screen: Screen) => void; setSheet?: (s
     };
   }, []);
 
-  // Sync latest status from server for any active/unfinalized orders
+  // Sync latest status from server for any active/unfinalized orders or pending payment statuses
   useEffect(() => {
     const activeOrders = orders.filter(
-      o => !['completed', 'cancelled', 'rejected', 'expired'].includes(o.status) && !o.id.startsWith('local-')
+      o => !o.id.startsWith('local-') && (
+        !['completed', 'cancelled', 'rejected', 'expired'].includes(o.status) ||
+        !['paid_verified', 'cash_collected', 'not_paid', 'refunded'].includes(o.payment_status)
+      )
     );
     activeOrders.forEach(async (ord) => {
       try {
@@ -195,7 +198,7 @@ function History({ go, setSheet }: { go: (screen: Screen) => void; setSheet?: (s
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {orders.map((order) => {
                 const orderBadge = getOrderStatusBadge(order.status);
-                const paymentStatus: PaymentStatus = (order.payment_status as PaymentStatus) || computePaymentStatus(order);
+                const paymentStatus: PaymentStatus = computePaymentStatus(order);
                 const payBadge = getPaymentBadgeDetails(paymentStatus, order.total, order.status);
 
                 const orderNumStr = order.orderNumber

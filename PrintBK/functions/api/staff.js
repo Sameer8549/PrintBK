@@ -655,14 +655,19 @@ router.post('/orders/:id/collect-cash', async (req, res) => {
         `INSERT INTO staff_actions (id, action_type, order_id, payload, expires_at, undone, created_at) VALUES ('${actionId}', 'collect_cash', '${esc(primaryOrderId)}', '${esc(undoPayload)}', ${expiresAt}, false, ${now})`
       ).catch(() => {});
       await zcql.executeZCQLQuery(
-        `UPDATE orders SET status = 'cash_collected', confirmed_by = 'staff', confirmed_at = ${now}, updated_at = ${now} WHERE id = '${esc(primaryOrderId)}' OR order_number = ${Number(o.order_number) || 0}`
-      ).catch(() => {});
+        `UPDATE orders SET status = 'cash_collected', payment_status = 'cash_collected', confirmed_by = 'staff', confirmed_at = ${now}, updated_at = ${now} WHERE id = '${esc(primaryOrderId)}' OR order_number = ${Number(o.order_number) || 0}`
+      ).catch(async () => {
+        await zcql.executeZCQLQuery(
+          `UPDATE orders SET status = 'cash_collected', confirmed_by = 'staff', confirmed_at = ${now}, updated_at = ${now} WHERE id = '${esc(primaryOrderId)}' OR order_number = ${Number(o.order_number) || 0}`
+        ).catch(() => {});
+      });
       await zcql.executeZCQLQuery(
         `UPDATE order_items SET status = 'ready_to_print' WHERE (order_id = '${esc(primaryOrderId)}' OR order_id = '${esc(orderId)}') AND (status = 'waiting_payment' OR status = 'preparing')`
       ).catch(() => {});
     }
 
     o.status = 'cash_collected';
+    o.payment_status = 'cash_collected';
     o.confirmed_by = 'staff';
     o.confirmed_at = now;
     o.updated_at = now;
@@ -847,7 +852,10 @@ router.post('/items/:id/approve-print', async (req, res) => {
     });
 
     if (itemRecord) itemRecord.status = 'sending';
+    const isUpiOrder = order.status === 'upi_claimed' || (order.basket && (order.basket.payment === 'upi' || order.basket.paymentMethod === 'upi'));
+    const targetPaymentStatus = isUpiOrder ? 'paid_verified' : (order.payment_status || 'paid_verified');
     order.status = 'processing';
+    order.payment_status = targetPaymentStatus;
     order.updated_at = now;
 
     if (zcql) {
@@ -858,8 +866,12 @@ router.post('/items/:id/approve-print', async (req, res) => {
         `UPDATE order_items SET status = 'sending' WHERE id = '${esc(itemId)}'`
       ).catch(() => {});
       await zcql.executeZCQLQuery(
-        `UPDATE orders SET status = 'processing', updated_at = ${now} WHERE id = '${esc(orderId)}'`
-      ).catch(() => {});
+        `UPDATE orders SET status = 'processing', payment_status = '${targetPaymentStatus}', updated_at = ${now} WHERE id = '${esc(orderId)}'`
+      ).catch(async () => {
+        await zcql.executeZCQLQuery(
+          `UPDATE orders SET status = 'processing', updated_at = ${now} WHERE id = '${esc(orderId)}'`
+        ).catch(() => {});
+      });
     }
 
     await recordAudit(zcql, {
