@@ -574,6 +574,7 @@ function FeedbackToast({ message, action, onAction }: { message: string; action?
 function Header({
   open,
   setOpen,
+  closedSince,
   printers,
   online,
   onSettings,
@@ -582,6 +583,7 @@ function Header({
 }: {
   open: boolean
   setOpen: (open: boolean) => void
+  closedSince?: number | null
   printers: LivePrinter[]
   online: boolean
   onSettings: () => void
@@ -592,14 +594,18 @@ function Header({
   const bwPrinter = printers.find((p) => p.role === "bw") || printers[0]
   const colourPrinter = printers.find((p) => p.role === "colour") || printers[1] || bwPrinter
 
+  const closedText = closedSince
+    ? `CLOSED SINCE ${new Date(closedSince * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+    : "SHOP CLOSED"
+
   return (
     <header className="topbar">
       <div className="brand" role="button" tabIndex={0} onClick={onOrders}>
         <img src="./hkbk-logo.jpg" alt="HKBK Group of Institutions" />
         <div><strong>PrintBK</strong><span>COUNTER</span></div>
       </div>
-      <button className={`shop-switch ${open ? "is-open" : ""}`} type="button" onClick={() => setOpen(!open)}>
-        <span className="switch-track"><span /></span><b>{open ? "SHOP OPEN" : "SHOP CLOSED"}</b>
+      <button className={`shop-switch ${open ? "is-open" : ""}`} type="button" onClick={() => setOpen(!open)} title={open ? "Click to pause/close shop" : "Click to open shop"}>
+        <span className="switch-track"><span /></span><b>{open ? "SHOP OPEN" : closedText}</b>
       </button>
       <LiveIndicator offline={!online} />
       <div className="printer-pills">
@@ -1495,6 +1501,19 @@ function PrinterSettingsPanel({
                   onChange={(v) => { const ns = { ...shopDetails, announcement: v }; setShopDetails(ns); saveSettings(rates, services, payments, ns) }}
                 />
               </section>
+              <section className="setting-card precedence-info-card" style={{ background: "var(--paper-subtle, #f8fafc)", border: "1.5px solid var(--line, #e2e8f0)", borderRadius: 12, padding: "14px 16px" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "var(--muted, #64748b)", textTransform: "uppercase", marginBottom: 4 }}>
+                  OPERATIONAL PRECEDENCE
+                </div>
+                <strong style={{ display: "block", fontSize: 15, color: "var(--ink, #0b1020)", marginBottom: 6 }}>
+                  How Counter Open/Closed is decided
+                </strong>
+                <ol style={{ margin: "4px 0 0 18px", padding: 0, fontSize: 13, lineHeight: 1.5, color: "var(--ink-secondary, #334155)" }}>
+                  <li><strong>1. Manual Open/Closed Switch:</strong> Highest precedence. When set to CLOSED, ordering is paused immediately across all platforms.</li>
+                  <li><strong>2. Temporary Pause:</strong> Quick pause from the counter header.</li>
+                  <li><strong>3. Scheduled Hours:</strong> Regular operational hours ({shopDetails.hours || "8:30 AM – 6:00 PM (Mon–Sat)"}).</li>
+                </ol>
+              </section>
               <section className="setting-card delete-setting">
                 <div><span>FILE PRIVACY</span><strong>Files are deleted <b>{shopDetails.delete} minutes</b> after printing</strong><p>Configurable between 1 and 30 minutes. Hard maximum 60 minutes.</p></div>
                 <input type="range" min="1" max="30" value={shopDetails.delete} onChange={(e) => { const ns = { ...shopDetails, delete: e.target.value }; setShopDetails(ns); saveSettings(rates, services, payments, ns) }} />
@@ -1862,12 +1881,14 @@ function OwnerPhoneView({
   recentlyPrinted,
   shopOpen,
   setShopOpen,
+  closedSince,
   onAction,
 }: {
   jobs: Job[]
   recentlyPrinted: RecentPrint[]
   shopOpen: boolean
   setShopOpen: (open: boolean) => void
+  closedSince?: number | null
   onAction: (job: Job, type: "cash" | "primary") => void
 }) {
   const [tab, setTab] = useState<"orders" | "today">("orders")
@@ -1880,11 +1901,18 @@ function OwnerPhoneView({
     if (services.length > 0 && !services.some((item) => item.id === service)) setService(services[0].id)
   }, [services, service])
 
+  const closedLabel = closedSince
+    ? `CLOSED (${new Date(closedSince * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`
+    : "CLOSED"
+
   return (
     <div className="owner-phone">
       <header className="owner-topbar">
         <div className="owner-brand"><img src="./hkbk-logo.jpg" alt="HKBK Group of Institutions" /><strong>PrintBK</strong></div>
-        <button className={`owner-shop-switch ${shopOpen ? "open" : ""}`} type="button" onClick={() => setShopOpen(!shopOpen)}><i /><span>{shopOpen ? "OPEN" : "CLOSED"}</span></button>
+        <button className={`owner-shop-switch ${shopOpen ? "open" : ""}`} type="button" onClick={() => setShopOpen(!shopOpen)}>
+          <i />
+          <span>{shopOpen ? "OPEN" : closedLabel}</span>
+        </button>
       </header>
 
       {tab === "orders" ? (
@@ -2040,6 +2068,7 @@ const ComponentsPageLazy = import.meta.env.DEV
 
 export default function App() {
   const [shopOpen, setShopOpen] = useState(true)
+  const [closedSince, setClosedSince] = useState<number | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [qrModalOpen, setQrModalOpen] = useState(false)
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({})
@@ -2063,6 +2092,34 @@ export default function App() {
     online: isLiveOnline,
     refresh: refreshLive,
   } = useStaffLive()
+
+  // Sync shopOpen and closedSince from live feed whenever changed on server
+  useEffect(() => {
+    if (liveShop && typeof liveShop.open !== "undefined") {
+      setShopOpen(liveShop.open !== false)
+      setClosedSince(liveShop.closedSince || liveShop.closed_since || null)
+    }
+  }, [liveShop?.open, liveShop?.closedSince, liveShop?.closed_since])
+
+  // Single authoritative toggle with optimistic update and rollback
+  const handleToggleShopOpen = async (targetOpen: boolean) => {
+    const prevOpen = shopOpen
+    const prevClosedSince = closedSince
+    setShopOpen(targetOpen)
+    setClosedSince(targetOpen ? null : Math.floor(Date.now() / 1000))
+    try {
+      const res = await updateShopSettings({ open: targetOpen })
+      if (res && res.settings) {
+        setShopOpen(res.settings.open !== false)
+        setClosedSince(res.settings.closed_since || null)
+      }
+      await refreshLive()
+    } catch (err: any) {
+      setShopOpen(prevOpen)
+      setClosedSince(prevClosedSince)
+      alert(`Failed to update shop status: ${err.message || 'Network error'}`)
+    }
+  }
 
   // Support test overrides (e.g. Playwright layout tests via printbk-set-jobs)
   const [overrideJobs, setOverrideJobs] = useState<Job[] | null>(null)
@@ -2330,11 +2387,8 @@ export default function App() {
         jobs={jobs}
         recentlyPrinted={recentlyPrinted}
         shopOpen={shopOpen}
-        setShopOpen={async (open) => {
-          setShopOpen(open)
-          await updateShopSettings({ open }).catch(() => {})
-          await refreshLive()
-        }}
+        setShopOpen={handleToggleShopOpen}
+        closedSince={closedSince}
         onAction={action}
       />
     )
@@ -2344,11 +2398,8 @@ export default function App() {
     <div className={`app-shell view-${view}`}>
       <Header
         open={shopOpen}
-        setOpen={async (open) => {
-          setShopOpen(open)
-          await updateShopSettings({ open }).catch(() => {})
-          await refreshLive()
-        }}
+        setOpen={handleToggleShopOpen}
+        closedSince={closedSince}
         printers={livePrinters}
         online={isLiveOnline}
         onOrders={() => { setView("orders"); setHistoryJob(null) }}

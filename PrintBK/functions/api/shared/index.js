@@ -21,3 +21,4 @@ __exportStar(require("./binding"), exports);
 __exportStar(require("./layout"), exports);
 __exportStar(require("./orderItems"), exports);
 __exportStar(require("./paymentStatus"), exports);
+__exportStar(require("./shopStatus"), exports);

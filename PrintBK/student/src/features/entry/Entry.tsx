@@ -58,9 +58,18 @@ function Entry({
       </section>
 
       {!isOpen && (
-        <div className="shop-announcement" style={{ margin: '8px 0 16px', padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, color: '#991b1b', fontSize: 13 }}>
-          <strong>Shop Closed: </strong>
-          <span>{cfg.announcement || 'Counter orders are currently paused. Please check back shortly.'}</span>
+        <div className="shop-announcement" style={{ margin: '8px 0 16px', padding: '14px 16px', background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: 12, color: '#991b1b', fontSize: 13, lineHeight: 1.45 }}>
+          <div style={{ fontWeight: 800, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>Shop Closed</span>
+            {cfg.closedSince && (
+              <span style={{ fontSize: 11, fontWeight: 500, color: '#b91c1c' }}>
+                · since {new Date(cfg.closedSince * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </div>
+          <div>{cfg.announcement || 'Counter orders and uploads are paused. Please check back shortly.'}</div>
+          {cfg.hours && <div style={{ marginTop: 6, fontSize: 12, color: '#7f1d1d' }}><strong>Regular Hours:</strong> {cfg.hours}</div>}
+          {cfg.reopenAt && <div style={{ marginTop: 4, fontSize: 12, color: '#7f1d1d' }}><strong>Expected Reopen:</strong> {cfg.reopenAt}</div>}
         </div>
       )}
 

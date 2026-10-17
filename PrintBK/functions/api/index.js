@@ -246,7 +246,7 @@ app.use(cors({
   origin: (origin, callback) => {
     // Non-browser or server-to-server requests (like curl, scripts, agent) have no Origin header
     if (!origin) return callback(null, true);
-    if (allAllowedOrigins.includes(origin)) {
+    if (allAllowedOrigins.includes(origin) || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
       return callback(null, true);
     }
     return callback(new Error('CORS origin not allowed'), false);
@@ -351,6 +351,7 @@ async function getPrintFilesFolder(filestore) {
 const { priceOrder, defaultShopConfig } = require('./shared/pricing');
 const { basketToOrderItems } = require('./shared/orderItems');
 const { computePaymentStatus, getPaymentLabel } = require('./shared/paymentStatus');
+const { computeEffectiveShopStatus } = require('./shared/shopStatus');
 
 // In-memory tracker for active unapproved UPI claims per device (max 3)
 const deviceUpiClaims = new Map(); // deviceKey -> Set of orderIds
@@ -453,6 +454,9 @@ async function getEffectiveShopSettings(catalystApp) {
         const s = rows[0].shop_settings;
         memShopSettings.version = Number(s.version || memShopSettings.version || 1);
         memShopSettings.open = s.open !== false && String(s.open) !== 'false';
+        memShopSettings.paused = s.paused === true || String(s.paused) === 'true';
+        memShopSettings.open_by_hours = s.open_by_hours === true || String(s.open_by_hours) === 'true' || s.hours_enabled === true || String(s.hours_enabled) === 'true';
+        memShopSettings.hours_enabled = memShopSettings.open_by_hours;
         memShopSettings.closed_since = s.closed_since ? Number(s.closed_since) : null;
         memShopSettings.announcement = s.announcement || '';
         memShopSettings.delete_delay_minutes = Number(s.delete_delay_minutes || 5);
@@ -566,17 +570,20 @@ app.get('/config', async (req, res) => {
     }
   }
 
+  const effective = computeEffectiveShopStatus(settings, now);
   const version = Number(settings.version || 1);
   const updatedAt = Number(settings.updated_at || now);
-  const etag = `W/"v${version}-${updatedAt}"`;
+  const etag = `W/"v${version}-${updatedAt}-${effective.open ? 'open' : 'closed'}"`;
+
   res.setHeader('ETag', etag);
-  res.setHeader('Cache-Control', 'public, max-age=5, stale-while-revalidate=5');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
 
   if (req.headers['if-none-match'] === etag) {
     return res.status(304).end();
   }
 
-  const isOpen = settings.open !== false && String(settings.open) !== 'false';
   const dynamicRates = {
     ...defaultShopConfig.rates,
     ...(settings.rates || {})
@@ -584,9 +591,13 @@ app.get('/config', async (req, res) => {
 
   res.json({
     version,
-    open: isOpen,
-    closedSince: settings.closed_since || null,
-    announcement: settings.announcement || '',
+    open: effective.open,
+    effectiveOpen: effective.open,
+    reason: effective.reason,
+    closedSince: effective.closedSince,
+    reopenAt: effective.reopenAt,
+    precedenceDescription: effective.precedenceDescription,
+    announcement: effective.announcement,
     shopName: settings.shop_info?.name || 'HKBK Student Point',
     address: settings.shop_info?.address || 'HKBK College Campus, Nagawara, Bengaluru',
     hours: settings.shop_info?.hours || '8:30 AM – 6:00 PM (Mon–Sat)',
@@ -658,18 +669,15 @@ app.get('/shop/status', async (req, res) => {
 app.post('/upload', async (req, res, next) => {
   try {
     const catalystApp = getCatalystApp(req);
-    const zcql = catalystApp ? catalystApp.zcql() : null;
-    if (zcql) {
-      const settingRows = await zcql.executeZCQLQuery("SELECT open, announcement FROM shop_settings WHERE id = 'default'").catch(() => []);
-      if (settingRows && settingRows.length > 0) {
-        const s = settingRows[0].shop_settings;
-        const isOpen = s.open === true || s.open === 'true';
-        if (!isOpen) {
-          return res.status(503).json({
-            error: `Shop is currently closed: ${s.announcement || 'Counter orders and uploads are paused. Please wait or check back shortly.'}`
-          });
-        }
-      }
+    const settings = await getEffectiveShopSettings(catalystApp);
+    const effective = computeEffectiveShopStatus(settings, nowSec());
+    if (!effective.open) {
+      return res.status(503).json({
+        error: `Shop is currently closed: ${effective.announcement || 'Counter orders and uploads are paused. Please wait or check back shortly.'}`,
+        closed: true,
+        shopClosed: true,
+        reopenAt: effective.reopenAt
+      });
     }
   } catch (_) {}
   next();
@@ -799,12 +807,13 @@ app.post('/orders', async (req, res) => {
 
     // 4. Shop Availability Check
     const settings = await getEffectiveShopSettings(catalystApp);
-    const isOpen = settings.open !== false && String(settings.open) !== 'false';
-    if (!isOpen) {
+    const effective = computeEffectiveShopStatus(settings, nowSec());
+    if (!effective.open) {
       return res.status(503).json({
-        error: `Shop is currently closed: ${settings.announcement || 'Counter orders are paused. Please try again later.'}`,
+        error: `Shop is currently closed: ${effective.announcement || 'Counter orders are paused. Please try again later.'}`,
         closed: true,
-        shopClosed: true
+        shopClosed: true,
+        reopenAt: effective.reopenAt
       });
     }
 

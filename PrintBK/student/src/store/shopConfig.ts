@@ -6,6 +6,8 @@ export interface ExtendedShopConfig extends ShopConfig {
   version: number;
   open: boolean;
   closedSince: number | null;
+  reopenAt?: string | null;
+  reason?: string;
   announcement: string;
   shopName: string;
   address: string;
@@ -47,6 +49,8 @@ const DEFAULT_EXTENDED_CONFIG: ExtendedShopConfig = {
   version: 1,
   open: true,
   closedSince: null,
+  reopenAt: null,
+  reason: 'open',
   announcement: '',
   shopName: 'HKBK Student Point',
   address: 'HKBK College Campus, Nagawara, Bengaluru',

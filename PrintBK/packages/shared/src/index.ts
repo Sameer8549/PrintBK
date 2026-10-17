@@ -5,3 +5,4 @@ export * from './binding';
 export * from './layout';
 export * from './orderItems';
 export * from './paymentStatus';
+export * from './shopStatus';

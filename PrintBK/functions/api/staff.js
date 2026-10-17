@@ -3,6 +3,7 @@ const express = require('express');
 const crypto = require('crypto');
 const catalyst = require('zcatalyst-sdk-node');
 const { computePaymentStatus, getPaymentLabel } = require('./shared/paymentStatus');
+const { computeEffectiveShopStatus } = require('./shared/shopStatus');
 
 const router = express.Router();
 
@@ -252,9 +253,12 @@ router.get('/live', async (req, res) => {
 
     // 1. Fetch shop_settings
     const mem = global.__printbk_shop_settings || {};
-    let shop = {
+    let rawShop = {
       version: Number(mem.version || 1),
-      open: mem.open !== false,
+      open: mem.open !== false && String(mem.open) !== 'false',
+      paused: mem.paused === true || String(mem.paused) === 'true',
+      hours_enabled: mem.hours_enabled === true || String(mem.hours_enabled) === 'true' || mem.open_by_hours === true,
+      closed_since: mem.closed_since || null,
       announcement: mem.announcement || '',
       delete_delay_minutes: Number(mem.delete_delay_minutes || 5),
       mixed_colour_mode: mem.mixed_colour_mode || 'split',
@@ -269,21 +273,37 @@ router.get('/live', async (req, res) => {
         const settingsRows = await zcql.executeZCQLQuery(`SELECT * FROM shop_settings WHERE id = 'default' LIMIT 1`);
         if (settingsRows && settingsRows.length > 0) {
           const s = settingsRows[0].shop_settings;
-          shop = {
+          rawShop = {
             version: Number(s.version || mem.version || 1),
             open: s.open !== false && String(s.open) !== 'false',
+            paused: s.paused === true || String(s.paused) === 'true',
+            hours_enabled: s.hours_enabled === true || String(s.hours_enabled) === 'true' || s.open_by_hours === true,
+            closed_since: s.closed_since ? Number(s.closed_since) : null,
             announcement: s.announcement || '',
             delete_delay_minutes: Number(s.delete_delay_minutes || 5),
             mixed_colour_mode: s.mixed_colour_mode || 'split',
-            rates: typeof s.rates === 'string' ? JSON.parse(s.rates || '{}') : s.rates || shop.rates,
+            rates: typeof s.rates === 'string' ? JSON.parse(s.rates || '{}') : s.rates || rawShop.rates,
             services: typeof s.services === 'string' ? JSON.parse(s.services || '{}') : s.services || {},
-            payments: typeof s.payments === 'string' ? JSON.parse(s.payments || '{}') : s.payments || shop.payments,
-            shop_info: typeof s.shop_info === 'string' ? JSON.parse(s.shop_info || '{}') : s.shop_info || shop.shop_info,
+            payments: typeof s.payments === 'string' ? JSON.parse(s.payments || '{}') : s.payments || rawShop.payments,
+            shop_info: typeof s.shop_info === 'string' ? JSON.parse(s.shop_info || '{}') : s.shop_info || rawShop.shop_info,
             printer_mapping: (typeof s.shop_info === 'string' ? JSON.parse(s.shop_info || '{}') : s.shop_info || {}).printer_mapping || {}
           };
         }
       } catch (_) {}
     }
+
+    const effective = computeEffectiveShopStatus(rawShop, now);
+    const shop = {
+      ...rawShop,
+      open: effective.open,
+      effectiveOpen: effective.open,
+      reason: effective.reason,
+      closedSince: effective.closedSince,
+      closed_since: effective.closedSince,
+      reopenAt: effective.reopenAt,
+      announcement: effective.announcement,
+      precedenceDescription: effective.precedenceDescription
+    };
 
     // 2. Fetch printers reported by agent
     let printers = [];
@@ -1300,6 +1320,15 @@ router.put('/settings', authenticateStaff, async (req, res) => {
       isOpen = requestedOpen;
     }
 
+    let isPaused = typeof req.body.paused !== 'undefined'
+      ? (req.body.paused === true || req.body.paused === 'true')
+      : (existing.paused === true || String(existing.paused) === 'true' || mem.paused === true);
+    let hoursEnabled = typeof req.body.hours_enabled !== 'undefined'
+      ? (req.body.hours_enabled === true || req.body.hours_enabled === 'true')
+      : (typeof req.body.open_by_hours !== 'undefined'
+          ? (req.body.open_by_hours === true || req.body.open_by_hours === 'true')
+          : (existing.hours_enabled === true || String(existing.hours_enabled) === 'true' || mem.hours_enabled === true));
+
     // Merge shop_info
     let existingShopInfo = {};
     try {
@@ -1354,6 +1383,9 @@ router.put('/settings', authenticateStaff, async (req, res) => {
     // Update in-memory store immediately
     mem.version = newVersion;
     mem.open = isOpen;
+    mem.paused = isPaused;
+    mem.hours_enabled = hoursEnabled;
+    mem.open_by_hours = hoursEnabled;
     mem.closed_since = closedSince;
     mem.announcement = announcement;
     mem.rates = ratesMerged;
@@ -1407,13 +1439,20 @@ router.put('/settings', authenticateStaff, async (req, res) => {
       toStatus: String(newVersion)
     }).catch(() => {});
 
+    const effective = computeEffectiveShopStatus(mem, now);
+
     res.json({
       ok: true,
       version: newVersion,
+      open: effective.open,
+      effectiveOpen: effective.open,
+      closedSince: effective.closedSince,
+      reopenAt: effective.reopenAt,
+      announcement: effective.announcement,
       settings: {
         version: newVersion,
-        open: isOpen,
-        closed_since: closedSince,
+        open: effective.open,
+        closed_since: effective.closedSince,
         announcement,
         rates: ratesMerged,
         services: servicesMerged,
