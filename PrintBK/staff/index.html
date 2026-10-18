@@ -16,10 +16,16 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('sw.js').catch(() => {});
-        });
+      // Clean up any stale service workers or caches from earlier builds
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(regs => {
+          for (const reg of regs) reg.unregister();
+        }).catch(() => {});
+      }
+      if ('caches' in window) {
+        caches.keys().then(keys => {
+          for (const k of keys) caches.delete(k);
+        }).catch(() => {});
       }
     </script>
   </body>

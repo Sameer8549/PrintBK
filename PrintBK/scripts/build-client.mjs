@@ -7,6 +7,7 @@
  *   /              -> Student Web Application (index.html, assets/...)
  *   /staff/        -> Staff Counter Application (staff/index.html, staff/assets/...)
  *   /staff.html    -> Direct alias to Staff Counter Application
+ *   /404.html      -> SPA routing fallback for Catalyst Web Client Hosting
  */
 
 import fs from 'node:fs';
@@ -30,16 +31,15 @@ console.log('🎓 [build-client] Step 2: Building Student Web Client...');
 execSync('pnpm --filter printbk-student build', { cwd: rootDir, stdio: 'inherit' });
 
 // 3. Build Staff Client
-console.log('💼 [build-client] Step 3: Building Staff Counter Client (base: /staff/)...');
+console.log('💼 [build-client] Step 3: Building Staff Counter Client...');
 execSync('pnpm --filter printbk-staff build', { cwd: rootDir, stdio: 'inherit' });
 
 // 4. Assemble into client/ directory
 console.log('📁 [build-client] Step 4: Assembling unified client directory...');
 const clientDir = path.join(rootDir, 'client');
-if (fs.existsSync(clientDir)) {
-  fs.rmSync(clientDir, { recursive: true, force: true });
+if (!fs.existsSync(clientDir)) {
+  fs.mkdirSync(clientDir, { recursive: true });
 }
-fs.mkdirSync(clientDir, { recursive: true });
 
 // Copy student/dist to client/
 const studentDist = path.join(rootDir, 'student', 'dist');
@@ -50,21 +50,72 @@ const staffDist = path.join(rootDir, 'staff', 'dist');
 const clientStaffDir = path.join(clientDir, 'staff');
 fs.cpSync(staffDist, clientStaffDir, { recursive: true });
 
-// Also copy staff/dist/index.html to client/staff.html for direct URL compatibility
+// CRITICAL FIX: Also copy all staff assets into client/assets/
+// This ensures that when staff app is accessed via /app/staff.html or root-relative paths,
+// all scripts and styles load cleanly with 200 OK and correct MIME types!
+const staffAssetsDir = path.join(staffDist, 'assets');
+const clientAssetsDir = path.join(clientDir, 'assets');
+if (fs.existsSync(staffAssetsDir)) {
+  for (const assetFile of fs.readdirSync(staffAssetsDir)) {
+    fs.copyFileSync(
+      path.join(staffAssetsDir, assetFile),
+      path.join(clientAssetsDir, assetFile)
+    );
+  }
+}
+
+// Also copy staff root images (logos) to client root so staff.html renders them
+for (const imgFile of ['hkbk-logo.jpg', 'printbk-logo.svg', 'printbk-logo.png']) {
+  const srcImg = path.join(staffDist, imgFile);
+  if (fs.existsSync(srcImg)) {
+    fs.copyFileSync(srcImg, path.join(clientDir, imgFile));
+  }
+}
+
+// Also create client/staff.html from staff/dist/index.html
 fs.copyFileSync(
   path.join(staffDist, 'index.html'),
   path.join(clientDir, 'staff.html')
 );
 
-// Ensure client-package.json exists with correct metadata
+// Create 404.html fallback for Catalyst Web Client Hosting
+// If a user navigates to /app/staff or refreshes any sub-route,
+// 404.html gracefully routes them to the proper application
+const fallback404Content = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PrintBK · Loading</title>
+  <script>
+    (function() {
+      var path = window.location.pathname.toLowerCase();
+      var search = window.location.search || '';
+      var hash = window.location.hash || '';
+      if (path.indexOf('staff') !== -1) {
+        window.location.replace('/app/staff/index.html' + search + hash);
+      } else {
+        window.location.replace('/app/index.html' + search + hash);
+      }
+    })();
+  </script>
+</head>
+<body style="font-family: sans-serif; text-align: center; padding: 40px; background: #F7F4EE; color: #111;">
+  <p>Loading PrintBK...</p>
+</body>
+</html>
+`;
+fs.writeFileSync(path.join(clientDir, '404.html'), fallback404Content);
+
+// Ensure client-package.json exists with incremented version to bust CDN caching
 const clientPkgPath = path.join(clientDir, 'client-package.json');
 fs.writeFileSync(
   clientPkgPath,
   JSON.stringify(
     {
       name: 'printbk_student',
-      version: '1.0.0',
+      version: '1.1.0',
       homepage: 'index.html',
+      '404': '404.html',
     },
     null,
     2
@@ -74,3 +125,5 @@ fs.writeFileSync(
 console.log('✅ [build-client] Unified client assembled successfully:');
 console.log(`   - Student App: / (index.html)`);
 console.log(`   - Staff App:   /staff/ (staff/index.html) & /staff.html`);
+console.log(`   - Fallback:    /404.html (configured in client-package.json)`);
+console.log(`   - Assets:      Combined into /assets/ and /staff/assets/`);

@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#F7F4EE" />
     <meta name="description" content="Upload, pay and pick up campus printing at HKBK Student Point." />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://checkout.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' blob: https://*.catalystserverless.in https://api.razorpay.com https://wa.me; object-src 'none'; base-uri 'self';" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://checkout.razorpay.com; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' data: blob: http://localhost:* ws://localhost:* https://*.catalystserverless.com https://*.catalystserverless.in https://*.zoho.com https://*.zohocatalyst.com https://api.razorpay.com https://wa.me; object-src 'none'; base-uri 'self';" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <title>PrintBK · HKBK Student Point</title>
@@ -15,11 +15,21 @@
   <body>
     <!-- figma:body-start -->
     <div id="root"></div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
-      if (window.pdfjsLib) {
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      // Clean up any stray service workers on this domain
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(regs => {
+          for (const reg of regs) reg.unregister();
+        }).catch(() => {});
       }
+    </script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+      window.addEventListener('DOMContentLoaded', () => {
+        if (window.pdfjsLib) {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+      });
     </script>
     <script type="module" src="/src/main.tsx"></script>
     <!-- figma:body-end -->
