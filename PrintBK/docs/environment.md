@@ -11,7 +11,9 @@
 | Variable Name | Description | Environment | Sensitive? | Purpose |
 | :--- | :--- | :--- | :--- | :--- |
 | `STAFF_TOKEN` | Pre-shared secret token for staff counter operations (fallback) | Dev & Prod | **Yes** | Protects `/orders`, `/orders/:id/approve-cash`, `/orders/:id/status`, `/files/:cloudId` |
-| `STAFF_SETUP_CODE` | One-time/rotatable setup code for first-run staff pairing | Dev & Prod | **Yes** | Exchanged at `POST /staff/pair` for long-lived staff device token |
+| `COUNTER_SETUP_CODE` | 24+ hex char single setup code for Windows installer first-run pairing | Dev & Prod | **Yes** | Exchanged at `POST /counter/pair` for both staff UI & print agent tokens |
+| `COUNTER_LATEST_VERSION` | Semver string for desktop app update checks (default `1.0.0`) | Dev & Prod | No | Returned by `GET /counter/version` |
+| `COUNTER_MIN_VERSION` | Minimum required desktop app version (default `1.0.0`) | Dev & Prod | No | Forces mandatory update screen if client desktop app is older |
 | `AGENT_TOKEN` | Authentication secret for the Windows print agent on shop PC | Dev & Prod | **Yes** | Authenticates outbound print agent polling and status updates |
 | `CRON_SECRET` | Pre-shared constant-time secret for scheduled tasks | Dev & Prod | **Yes** | Protects `POST /cron/cleanup` scheduler endpoint |
 | `UPI_ID` | Virtual Payment Address (VPA) for direct UPI transfers | Dev & Prod | **Yes** (Server-only) | Server builds NPCI `upi://pay` payload; never exposed in client bundle |

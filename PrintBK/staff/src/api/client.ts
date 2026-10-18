@@ -319,3 +319,23 @@ export async function purgeStaleOrders() {
   return data
 }
 
+export async function getPairedCounters() {
+  const res = await staffFetch("/staff/counters")
+  const data = await res.json()
+  if (!res.ok) {
+    throw new StaffApiError(data.error || "Failed to fetch paired counters", res.status, data)
+  }
+  return data.counters || []
+}
+
+export async function revokePairedCounter(counterId: string) {
+  const res = await staffFetch(`/staff/counters/${counterId}/revoke`, {
+    method: "POST"
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    throw new StaffApiError(data.error || "Failed to revoke counter", res.status, data)
+  }
+  return data
+}
+

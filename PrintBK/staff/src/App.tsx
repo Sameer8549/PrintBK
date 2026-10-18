@@ -18,6 +18,8 @@ import {
   printQrPrinter,
   addStaffPrinter,
   purgeStaleOrders,
+  getPairedCounters,
+  revokePairedCounter,
 } from "./api/client"
 import { useStaffLive, LiveItem, LivePrinter, LiveShop, LiveRecentlyPrinted } from "./api/useStaffLive"
 import { downloadQrPdf, previewQrPdf } from "./qrPosterPdf"
@@ -1221,7 +1223,20 @@ function PrinterSettingsPanel({
     }
   }
 
-  const tabs = ["Printers", "Pricing & payment", "Shop info", "QR & counter"]
+  const [counters, setCounters] = useState<any[]>([])
+  const [loadingCounters, setLoadingCounters] = useState(false)
+
+  useEffect(() => {
+    if (tab === 4) {
+      setLoadingCounters(true)
+      getPairedCounters()
+        .then(setCounters)
+        .catch(() => {})
+        .finally(() => setLoadingCounters(false))
+    }
+  }, [tab])
+
+  const tabs = ["Printers", "Pricing & payment", "Shop info", "QR & counter", "Paired PCs"]
 
   return (
     <>
@@ -1602,6 +1617,63 @@ function PrinterSettingsPanel({
                   </div>
                 </div>
               </section>
+            </div>
+          )}
+          {tab === 4 && (
+            <div className="settings-tab">
+              <div className="settings-intro">
+                <span>CONNECTED WORKSTATIONS</span>
+                <strong>Paired Counter PCs</strong>
+                <p>Manage Windows shop PCs installed with PrintBK Counter. Revoking a PC severs both the counter window and background print agent immediately.</p>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                  {counters.length} workstation{counters.length !== 1 ? "s" : ""} registered
+                </span>
+                <Button kind="plain" onClick={() => {
+                  setLoadingCounters(true)
+                  getPairedCounters().then(setCounters).finally(() => setLoadingCounters(false))
+                }}>REFRESH PCS</Button>
+              </div>
+
+              {loadingCounters ? (
+                <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>Loading paired PCs…</div>
+              ) : counters.length === 0 ? (
+                <div className="setting-card" style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>
+                  No paired Windows PCs found. Run the <strong>PrintBK-Counter-Setup.exe</strong> installer and enter the setup code once to pair.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {counters.map((pc: any) => (
+                    <div key={pc.id} className="setting-card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", opacity: pc.revoked ? 0.6 : 1 }}>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <strong style={{ fontSize: 15 }}>{pc.label}</strong>
+                          <span className={`status-badge ${pc.revoked ? "offline" : "live"}`} style={{ fontSize: 10, padding: "2px 6px" }}>
+                            {pc.revoked ? "REVOKED" : "ACTIVE"}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+                          App v{pc.app_version || "1.0.0"} · Agent v{pc.agent_version || "1.0.0"} · ID: {String(pc.id).slice(0, 8)}…
+                        </div>
+                      </div>
+                      {!pc.revoked && (
+                        <Button kind="danger" onClick={async () => {
+                          if (window.confirm(`Revoke access for "${pc.label}"? Both the counter app and background print agent on this PC will be immediately disconnected.`)) {
+                            try {
+                              await revokePairedCounter(pc.id)
+                              setCounters(counters.map((c: any) => c.id === pc.id ? { ...c, revoked: true } : c))
+                            } catch (e: any) {
+                              alert("Revocation failed: " + e.message)
+                            }
+                          }
+                        }}>Revoke</Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

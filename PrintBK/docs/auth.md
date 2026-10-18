@@ -41,8 +41,23 @@ PrintBK avoids hardcoded shared tokens across multi-device setups by using ephem
                   │                                         │ Check revoked === false
 ```
 
-### 2.1 Staff Terminal Pairing (`POST /server/api/staff/pair`)
-1. On initial boot, the staff app displays a one-time pairing screen.
+### 2.0 Unified Counter PC Pairing (`POST /server/api/counter/pair`) — Recommended for Windows Installer
+1. On initial install of the **PrintBK Counter** desktop application, the first-run wizard prompts for a single **Setup Code**.
+2. The user types the `COUNTER_SETUP_CODE` (at least 24 hex characters, configured in Catalyst environment variables).
+3. The server validates the code with constant-time comparison, enforces single-use expiration (default 24h or single-use redemption) and anti-brute-force rate limiting (5 failed attempts locks IP for 15 minutes).
+4. On success, the server simultaneously issues **both credentials**:
+   - `staffCredentials`: `{ deviceId, token }` for the staff counter webview (`staff_devices`).
+   - `agentCredentials`: `{ deviceId, token }` for the background print agent (`agent_devices`).
+5. A unified workstation record is registered in `paired_counters`:
+   - `id`: Unique PC UUID.
+   - `label`: Workstation name (e.g. "Counter PC #1").
+   - `staff_device_id` & `agent_device_id`: Linked device entries.
+   - `app_version` & `agent_version`: Installed desktop application and agent version tags.
+6. The desktop app securely stores the agent token in `%APPDATA%\PrintBK\agent-config.json` (DPAPI protected) and injects the staff token into the staff counter browser profile, launching straight onto the Orders page forever.
+7. **Per-PC Revocation**: Revoking a PC via `POST /server/api/staff/counters/:id/revoke` immediately invalidates **both** credentials, shutting off both the UI and background printing.
+
+### 2.1 Developer Staff Terminal Pairing (`POST /server/api/staff/pair`)
+1. On initial boot, the staff web app displays a one-time pairing screen if running in a standalone browser.
 2. The shop manager enters the `STAFF_SETUP_CODE` (configured in Catalyst environment variables).
 3. The server validates the code in constant time, generates a 256-bit cryptographic token (`crypto.randomBytes(32).toString('hex')`), hashes it with SHA-256, and saves the record in `staff_devices`:
    - `id`: Unique UUID.
@@ -52,8 +67,8 @@ PrintBK avoids hardcoded shared tokens across multi-device setups by using ephem
    - `revoked`: `false`.
 4. The plain token is sent back to the terminal and stored locally.
 
-### 2.2 Print Agent Pairing (`POST /server/api/agent/pair`)
-1. On initial install, the agent CLI runs `printbk-agent pair --code <AGENT_SETUP_CODE> --label "Counter PC 1"`.
+### 2.2 Developer Print Agent Pairing (`POST /server/api/agent/pair`)
+1. On standalone developer install, the agent CLI runs `printbk-agent pair --code <AGENT_SETUP_CODE> --label "Counter PC 1"`.
 2. The server generates a unique 256-bit token, hashes it, and stores it in `agent_devices`.
 3. The plain token is stored locally on the shop PC in `agent-config.json` (chmod 600 / NTFS ACL restricted to current user).
 

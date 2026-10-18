@@ -1731,6 +1731,118 @@ router.post('/agent-devices/:id/revoke', async (req, res) => {
   }
 });
 
+/* ─── K2. Paired Counters (Unified PC Management) ─────────────────── */
+const memPairedCounters = global.__printbk_paired_counters || (global.__printbk_paired_counters = new Map());
+
+router.get('/counters', async (req, res) => {
+  try {
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    const map = new Map();
+
+    // 1. Load from memory registry
+    for (const c of memPairedCounters.values()) {
+      map.set(c.id, { ...c });
+    }
+
+    // 2. Load from Datastore staff_devices containing [COUNTER:
+    if (zcql) {
+      try {
+        const rows = await zcql.executeZCQLQuery(
+          `SELECT id, label, created_at, last_seen_at, revoked FROM staff_devices WHERE label LIKE '%[COUNTER:%' ORDER BY created_at DESC`
+        );
+        for (const row of rows || []) {
+          const d = row.staff_devices;
+          const match = d.label.match(/^(.*?) \(Counter UI\) \[COUNTER:([^:]+)(?::([^:]+):([^\]]+))?\]/);
+          if (match) {
+            const rawLabel = match[1];
+            const counterId = match[2];
+            const appVersion = match[3] || '1.0.0';
+            const agentVersion = match[4] || '1.0.0';
+            if (!map.has(counterId)) {
+              map.set(counterId, {
+                id: counterId,
+                label: rawLabel,
+                staff_device_id: d.id,
+                app_version: appVersion,
+                agent_version: agentVersion,
+                created_at: d.created_at,
+                last_seen_at: d.last_seen_at,
+                revoked: d.revoked === true || String(d.revoked) === 'true'
+              });
+            } else {
+              const existing = map.get(counterId);
+              existing.revoked = existing.revoked || (d.revoked === true || String(d.revoked) === 'true');
+              existing.last_seen_at = Math.max(existing.last_seen_at || 0, d.last_seen_at || 0);
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    const counters = Array.from(map.values()).sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+    res.json({ ok: true, counters });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to list paired counters: ' + err.message });
+  }
+});
+
+router.post('/counters/:id/revoke', async (req, res) => {
+  try {
+    const counterId = req.params.id;
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    const now = nowSec();
+
+    // 1. Mark in memory registry
+    let found = false;
+    if (memPairedCounters.has(counterId)) {
+      const c = memPairedCounters.get(counterId);
+      c.revoked = true;
+      c.last_seen_at = now;
+      found = true;
+    }
+
+    // Revoke staff device(s) linked to this counter in memory
+    for (const d of memStaffDevices.values()) {
+      if (d.counter_id === counterId || (d.label && d.label.includes(`[COUNTER:${counterId}`))) {
+        d.revoked = true;
+        d.last_seen_at = now;
+        found = true;
+      }
+    }
+
+    // Revoke agent device(s) linked to this counter in memory
+    for (const d of memAgentDevices.values()) {
+      if (d.counter_id === counterId || (d.label && d.label.includes(`[COUNTER:${counterId}`))) {
+        d.revoked = true;
+        d.last_seen_at = now;
+        found = true;
+      }
+    }
+
+    // 2. Revoke in Datastore
+    if (zcql) {
+      await zcql.executeZCQLQuery(
+        `UPDATE staff_devices SET revoked = true WHERE label LIKE '%[COUNTER:${esc(counterId)}%'`
+      ).catch(() => {});
+
+      await zcql.executeZCQLQuery(
+        `UPDATE agent_devices SET revoked = true WHERE label LIKE '%[COUNTER:${esc(counterId)}%'`
+      ).catch(() => {});
+    }
+
+    res.json({
+      ok: true,
+      counterId,
+      revoked: true,
+      message: 'Counter PC revoked: both staff UI and print agent credentials invalidated'
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to revoke counter: ' + err.message });
+  }
+});
+
 // L. Purge Stale Test Orders (Clear old queue items > 12 hours)
 router.post('/orders/purge-stale', async (req, res) => {
   try {

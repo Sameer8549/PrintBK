@@ -269,6 +269,11 @@ const agentRouter = require('./agent');
 app.use('/server/api/agent', agentRouter);
 app.use('/agent', agentRouter);
 
+/* ─── Mount Counter PC API Router ────────────────────────────────── */
+const counterRouter = require('./counter');
+app.use('/server/api/counter', counterRouter);
+app.use('/counter', counterRouter);
+
 /* ─── Multer & Magic Bytes File Inspection ───────────────────────── */
 const uploadTmpDir = path.join(os.tmpdir(), 'printbk-uploads');
 try { fs.mkdirSync(uploadTmpDir, { recursive: true }); } catch (_) {}
