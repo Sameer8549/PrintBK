@@ -53,6 +53,10 @@ export const PrintFileSchema = z.object({
     height: z.number(),
     rotation: z.number().optional()
   })).optional(),
+  cloudId: z.string().optional(),
+  isPhotoSheet: z.boolean().optional(),
+  photoLayout: z.string().optional(),
+  previewUrl: z.string().optional(),
   settings: z.object({
     copies: z.number().default(1),
     colorMode: z.enum(['bw', 'color', 'colour', 'auto', 'custom']).default('bw'),
@@ -67,7 +71,7 @@ export const PrintFileSchema = z.object({
     pageRotations: z.record(z.string(), z.number()).optional().default({}),
     duplexEdge: z.enum(['long', 'short']).optional()
   })
-});
+}).passthrough();
 export type PrintFile = z.infer<typeof PrintFileSchema>;
 
 export const ServiceLineSchema = z.object({

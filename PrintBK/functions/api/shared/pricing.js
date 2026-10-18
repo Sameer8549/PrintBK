@@ -16,6 +16,18 @@ function priceOrder(basket, config = defaultConfig_1.defaultShopConfig, now = ne
     let potentialSavings = 0;
     let savingsSource = '';
     for (const file of basket.files) {
+        if (file.isPhotoSheet) {
+            lines.push({
+                id: file.id,
+                name: file.name,
+                qty: (file.settings?.copies ?? 1),
+                unitPrice: 0,
+                total: 0,
+                detail: `1 A4 photo sheet · Included with photo service`,
+                formula: `Covered by photo service`
+            });
+            continue;
+        }
         const s = file.settings || {};
         const copies = s.copies ?? 1;
         const nUp = s.nUp ?? 1;

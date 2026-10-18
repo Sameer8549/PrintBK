@@ -4,7 +4,7 @@ import { Screen, Sheet } from '../../lib/types';
 import { notify } from '../../lib/store';
 import { useBasket } from '../../store/basket';
 import { useShopConfig } from '../../store/shopConfig';
-import { browseAndAddFiles } from '../../lib/filePicker';
+import { browseAndAddFiles, processAndAddFiles } from '../../lib/filePicker';
 
 function Entry({
   go,
@@ -78,7 +78,25 @@ function Entry({
         if (v === "Photos") openPhoto("");
         if (v === "Other Services") go("services");
       }} />
-      <button className="drop-zone" onClick={handleUploadClick} style={{ opacity: isOpen ? 1 : 0.65 }}>
+      <button
+        className="drop-zone"
+        onClick={handleUploadClick}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (isOpen) e.dataTransfer.dropEffect = 'copy';
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          if (!isOpen) {
+            notify(cfg.announcement || 'Shop is currently closed. Ordering is paused.');
+            return;
+          }
+          if (e.dataTransfer?.files?.length) {
+            processAndAddFiles(Array.from(e.dataTransfer.files), go, addFile);
+          }
+        }}
+        style={{ opacity: isOpen ? 1 : 0.65 }}
+      >
         <span className="upload-icon"><Icon name="upload" size={24} /></span>
         <strong>{isOpen ? "Drop your files here" : "Ordering is paused"}</strong>
         <small>{isOpen ? "or tap to browse" : "Shop is currently closed"}</small>

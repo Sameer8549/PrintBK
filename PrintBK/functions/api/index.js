@@ -304,6 +304,14 @@ function validateFileMagicBytes(filePath, originalname) {
     if (ext === 'jpg' || ext === 'jpeg') {
       return buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
     }
+    // WebP: RIFF .... WEBP
+    if (ext === 'webp') {
+      return buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46;
+    }
+    // HEIC / HEIF: .... ftyp
+    if (ext === 'heic' || ext === 'heif') {
+      return buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70;
+    }
     // Office OpenXML (.docx, .pptx, .xlsx) are ZIP archives: 50 4B (PK)
     if (['docx', 'pptx', 'xlsx'].includes(ext)) {
       return buffer[0] === 0x50 && buffer[1] === 0x4B;

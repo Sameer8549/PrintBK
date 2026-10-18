@@ -53,6 +53,10 @@ exports.PrintFileSchema = zod_1.z.object({
         height: zod_1.z.number(),
         rotation: zod_1.z.number().optional()
     })).optional(),
+    cloudId: zod_1.z.string().optional(),
+    isPhotoSheet: zod_1.z.boolean().optional(),
+    photoLayout: zod_1.z.string().optional(),
+    previewUrl: zod_1.z.string().optional(),
     settings: zod_1.z.object({
         copies: zod_1.z.number().default(1),
         colorMode: zod_1.z.enum(['bw', 'color', 'colour', 'auto', 'custom']).default('bw'),
@@ -67,7 +71,7 @@ exports.PrintFileSchema = zod_1.z.object({
         pageRotations: zod_1.z.record(zod_1.z.string(), zod_1.z.number()).optional().default({}),
         duplexEdge: zod_1.z.enum(['long', 'short']).optional()
     })
-});
+}).passthrough();
 exports.ServiceLineSchema = zod_1.z.object({
     id: zod_1.z.string(),
     type: zod_1.z.enum(['addon', 'walkin', 'request']),

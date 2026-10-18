@@ -2,18 +2,24 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon, Brand, Topbar, Segmented, SheetShell, Button, Toggle, Stepper, Chip, ProgressPaperFeed, StatusChip, PriceBar, InlineWarning } from '../../components/ui';
 import { Screen, Sheet } from '../../lib/types';
 import { notify } from '../../lib/store';
-import { useBasket } from '../../store/basket';
+import { useBasket, fileFromRaw, rawFileMap, type PrintFile } from '../../store/basket';
+import { api } from '../../services/api';
 
 function PhotoTool({
   go,
-  initialLayout
+  initialLayout = "Passport 8-up"
 }: {
   go: (screen: Screen) => void;
-  initialLayout: string;
+  initialLayout?: string;
 }) {
   const addService = useBasket(s => s.addService);
+  const addFile = useBasket(s => s.addFile);
   const rawFileRef = React.useRef<File | null>(null);
-  const [layout, setLayout] = useState(''); // always start empty — user must choose
+  const [layout, setLayout] = useState<string>(initialLayout || "Passport 8-up");
+  const [colorMode, setColorMode] = useState<'colour' | 'bw'>('colour');
+  const [cloudId, setCloudId] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const uploadPromiseRef = useRef<Promise<{ cloudId: string }> | null>(null);
 
   const [ratio, setRatio] = useState("3:4");
   const [fit, setFit] = useState("Fill");
@@ -114,13 +120,10 @@ function PhotoTool({
       ratio: ratio
     }
   };
-  const config = layout ? layouts[layout] : {
-    slots: 1,
-    className: "layout-one empty-layout",
-    label: "Choose a layout below",
-    price: 0,
-    ratio: "Auto"
-  };
+
+  const config = layouts[layout] || layouts["Passport 8-up"];
+  const finalPrice = colorMode === 'bw' ? Math.max(5, Math.round(config.price * 0.5)) : config.price;
+
   const selectLayout = (value: string) => {
     setLayout(value);
     setSelectedSlot(0);
@@ -130,113 +133,364 @@ function PhotoTool({
       x: 0,
       y: 0
     });
-    if (layouts[value].ratio === "3:4") setRatio("3:4");
-    notify(`${layouts[value].label} selected`);
+    if (layouts[value]?.ratio === "3:4") setRatio("3:4");
+    notify(`${layouts[value]?.label || value} selected`);
   };
-  const importPhoto = (file?: File) => { if (!file) return; rawFileRef.current = file;
+
+  const importPhoto = (file?: File) => {
     if (!file) return;
+    rawFileRef.current = file;
     const url = URL.createObjectURL(file);
-    if (isCardLayout) setCardPhotos(photos => photos.map((photo, index) => index === selectedSlot ? url : photo));else setPhotoSrc(url);
+    if (isCardLayout) {
+      setCardPhotos(photos => photos.map((photo, index) => index === selectedSlot ? url : photo));
+    } else {
+      setPhotoSrc(url);
+    }
     setFilledAll(true);
     notify(isCardLayout ? `${selectedSlot === 0 ? "Front" : "Back"} image added` : "Photo imported and fitted");
+
+    // Fast background cloud upload immediately — zero wait at checkout!
+    setIsUploading(true);
+    const p = api.uploadFile(file);
+    uploadPromiseRef.current = p;
+    p.then(res => {
+      if (res?.cloudId) {
+        setCloudId(res.cloudId);
+      }
+      setIsUploading(false);
+    }).catch(err => {
+      console.warn('Background photo upload warning:', err);
+      setIsUploading(false);
+    });
   };
+
   const imageStyle: React.CSSProperties = {
     objectFit: fit === "Fit" ? "contain" : fit === "Fill" ? "cover" : "fill",
-    transform: `translate(${photoOffset.x}px, ${photoOffset.y}px) scale(${1 + zoom / 180}) rotate(${rotation}deg)`
+    transform: `translate(${photoOffset.x}px, ${photoOffset.y}px) scale(${1 + zoom / 180}) rotate(${rotation}deg)`,
+    filter: colorMode === 'bw' ? 'grayscale(100%) contrast(1.12)' : 'none',
+    transition: 'filter 0.2s ease, transform 0.12s ease',
   };
-  return <main className="page has-dock photo-page">
+
+  return (
+    <main className="page has-dock photo-page">
       <Topbar title="Photo print" back onBack={() => go("entry")} />
-      <input ref={photoInput} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/heic,image/heif" onChange={event => importPhoto(event.target.files?.[0])} />
+      <input
+        ref={photoInput}
+        className="visually-hidden"
+        type="file"
+        accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif"
+        onChange={event => importPhoto(event.target.files?.[0])}
+      />
       <section className="photo-context">
-        <div><span className="kicker">A4 PHOTO SHEET</span><h1>Place it once.<br />We’ll size the rest.</h1></div>
-        <button onClick={() => photoInput.current?.click()}><Icon name="camera" /><span>{isCardLayout ? `${selectedSlot === 0 ? "Front" : "Back"} image` : photoSrc ? "Change photo" : "Choose photo"}<small>JPG, PNG or HEIC</small></span></button>
-      </section>
-      <div className="photo-preview">
-        <div className="sheet-toolbar"><span>LIVE PREVIEW</span><b>{config.slots} SLOT{config.slots > 1 ? "S" : ""}</b></div>
-        <div className={`photo-sheet ${config.className}`} style={layout === "Custom" ? {
-        gridTemplateColumns: `repeat(${customColumns}, 1fr)`,
-        gridTemplateRows: `repeat(${customRows}, 1fr)`
-      } : undefined}>
-          {Array.from({
-          length: config.slots
-        }, (_, i) => {
-          const slotPhoto = isCardLayout ? cardPhotos[i] : photoSrc;
-          const hasPhoto = Boolean(layout) && (isCardLayout ? Boolean(slotPhoto) : filledAll || i === 0);
-          return <div key={`photo-slot-${layout || "empty"}-${i}`} role="button" tabIndex={0} className={`photo-slot ${i === selectedSlot ? "selected" : ""} ${hasPhoto ? "filled" : "empty"}`} style={i === selectedSlot ? {
-            transform: `scale(${slotScale / 100})`
-          } : undefined} onClick={() => setSelectedSlot(i)} onKeyDown={event => event.key === "Enter" && setSelectedSlot(i)} onPointerDown={event => {
-            if (!hasPhoto) return;
-            event.currentTarget.setPointerCapture(event.pointerId);
-            dragState.current = {
-              x: event.clientX,
-              y: event.clientY,
-              originX: photoOffset.x,
-              originY: photoOffset.y
-            };
-          }} onPointerMove={event => {
-            if (!dragState.current) return;
-            setPhotoOffset({
-              x: Math.max(-45, Math.min(45, dragState.current.originX + event.clientX - dragState.current.x)),
-              y: Math.max(-45, Math.min(45, dragState.current.originY + event.clientY - dragState.current.y))
-            });
-          }} onPointerUp={() => {
-            dragState.current = null;
-          }}>
-              {slotPhoto && hasPhoto ? <img src={slotPhoto} alt="" style={imageStyle} /> : !isCardLayout && hasPhoto ? <span className="avatar-shape" style={{
-              transform: `scale(${1 + zoom / 180}) rotate(${rotation}deg)`
-            }} /> : <span className="empty-slot"><strong>+</strong><small>Add {i === 0 ? "front" : "back"}</small></span>}
-              {i === selectedSlot && <span className="slot-handles" key={`slot-handles-${i}`}><i /><b className="resize-handle" onPointerDown={event => {
-                event.stopPropagation();
-                event.currentTarget.setPointerCapture(event.pointerId);
-                resizeState.current = {
-                  x: event.clientX,
-                  origin: slotScale
-                };
-              }} onPointerMove={event => {
-                if (resizeState.current) setSlotScale(Math.max(72, Math.min(100, resizeState.current.origin + (event.clientX - resizeState.current.x) / 2)));
-              }} onPointerUp={event => {
-                event.stopPropagation();
-                resizeState.current = null;
-              }} /></span>}
-              {(layout === "ID card" || layout === "Aadhaar") && <em>{i === 0 ? "FRONT" : "BACK"}</em>}
-            </div>;
-        })}
+        <div>
+          <span className="kicker">A4 PHOTO SHEET</span>
+          <h1>Place it once.<br />We’ll size the rest.</h1>
         </div>
-        <div className="sheet-caption"><span>A4 · {config.label}</span><b>{ratio} crop</b></div>
-        {layout && <div className="edit-hint">Drag the photo to position it · pull the lime corner to resize</div>}
+        <button type="button" onClick={() => photoInput.current?.click()}>
+          <Icon name="camera" />
+          <span>
+            {isCardLayout
+              ? (cardPhotos[selectedSlot] ? "Replace image" : `Choose ${selectedSlot === 0 ? "front" : "back"}`)
+              : photoSrc ? "Change photo" : "Choose photo"}
+            <small>{isUploading ? "Uploading in background…" : "JPG, PNG, WEBP, HEIC"}</small>
+          </span>
+        </button>
+      </section>
+
+      <div className="photo-preview">
+        <div className="sheet-toolbar">
+          <span>LIVE PREVIEW</span>
+          <b>{config.slots} SLOT{config.slots > 1 ? "S" : ""}</b>
+        </div>
+        <div
+          className={`photo-sheet ${config.className}`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            const file = e.dataTransfer?.files?.[0];
+            if (file) importPhoto(file);
+          }}
+          style={layout === "Custom" ? {
+            gridTemplateColumns: `repeat(${customColumns}, 1fr)`,
+            gridTemplateRows: `repeat(${customRows}, 1fr)`
+          } : undefined}
+        >
+          {Array.from({ length: config.slots }, (_, i) => {
+            const slotPhoto = isCardLayout ? cardPhotos[i] : photoSrc;
+            const hasPhoto = Boolean(slotPhoto) && (isCardLayout ? true : filledAll || i === 0);
+
+            return (
+              <div
+                key={`photo-slot-${layout || "empty"}-${i}`}
+                role="button"
+                tabIndex={0}
+                className={`photo-slot ${i === selectedSlot ? "selected" : ""} ${hasPhoto ? "filled" : "empty"}`}
+                style={i === selectedSlot ? { transform: `scale(${slotScale / 100})` } : undefined}
+                onClick={() => {
+                  setSelectedSlot(i);
+                  if (!hasPhoto && !slotPhoto) {
+                    photoInput.current?.click();
+                  }
+                }}
+                onKeyDown={event => event.key === "Enter" && setSelectedSlot(i)}
+                onPointerDown={event => {
+                  if (!hasPhoto) return;
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  dragState.current = {
+                    x: event.clientX,
+                    y: event.clientY,
+                    originX: photoOffset.x,
+                    originY: photoOffset.y
+                  };
+                }}
+                onPointerMove={event => {
+                  if (!dragState.current) return;
+                  setPhotoOffset({
+                    x: Math.max(-45, Math.min(45, dragState.current.originX + event.clientX - dragState.current.x)),
+                    y: Math.max(-45, Math.min(45, dragState.current.originY + event.clientY - dragState.current.y))
+                  });
+                }}
+                onPointerUp={() => {
+                  dragState.current = null;
+                }}
+              >
+                {slotPhoto && hasPhoto ? (
+                  <img src={slotPhoto} alt="" style={imageStyle} />
+                ) : !isCardLayout && hasPhoto ? (
+                  <span className="avatar-shape" style={{ transform: `scale(${1 + zoom / 180}) rotate(${rotation}deg)` }} />
+                ) : (
+                  <span className="empty-slot" onClick={() => photoInput.current?.click()}>
+                    <strong>+</strong>
+                    <small>{isCardLayout ? (i === 0 ? "Add front" : "Add back") : "Add photo"}</small>
+                  </span>
+                )}
+                {i === selectedSlot && (
+                  <span className="slot-handles" key={`slot-handles-${i}`}>
+                    <i />
+                    <b
+                      className="resize-handle"
+                      onPointerDown={event => {
+                        event.stopPropagation();
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                        resizeState.current = {
+                          x: event.clientX,
+                          origin: slotScale
+                        };
+                      }}
+                      onPointerMove={event => {
+                        if (resizeState.current) setSlotScale(Math.max(72, Math.min(100, resizeState.current.origin + (event.clientX - resizeState.current.x) / 2)));
+                      }}
+                      onPointerUp={event => {
+                        event.stopPropagation();
+                        resizeState.current = null;
+                      }}
+                    />
+                  </span>
+                )}
+                {(layout === "ID card" || layout === "Aadhaar") && <em>{i === 0 ? "FRONT" : "BACK"}</em>}
+              </div>
+            );
+          })}
+        </div>
+        <div className="sheet-caption">
+          <span>A4 · {config.label} · {colorMode === 'bw' ? 'B&W' : 'Colour'}</span>
+          <b>{ratio} crop</b>
+        </div>
+        <div className="edit-hint">Drag photo to reposition · pull lime corner to resize · tap empty slot to pick photo</div>
       </div>
-      <div className="photo-section-title"><label>Choose layout</label><span>Exact print sizes</span></div>
-      <div className="layout-scroll">{Object.keys(layouts).map(value => <button className={layout === value ? "active" : ""} onClick={() => selectLayout(value)} key={value}><b>{value}</b><small>{layouts[value].slots} slot{layouts[value].slots > 1 ? "s" : ""}</small></button>)}</div>
-      {isCardLayout && <div className="card-side-switch"><button className={selectedSlot === 0 ? "active" : ""} onClick={() => setSelectedSlot(0)}><span>1</span><b>Front</b><small>{cardPhotos[0] ? "Image ready" : "Add image"}</small></button><button className={selectedSlot === 1 ? "active" : ""} onClick={() => setSelectedSlot(1)}><span>2</span><b>Back</b><small>{cardPhotos[1] ? "Image ready" : "Add image"}</small></button></div>}
-      {layout === "Custom" && <div className="custom-grid-controls"><div><span><b>Columns</b><small>Across the page</small></span><div className="stepper"><button onClick={() => setCustomColumns(Math.max(1, customColumns - 1))}>−</button><b>{customColumns}</b><button onClick={() => setCustomColumns(Math.min(4, customColumns + 1))}>+</button></div></div><div><span><b>Rows</b><small>Down the page</small></span><div className="stepper"><button onClick={() => setCustomRows(Math.max(1, customRows - 1))}>−</button><b>{customRows}</b><button onClick={() => setCustomRows(Math.min(5, customRows + 1))}>+</button></div></div></div>}
+
+      <div className="photo-section-title">
+        <label>Print mode &amp; Color</label>
+        <span>{colorMode === 'bw' ? '50% B&W Rate' : 'Full Colour'}</span>
+      </div>
+      <div style={{ margin: "0 0 16px" }}>
+        <Segmented
+          values={["Colour", "Black & White"]}
+          selected={colorMode === 'colour' ? "Colour" : "Black & White"}
+          onSelect={v => setColorMode(v === "Colour" ? 'colour' : 'bw')}
+        />
+      </div>
+
+      <div className="photo-section-title">
+        <label>Choose layout</label>
+        <span>Exact print sizes</span>
+      </div>
+      <div className="layout-scroll">
+        {Object.keys(layouts).map(value => (
+          <button
+            key={value}
+            type="button"
+            className={layout === value ? "active" : ""}
+            onClick={() => selectLayout(value)}
+          >
+            <b>{value}</b>
+            <small>{layouts[value].slots} slot{layouts[value].slots > 1 ? "s" : ""}</small>
+          </button>
+        ))}
+      </div>
+
+      {isCardLayout && (
+        <div className="card-side-switch">
+          <button type="button" className={selectedSlot === 0 ? "active" : ""} onClick={() => setSelectedSlot(0)}>
+            <span>1</span><b>Front</b><small>{cardPhotos[0] ? "Image ready" : "Add image"}</small>
+          </button>
+          <button type="button" className={selectedSlot === 1 ? "active" : ""} onClick={() => setSelectedSlot(1)}>
+            <span>2</span><b>Back</b><small>{cardPhotos[1] ? "Image ready" : "Add image"}</small>
+          </button>
+        </div>
+      )}
+
+      {layout === "Custom" && (
+        <div className="custom-grid-controls">
+          <div>
+            <span><b>Columns</b><small>Across the page</small></span>
+            <div className="stepper">
+              <button type="button" onClick={() => setCustomColumns(Math.max(1, customColumns - 1))}>−</button>
+              <b>{customColumns}</b>
+              <button type="button" onClick={() => setCustomColumns(Math.min(4, customColumns + 1))}>+</button>
+            </div>
+          </div>
+          <div>
+            <span><b>Rows</b><small>Down the page</small></span>
+            <div className="stepper">
+              <button type="button" onClick={() => setCustomRows(Math.max(1, customRows - 1))}>−</button>
+              <b>{customRows}</b>
+              <button type="button" onClick={() => setCustomRows(Math.min(5, customRows + 1))}>+</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="tool-panel">
-        <div><label>Crop ratio <span>Slot {selectedSlot + 1}</span></label><div className="chip-row">{["Original", "3:4", "1:1"].map(value => <button className={ratio === value ? "active" : ""} onClick={() => setRatio(value)} key={value}>{value}</button>)}</div></div>
-        <div><label>Image fit</label><Segmented values={["Fit", "Fill", "Stretch"]} selected={fit} onSelect={setFit} /></div>
-        <label className="zoom-control"><span>Zoom <b>{zoom}%</b></span><input type="range" min="0" max="100" value={zoom} onChange={event => setZoom(Number(event.target.value))} /></label>
-        <div className="action-pair"><button onClick={() => setRotation((rotation + 90) % 360)}>↻ Rotate 90°</button>{isCardLayout ? <button onClick={() => photoInput.current?.click()}>Replace {selectedSlot === 0 ? "front" : "back"}</button> : <button className={filledAll ? "active" : ""} onClick={() => {
-          setFilledAll(!filledAll);
-          notify(filledAll ? "Only the first slot is filled" : `Filled all ${config.slots} slots`);
-        }}>{filledAll ? "Clear repeats" : "Fill all slots"}</button>}</div>
+        <div>
+          <label>Crop ratio <span>Slot {selectedSlot + 1}</span></label>
+          <div className="chip-row">
+            {["Original", "3:4", "1:1"].map(value => (
+              <button
+                key={value}
+                type="button"
+                className={ratio === value ? "active" : ""}
+                onClick={() => setRatio(value)}
+              >
+                {value}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label>Image fit</label>
+          <Segmented values={["Fit", "Fill", "Stretch"]} selected={fit} onSelect={setFit} />
+        </div>
+        <label className="zoom-control">
+          <span>Zoom <b>{zoom}%</b></span>
+          <input type="range" min="0" max="100" value={zoom} onChange={event => setZoom(Number(event.target.value))} />
+        </label>
+        <div className="action-pair">
+          <button type="button" onClick={() => setRotation((rotation + 90) % 360)}>↻ Rotate 90°</button>
+          {isCardLayout ? (
+            <button type="button" onClick={() => photoInput.current?.click()}>Replace {selectedSlot === 0 ? "front" : "back"}</button>
+          ) : (
+            <button
+              type="button"
+              className={filledAll ? "active" : ""}
+              onClick={() => {
+                setFilledAll(!filledAll);
+                notify(filledAll ? "Only the first slot is filled" : `Filled all ${config.slots} slots`);
+              }}
+            >
+              {filledAll ? "Clear repeats" : "Fill all slots"}
+            </button>
+          )}
+        </div>
       </div>
-      <div className={`photo-safe-note ${!layout || (isCardLayout ? cardPhotos.some(photo => !photo) : !photoSrc) ? "pending" : ""}`}><Icon name={!layout || (isCardLayout ? cardPhotos.some(photo => !photo) : !photoSrc) ? "camera" : "check"} /> {!layout ? "Choose a layout to build your sheet." : isCardLayout && cardPhotos.some(photo => !photo) ? "Add both front and back to continue." : !photoSrc ? "Choose a photo to start editing." : "Faces, edges and print size checked."}</div>
-      <div className="bottom-dock"><div className="total-block"><span>{layout ? `1 A4 sheet · ${config.slots} slot${config.slots !== 1 ? 's' : ''}` : "Choose a layout"}</span><b>{layout ? `₹${config.price}.00` : "—"}</b><small>{layout ? "No hidden charges" : "Price appears here"}</small></div><button className="primary" disabled={!layout || (isCardLayout ? cardPhotos.some(photo => !photo) : !photoSrc)} onClick={() => {
-        // Add as a fixed-price service (not a file) so pricing is exact
-        addService({
-          id: crypto.randomUUID(),
-          type: 'addon',
-          name: `Photo print — ${config.label}`,
-          detail: `A4 · ${config.slots} slot${config.slots > 1 ? 's' : ''} · Colour`,
-          price: config.price,
-          qty: 1,
-        });
-        notify(`${config.label} added to basket`);
-        go("basket");
-      }}>{isCardLayout && cardPhotos.some(photo => !photo) ? "Add front + back" : "Add photo sheet"}</button></div>
-    </main>;
+
+      <div className={`photo-safe-note ${!layout || (isCardLayout ? cardPhotos.some(photo => !photo) : !photoSrc) ? "pending" : ""}`}>
+        <Icon name={!layout || (isCardLayout ? cardPhotos.some(photo => !photo) : !photoSrc) ? "camera" : "check"} />
+        {isCardLayout && cardPhotos.some(photo => !photo)
+          ? "Add both front and back to continue."
+          : !photoSrc
+          ? "Tap Choose photo or tap any empty slot to add photo."
+          : `Photo ready · ${colorMode === 'bw' ? 'Black & White' : 'Colour'} print verified.`}
+      </div>
+
+      <div className="bottom-dock">
+        <div className="total-block">
+          <span>{layout ? `1 A4 sheet · ${config.slots} slot${config.slots !== 1 ? 's' : ''} · ${colorMode === 'bw' ? 'B&W' : 'Colour'}` : "Choose a layout"}</span>
+          <b>₹{finalPrice}.00</b>
+          <small>{colorMode === 'bw' ? "50% B&W discount applied" : "Standard photo rate"}</small>
+        </div>
+        <button
+          type="button"
+          className="primary"
+          disabled={isCardLayout ? cardPhotos.some(photo => !photo) : !photoSrc}
+          onClick={() => {
+            const fileId = crypto.randomUUID();
+            const pFile: PrintFile = {
+              id: fileId,
+              name: `Photo Sheet — ${config.label} (${colorMode === 'bw' ? 'B&W' : 'Colour'})`,
+              size: rawFileRef.current?.size || 2048,
+              type: rawFileRef.current?.name.split('.').pop()?.toLowerCase() || 'jpg',
+              pages: 1,
+              colorPages: colorMode === 'bw' ? 0 : 1,
+              colorDetection: 'ready',
+              settings: {
+                copies: 1,
+                colorMode: colorMode === 'bw' ? 'bw' : 'colour',
+                paper: 'A4',
+                sided: 'single',
+                orientation: 'auto',
+                nUp: 1,
+                layout: 'standard',
+                pageRotations: {},
+                booklet: false,
+                range: 'all',
+              },
+            };
+            if (cloudId) {
+              (pFile as any).cloudId = cloudId;
+            }
+            (pFile as any).isPhotoSheet = true;
+            (pFile as any).photoLayout = layout;
+            if (photoSrc) (pFile as any).previewUrl = photoSrc;
+
+            if (rawFileRef.current) {
+              rawFileMap.set(fileId, rawFileRef.current);
+            }
+
+            useBasket.getState().addFile(pFile);
+
+            // If background upload is still in-flight, bind cloudId once finished
+            if (!cloudId && uploadPromiseRef.current) {
+              uploadPromiseRef.current.then(res => {
+                if (res?.cloudId) {
+                  useBasket.getState().updateFile(fileId, { cloudId: res.cloudId } as any);
+                }
+              }).catch(() => {});
+            }
+
+            addService({
+              id: crypto.randomUUID(),
+              type: 'addon',
+              name: `Photo print — ${config.label}`,
+              detail: `A4 · ${config.slots} slot${config.slots > 1 ? 's' : ''} · ${colorMode === 'bw' ? 'B&W' : 'Colour'}`,
+              price: finalPrice,
+              qty: 1,
+              attachTo: fileId,
+              attachedToFileId: fileId,
+            });
+
+            notify(`${config.label} (${colorMode === 'bw' ? 'B&W' : 'Colour'}) added to basket`);
+            go("basket");
+          }}
+        >
+          {isCardLayout && cardPhotos.some(photo => !photo) ? "Add front + back" : "Add photo sheet"}
+        </button>
+      </div>
+    </main>
+  );
 }
+
 export default PhotoTool;
-
-
-
-
-
