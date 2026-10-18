@@ -1332,6 +1332,13 @@ router.put('/settings', authenticateStaff, async (req, res) => {
         if (typeof val === 'number' && (isNaN(val) || val < 0)) {
           return res.status(400).json({ error: `Rate for "${key}" cannot be negative` });
         }
+        if (typeof val === 'object' && val !== null) {
+          for (const [subKey, subVal] of Object.entries(val)) {
+            if (typeof subVal === 'number' && (isNaN(subVal) || subVal < 0)) {
+              return res.status(400).json({ error: `Rate for "${key}.${subKey}" cannot be negative` });
+            }
+          }
+        }
       }
     }
     if (typeof req.body.delete_delay_minutes !== 'undefined') {

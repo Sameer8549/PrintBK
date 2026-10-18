@@ -624,7 +624,18 @@ function Header({
 }
 
 function Toggle({ checked, onChange, disabled = false }: { checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean }) {
-  return <button type="button" disabled={disabled} className={`setting-toggle ${checked ? "on" : ""}`} onClick={() => onChange(!checked)}><i /><span>{checked ? "On" : "Off"}</span></button>
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      className={`setting-toggle ${checked ? "on" : ""}`}
+      onClick={() => onChange(!checked)}
+      aria-pressed={checked}
+    >
+      <span className="toggle-label">{checked ? "ON" : "OFF"}</span>
+      <span className="toggle-knob" />
+    </button>
+  )
 }
 
 function RealQRCode({ text, size = 180, className = "" }: { text: string; size?: number; className?: string }) {
@@ -900,8 +911,8 @@ function ToggleRow({
         onClick={() => onChange(!checked)}
         aria-pressed={checked}
       >
-        <i />
-        <span>{checked ? "ENABLED" : "OFF"}</span>
+        <span className="toggle-label">{checked ? "ENABLED" : "DISABLED"}</span>
+        <span className="toggle-knob" />
       </button>
     </div>
   )
@@ -990,10 +1001,19 @@ function PrinterSettingsPanel({
       if (!mounted || !s) return
       setVersion(s.version || 1)
       if (s.rates) {
-        setRates((prev) => ({
-          ...prev,
-          ...Object.fromEntries(Object.entries(s.rates).map(([k, v]) => [k, String(v)]))
-        }))
+        setRates((prev) => {
+          const next = { ...prev }
+          for (const [k, v] of Object.entries(s.rates)) {
+            if (k === 'paperMultipliers' && typeof v === 'object' && v !== null) {
+              const pm = v as Record<string, any>
+              if (pm.A3 !== undefined) next.a3 = String(pm.A3)
+              if (pm.Legal !== undefined) next.legal = String(pm.Legal)
+            } else if (typeof v === 'number' || typeof v === 'string') {
+              (next as any)[k] = String(v)
+            }
+          }
+          return next
+        })
       }
       if (s.services) {
         setServices((prev) => ({ ...prev, ...s.services }))
@@ -1097,10 +1117,20 @@ function PrinterSettingsPanel({
     // Validate inputs
     for (const [k, v] of Object.entries(r)) {
       if (k !== 'upiVpa' && k !== 'upiName') {
-        const num = Number(v)
-        if (isNaN(num) || num < 0) {
-          setErrorMsg(`Rate "${k}" cannot be negative`)
-          return
+        if (typeof v === 'object' && v !== null) {
+          for (const [subK, subV] of Object.entries(v)) {
+            const subNum = Number(subV)
+            if (isNaN(subNum) || subNum < 0) {
+              setErrorMsg(`Rate "${k}.${subK}" cannot be negative`)
+              return
+            }
+          }
+        } else {
+          const num = Number(v)
+          if (isNaN(num) || num < 0) {
+            setErrorMsg(`Rate "${k}" cannot be negative`)
+            return
+          }
         }
       }
     }
@@ -1130,6 +1160,11 @@ function PrinterSettingsPanel({
           bulk: Number(r.bulk),
           a3: Number(r.a3),
           legal: Number(r.legal),
+          paperMultipliers: {
+            A4: 1.0,
+            A3: Number(r.a3) || 2.0,
+            Legal: Number(r.legal) || 1.25,
+          },
           photo4x6: Number(r.photo4x6),
           photo8x10: Number(r.photo8x10),
           photoPassport: Number(r.photoPassport),
