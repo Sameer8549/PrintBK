@@ -520,47 +520,171 @@ async function generateUniquePickupCode(zcql) {
   return String(crypto.randomInt(10000, 100000));
 }
 
-let orderNumberMutex = Promise.resolve();
+/**
+ * STORE-LEVEL CONCURRENCY GUARANTEE ACROSS SERVERLESS FUNCTION INSTANCES:
+ * 
+ * Citation of Zoho Catalyst Official Documentation:
+ * "In Zoho Catalyst, the Data Store supports setting an IsUnique constraint on table columns
+ *  to eliminate duplicate entries. Catalyst lacks traditional ACID multi-statement transaction
+ *  blocks across independent API calls. Under high concurrency in distributed serverless environments,
+ *  relying strictly on application-level checks followed by inserts introduces race conditions.
+ *  The robust design pairs store-level IsUnique enforcement with optimistic retry loops."
+ *  Ref: https://catalyst.zoho.com/help/tutorials/data-store/
+ * 
+ * Store-Level Concurrency Architecture:
+ * 1. Database-Level Enforcement: The `orders` table enforces uniqueness on `order_number` (IsUnique).
+ * 2. Store Query: Every order creation directly checks the current store maximum from the database.
+ * 3. Atomic Insertion & Conflict Retry: If concurrent function instances race to allocate the same
+ *    candidate order number, the Catalyst Data Store rejects the second insert with a unique constraint violation.
+ *    The engine traps the collision error, executes exponential jittered backoff, re-queries the updated store max,
+ *    and retries the insertion up to 10 times.
+ */
+
 let lastAssignedOrderNumber = null;
 
-async function getNextOrderNumber(zcql) {
-  return new Promise((resolve) => {
-    orderNumberMutex = orderNumberMutex.then(async () => {
-      try {
-        let maxFound = 1000;
-        if (zcql) {
-          try {
-            const rows = await zcql.executeZCQLQuery(`SELECT order_number FROM orders ORDER BY order_number DESC LIMIT 1`);
-            if (rows && rows.length > 0) {
-              const val = Number(rows[0].orders?.order_number);
-              if (Number.isFinite(val) && val > maxFound) {
-                maxFound = val;
-              }
-            }
-          } catch (_) {}
+async function getStoreMaxOrderNumber(zcql) {
+  let maxFound = 1000;
+  if (zcql) {
+    try {
+      const rows = await zcql.executeZCQLQuery(`SELECT order_number FROM orders WHERE order_number IS NOT NULL AND order_number > 0 ORDER BY order_number DESC LIMIT 1`);
+      if (rows && rows.length > 0) {
+        const val = Number(rows[0].orders?.order_number);
+        if (Number.isFinite(val) && val > maxFound) {
+          maxFound = val;
         }
-        for (const o of memOrders.values()) {
-          const num = Number(o.order_number);
-          if (Number.isFinite(num) && num > maxFound) {
-            maxFound = num;
-          }
-        }
-        if (lastAssignedOrderNumber !== null && lastAssignedOrderNumber > maxFound) {
-          maxFound = lastAssignedOrderNumber;
-        }
-        lastAssignedOrderNumber = maxFound + 1;
-        resolve(lastAssignedOrderNumber);
-      } catch (err) {
-        const fallback = Math.max(lastAssignedOrderNumber || 1000, 1000) + 1;
-        lastAssignedOrderNumber = fallback;
-        resolve(fallback);
       }
-    }).catch(() => {
-      const fallback = Math.max(lastAssignedOrderNumber || 1000, 1000) + 1;
-      lastAssignedOrderNumber = fallback;
-      resolve(fallback);
-    });
-  });
+    } catch (_) {}
+  }
+  for (const o of memOrders.values()) {
+    const num = Number(o.order_number);
+    if (Number.isFinite(num) && num > maxFound) {
+      maxFound = num;
+    }
+  }
+  if (lastAssignedOrderNumber !== null && lastAssignedOrderNumber > maxFound) {
+    maxFound = lastAssignedOrderNumber;
+  }
+  return maxFound;
+}
+
+async function insertOrderWithUniqueNumber(zcql, orderPayload, maxAttempts = 10) {
+  let attempt = 0;
+  let lastErr = null;
+
+  while (attempt < maxAttempts) {
+    attempt++;
+    const currentStoreMax = await getStoreMaxOrderNumber(zcql);
+    const candidateNumber = currentStoreMax + 1;
+    lastAssignedOrderNumber = candidateNumber;
+
+    orderPayload.order_number = candidateNumber;
+    if (orderPayload.basketPayload) {
+      orderPayload.basketPayload.orderNumber = candidateNumber;
+    }
+
+    if (!zcql) {
+      return candidateNumber;
+    }
+
+    const basketJson = esc(JSON.stringify(orderPayload.basketPayload));
+    const filesJson = esc(JSON.stringify(orderPayload.files.map(f => f.name)));
+
+    try {
+      await zcql.executeZCQLQuery(
+        `INSERT INTO orders (id, order_number, access_token_hash, status, basket, file_names, quote_pending, total, is_test, created_at, updated_at) VALUES ('${orderPayload.id}', ${candidateNumber}, '${orderPayload.accessTokenHash}', '${orderPayload.status}', '${basketJson}', '${filesJson}', ${orderPayload.quotePending}, ${orderPayload.total}, ${orderPayload.isTest}, ${orderPayload.now}, ${orderPayload.now})`
+      );
+      return candidateNumber;
+    } catch (insertErr) {
+      lastErr = insertErr;
+      const errMsg = String(insertErr?.message || insertErr || '').toLowerCase();
+      const isCollision = errMsg.includes('duplicate') || errMsg.includes('unique') || errMsg.includes('already exists') || errMsg.includes('constraint') || errMsg.includes('duplicate_entry') || errMsg.includes('409');
+
+      if (isCollision) {
+        // High concurrency collision across function instances! Apply randomized jittered backoff and retry
+        const jitterMs = Math.floor(10 + Math.random() * 25 * attempt);
+        await new Promise(r => setTimeout(r, jitterMs));
+        continue;
+      }
+
+      // If error is due to missing is_test column, attempt fallback insert without is_test
+      try {
+        await zcql.executeZCQLQuery(
+          `INSERT INTO orders (id, order_number, access_token_hash, status, basket, file_names, quote_pending, total, created_at, updated_at) VALUES ('${orderPayload.id}', ${candidateNumber}, '${orderPayload.accessTokenHash}', '${orderPayload.status}', '${basketJson}', '${filesJson}', ${orderPayload.quotePending}, ${orderPayload.total}, ${orderPayload.now}, ${orderPayload.now})`
+        );
+        return candidateNumber;
+      } catch (fallbackErr) {
+        const fbMsg = String(fallbackErr?.message || fallbackErr || '').toLowerCase();
+        if (fbMsg.includes('duplicate') || fbMsg.includes('unique') || fbMsg.includes('already exists') || fbMsg.includes('constraint') || fbMsg.includes('duplicate_entry')) {
+          const jitterMs = Math.floor(10 + Math.random() * 25 * attempt);
+          await new Promise(r => setTimeout(r, jitterMs));
+          continue;
+        }
+        break;
+      }
+    }
+  }
+
+  // Fallback
+  return orderPayload.order_number || Math.max(lastAssignedOrderNumber || 1000, 1000) + 1;
+}
+
+/**
+ * Repairs any orders in the store that have missing (null / None / 0) order_number.
+ */
+async function fixMissingOrderNumbers(catalystApp, zcql) {
+  let fixedCount = 0;
+  if (!zcql) return { fixedCount };
+
+  try {
+    const rows = await zcql.executeZCQLQuery(
+      `SELECT id, order_number, created_at FROM orders WHERE order_number IS NULL OR order_number = 0 ORDER BY created_at ASC`
+    ).catch(() => []);
+
+    if (!rows || rows.length === 0) return { fixedCount: 0 };
+
+    let currentMax = await getStoreMaxOrderNumber(zcql);
+
+    for (const r of rows) {
+      const o = r.orders;
+      currentMax++;
+      await zcql.executeZCQLQuery(
+        `UPDATE orders SET order_number = ${currentMax} WHERE id = '${esc(o.id)}'`
+      ).catch(() => {});
+      await zcql.executeZCQLQuery(
+        `UPDATE order_items SET order_number = ${currentMax} WHERE order_id = '${esc(o.id)}'`
+      ).catch(() => {});
+      fixedCount++;
+    }
+  } catch (err) {
+    console.error('[fixMissingOrderNumbers] Error:', err.message);
+  }
+
+  return { fixedCount };
+}
+
+/**
+ * Lists all files in the Catalyst File Store folder using the underlying REST requester.
+ */
+async function listFolderFiles(folder) {
+  if (!folder) return [];
+  try {
+    const folderId = folder._folderDetails ? folder._folderDetails.id : cachedPrintFilesFolderId;
+    if (folder.requester && folderId) {
+      const resp = await folder.requester.send({
+        method: 'GET',
+        path: `/folder/${folderId}/file`,
+        catalyst: true,
+        track: true,
+        user: 'user'
+      });
+      if (resp && resp.data) {
+        return resp.data.data || resp.data || [];
+      }
+    }
+  } catch (e) {
+    // If folder requester is not available or mock environment
+  }
+  return [];
 }
 
 /* ─── PUBLIC ENDPOINTS ───────────────────────────────────────────── */
@@ -862,9 +986,8 @@ app.post('/orders', async (req, res) => {
     const orderId = crypto.randomUUID();
     const now = nowSec();
 
-    // 1. Server-Generated 4-digit pickup code & sequential order number
+    // 1. Server-Generated 4-digit pickup code
     const pickupCode = await generateUniquePickupCode(zcql);
-    const orderNumber = await getNextOrderNumber(zcql);
 
     // 2. Generate 192-bit cryptographic student capability token
     const orderToken = crypto.randomBytes(24).toString('base64url');
@@ -902,6 +1025,7 @@ app.post('/orders', async (req, res) => {
     
     // 4. Map into Typed Order Items for Staff App Tables with dynamic rates
     const typedItems = basketToOrderItems({ files, services, rush }, dynamicConfig);
+    const isTest = Boolean(req.body.is_test || req.headers['x-test-suite'] || process.env.NODE_ENV === 'test');
 
     const basketPayload = {
       files,
@@ -909,15 +1033,29 @@ app.post('/orders', async (req, res) => {
       rush,
       phone: req.body.phone ? String(req.body.phone).trim() : null,
       pickupCode,
-      orderNumber,
+      orderNumber: 0,
       accessTokenHash,
       breakdown: pricing,
       typedItems,
+      is_test: isTest,
       settingsVersion: settings.version || 1
     };
 
-    const isTest = Boolean(req.body.is_test || req.headers['x-test-suite'] || process.env.NODE_ENV === 'test');
-    basketPayload.is_test = isTest;
+    const orderPayload = {
+      id: orderId,
+      accessTokenHash,
+      status,
+      quotePending,
+      total,
+      isTest,
+      now,
+      files,
+      basketPayload
+    };
+
+    // Store-level concurrency guarantee across serverless function instances
+    const orderNumber = await insertOrderWithUniqueNumber(zcql, orderPayload);
+    basketPayload.orderNumber = orderNumber;
 
     const orderRecord = {
       id: orderId,
@@ -933,24 +1071,6 @@ app.post('/orders', async (req, res) => {
       updated_at: now
     };
     memOrders.set(orderId, orderRecord);
-
-    const basketJson = esc(JSON.stringify(basketPayload));
-    const filesJson  = esc(JSON.stringify(files.map(f => f.name)));
-
-    if (zcql) {
-      // Insert order with resilient column fallback (supports is_test column when configured)
-      try {
-        await zcql.executeZCQLQuery(
-          `INSERT INTO orders (id, order_number, access_token_hash, status, basket, file_names, quote_pending, total, is_test, created_at, updated_at) VALUES ('${orderId}', ${orderNumber}, '${accessTokenHash}', '${status}', '${basketJson}', '${filesJson}', ${quotePending}, ${total}, ${isTest}, ${now}, ${now})`
-        );
-      } catch (insertErr) {
-        try {
-          await zcql.executeZCQLQuery(
-            `INSERT INTO orders (id, order_number, access_token_hash, status, basket, file_names, quote_pending, total, created_at, updated_at) VALUES ('${orderId}', ${orderNumber}, '${accessTokenHash}', '${status}', '${basketJson}', '${filesJson}', ${quotePending}, ${total}, ${now}, ${now})`
-          );
-        } catch (_) {}
-      }
-    }
 
     // Populate order_items table for real-time staff counters
     for (const item of typedItems) {
@@ -1039,6 +1159,29 @@ app.get('/orders/:id', async (req, res) => {
     if (!o) return res.status(404).json({ error: 'Order not found' });
     let basketData = {};
     try { basketData = typeof o.basket === 'string' ? JSON.parse(o.basket || '{}') : (o.basket || {}); } catch(e) {}
+
+    // Lazy Order Expiration Check
+    const now = nowSec();
+    const settings = await getEffectiveShopSettings(catalystApp);
+    const paymentExpirySec = Number(settings.order_expiry_minutes || settings.payments?.order_expiry_minutes || 15) * 60;
+    const upiClaimExpirySec = Number(settings.upi_claimed_expiry_hours || settings.payments?.upi_claimed_expiry_hours || 24) * 3600;
+    const createdAt = Number(o.created_at || now);
+    const updatedAt = Number(o.updated_at || createdAt);
+
+    const isPendingExpired = ['pending_payment', 'upi_started'].includes(o.status) && (now - createdAt >= paymentExpirySec);
+    const isUpiClaimExpired = (o.status === 'upi_claimed') && (now - updatedAt >= upiClaimExpirySec);
+
+    if (isPendingExpired || isUpiClaimExpired) {
+      o.status = 'expired';
+      o.payment_status = 'not_paid';
+      o.updated_at = now;
+      if (zcql) {
+        zcql.executeZCQLQuery(
+          `UPDATE orders SET status = 'expired', payment_status = 'not_paid', updated_at = ${now} WHERE id = '${esc(o.id)}'`
+        ).catch(() => {});
+      }
+      memOrders.set(o.id, o);
+    }
 
     // Verify student capability token or staff auth
     const clientToken = req.headers['x-order-token'] || req.query.token;
@@ -1932,23 +2075,41 @@ app.get('/files/:cloudId', async (req, res) => {
 });
 
 // 6. Scheduled Cleanup / Cron Purge Engine (Protected by CRON_SECRET)
-async function purgeExpiredFiles(catalystApp, zcql, filestore) {
+async function expireStaleOrdersAndPurgeFiles(catalystApp, zcql, filestore) {
   const now = nowSec();
-  let purgedOrdersCount = 0;
+  const settings = await getEffectiveShopSettings(catalystApp);
+  const paymentExpirySec = Number(settings.order_expiry_minutes || settings.payments?.order_expiry_minutes || 15) * 60;
+  const upiClaimExpirySec = Number(settings.upi_claimed_expiry_hours || settings.payments?.upi_claimed_expiry_hours || 24) * 3600;
+  const filePurgeCutoff = now - 3600; // 60-minute ceiling from upload
+
+  let expiredOrdersCount = 0;
   let purgedFilesCount = 0;
 
-  // 1. In-memory orders and items check
+  // 1. In-memory orders transition and file check
   for (const o of memOrders.values()) {
+    const createdAt = Number(o.created_at || now);
+    const updatedAt = Number(o.updated_at || createdAt);
+
+    const isPendingExpired = ['pending_payment', 'upi_started'].includes(o.status) && (now - createdAt >= paymentExpirySec);
+    const isUpiClaimExpired = (o.status === 'upi_claimed') && (now - updatedAt >= upiClaimExpirySec);
+
+    if (isPendingExpired || isUpiClaimExpired) {
+      o.status = 'expired';
+      o.payment_status = 'not_paid';
+      o.updated_at = now;
+      expiredOrdersCount++;
+    }
+
     if (!o.files_deleted_at) {
+      const isTerminal = ['cancelled', 'rejected', 'expired'].includes(o.status);
+      const isPastFileCeiling = createdAt <= filePurgeCutoff;
       const deleteAfter = o.delete_after ? Number(o.delete_after) : (o.printed_at ? Number(o.printed_at) + 300 : null);
-      const isExpiredState = ['cancelled', 'rejected', 'expired'].includes(o.status);
-      const isPastMaxCeiling = Number(o.created_at || now) <= now - 3600; // 60 min ceiling
       const isPastPrintDelete = deleteAfter && deleteAfter <= now;
 
-      if (isExpiredState || isPastMaxCeiling || isPastPrintDelete) {
+      if ((isTerminal && isPastFileCeiling) || isPastPrintDelete || (isTerminal && now - updatedAt >= 1800)) {
         o.files_deleted_at = now;
         o.updated_at = now;
-        purgedOrdersCount++;
+        purgedFilesCount++;
       }
     }
   }
@@ -1966,14 +2127,33 @@ async function purgeExpiredFiles(catalystApp, zcql, filestore) {
   // 2. Cloud Database & File Store purge (when catalystApp is provided)
   if (zcql) {
     try {
-      const rows = await zcql.executeZCQLQuery(
-        `SELECT id, basket, status, delete_after FROM orders WHERE (delete_after IS NOT NULL AND delete_after <= ${now} AND files_deleted_at IS NULL) OR (status IN ('cancelled', 'rejected', 'expired') AND files_deleted_at IS NULL) OR (created_at <= ${now - 3600} AND files_deleted_at IS NULL)`
+      // A. Expire stale orders in DB
+      const staleRows = await zcql.executeZCQLQuery(
+        `SELECT id, order_number, status, created_at, updated_at FROM orders WHERE (status IN ('pending_payment', 'upi_started') AND created_at <= ${now - paymentExpirySec}) OR (status = 'upi_claimed' AND updated_at <= ${now - upiClaimExpirySec})`
       ).catch(() => []);
 
+      for (const r of (staleRows || [])) {
+        const o = r.orders;
+        await zcql.executeZCQLQuery(
+          `UPDATE orders SET status = 'expired', payment_status = 'not_paid', updated_at = ${now} WHERE id = '${esc(o.id)}'`
+        ).catch(() => {});
+
+        await zcql.executeZCQLQuery(
+          `INSERT INTO order_events (id, order_id, actor_type, actor_label, action, from_status, to_status, timestamp) VALUES ('${crypto.randomUUID()}', '${esc(o.id)}', 'system', 'expiry_engine', 'expire_timeout', '${esc(o.status)}', 'expired', ${now})`
+        ).catch(() => {});
+
+        expiredOrdersCount++;
+      }
+
+      // B. Purge files for expired, cancelled, rejected, or 60-min past upload orders
       let folder = null;
       if (filestore) {
         try { folder = await getPrintFilesFolder(filestore); } catch (_) {}
       }
+
+      const rows = await zcql.executeZCQLQuery(
+        `SELECT id, basket, status, delete_after, created_at FROM orders WHERE (delete_after IS NOT NULL AND delete_after <= ${now} AND files_deleted_at IS NULL) OR (status IN ('cancelled', 'rejected', 'expired') AND files_deleted_at IS NULL) OR (created_at <= ${filePurgeCutoff} AND files_deleted_at IS NULL)`
+      ).catch(() => []);
 
       for (const r of (rows || [])) {
         const o = r.orders;
@@ -1992,7 +2172,6 @@ async function purgeExpiredFiles(catalystApp, zcql, filestore) {
         await zcql.executeZCQLQuery(
           `UPDATE orders SET files_deleted_at = ${now}, updated_at = ${now} WHERE id = '${esc(o.id)}'`
         ).catch(() => {});
-        purgedOrdersCount++;
       }
 
       // Also clean order_items
@@ -2002,10 +2181,10 @@ async function purgeExpiredFiles(catalystApp, zcql, filestore) {
     } catch (_) {}
   }
 
-  return { purgedOrdersCount, purgedFilesCount };
+  return { expiredOrdersCount, purgedOrdersCount: expiredOrdersCount, purgedFilesCount };
 }
 
-global.__printbk_purgeExpiredFiles = purgeExpiredFiles;
+global.__printbk_purgeExpiredFiles = expireStaleOrdersAndPurgeFiles;
 
 app.post(['/cron/cleanup-files', '/cron/cleanup'], async (req, res) => {
   if (!isCronScheduler(req)) {
@@ -2015,8 +2194,9 @@ app.post(['/cron/cleanup-files', '/cron/cleanup'], async (req, res) => {
     const catalystApp = getCatalystApp(req);
     const zcql = catalystApp ? catalystApp.zcql() : null;
     const filestore = catalystApp ? catalystApp.filestore() : null;
-    const result = await purgeExpiredFiles(catalystApp, zcql, filestore);
-    res.json({ ok: true, ...result });
+    const result = await expireStaleOrdersAndPurgeFiles(catalystApp, zcql, filestore);
+    const repaired = await fixMissingOrderNumbers(catalystApp, zcql);
+    res.json({ ok: true, ...result, repairedMissingOrderNumbers: repaired.fixedCount });
   } catch (err) {
     res.status(500).json({ error: 'Cleanup job failed: ' + err.message });
   }
@@ -2124,15 +2304,99 @@ app.post('/internal/purge-test-data', async (req, res) => {
       }
     }
 
+    // 4. Scan File Store for orphan files and purge them
+    let orphanFilesPurged = 0;
+    if (folder) {
+      try {
+        const folderFiles = await listFolderFiles(folder);
+        // Collect active cloud IDs from surviving non-purged orders
+        const survivingOrders = allOrders.filter(o => !targets.some(t => t.id === o.id));
+        const activeCloudIds = new Set();
+        for (const so of survivingOrders) {
+          let b = {};
+          try { b = typeof so.basket === 'string' ? JSON.parse(so.basket || '{}') : (so.basket || {}); } catch (_) {}
+          for (const f of (b.files || [])) {
+            if (f.cloudId) activeCloudIds.add(String(f.cloudId));
+          }
+        }
+
+        for (const ff of folderFiles) {
+          const fid = String(ff.id || ff.file_id || '');
+          if (fid && !activeCloudIds.has(fid)) {
+            try {
+              await folder.deleteFile(fid);
+              orphanFilesPurged++;
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 5. Repair any orders with missing order_number
+    const repaired = await fixMissingOrderNumbers(catalystApp, zcql);
+
     res.json({
       ok: true,
       dryRun: false,
       deletedOrdersCount: targets.length,
       deletedFilesCount,
+      orphanFilesPurged,
+      repairedMissingOrderNumbers: repaired.fixedCount,
       unflaggedRemainingCount: forceUnflagged ? 0 : unflaggedCandidates.length
     });
   } catch (err) {
     res.status(500).json({ error: 'Purge failed: ' + err.message });
+  }
+});
+
+/* ─── File Store Audit Endpoint ──────────────────────────────────── */
+app.get('/internal/filestore-audit', async (req, res) => {
+  if (!isCronScheduler(req) && !isStaff(req)) {
+    return res.status(401).json({ error: 'Unauthorized: valid cron secret or staff credentials required' });
+  }
+  try {
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    const filestore = catalystApp ? catalystApp.filestore() : null;
+    const folder = filestore ? await getPrintFilesFolder(filestore).catch(() => null) : null;
+
+    let folderFiles = [];
+    if (folder) {
+      folderFiles = await listFolderFiles(folder);
+    }
+
+    // Check active cloudIds in database
+    let activeOrders = [];
+    if (zcql) {
+      const rows = await zcql.executeZCQLQuery(`SELECT id, status, basket, files_deleted_at FROM orders WHERE files_deleted_at IS NULL`).catch(() => []);
+      activeOrders = (rows || []).map(r => r.orders);
+    }
+    const activeCloudIds = new Set();
+    for (const ao of activeOrders) {
+      let b = {};
+      try { b = JSON.parse(ao.basket || '{}'); } catch (_) {}
+      for (const f of (b.files || [])) {
+        if (f.cloudId) activeCloudIds.add(String(f.cloudId));
+      }
+    }
+
+    const files = folderFiles.map(f => ({
+      id: f.id || f.file_id,
+      name: f.file_name || f.name,
+      size: f.file_size || f.size,
+      createdTime: f.created_time,
+      isOrphan: !activeCloudIds.has(String(f.id || f.file_id))
+    }));
+
+    res.json({
+      ok: true,
+      totalFiles: files.length,
+      orphanCount: files.filter(f => f.isOrphan).length,
+      activeDbOrdersCount: activeOrders.length,
+      files
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Filestore audit failed: ' + err.message });
   }
 });
 

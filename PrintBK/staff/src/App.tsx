@@ -1502,16 +1502,36 @@ function PrinterSettingsPanel({
                 />
               </section>
               <section className="setting-card precedence-info-card" style={{ background: "var(--paper-subtle, #f8fafc)", border: "1.5px solid var(--line, #e2e8f0)", borderRadius: 12, padding: "14px 16px" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "var(--muted, #64748b)", textTransform: "uppercase", marginBottom: 4 }}>
-                  OPERATIONAL PRECEDENCE
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "var(--muted, #64748b)", textTransform: "uppercase" }}>
+                    OPERATIONAL PRECEDENCE &amp; STATUS
+                  </div>
+                  {shop.overrideActive ? (
+                    <span style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #f59e0b", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                      ⚡ OVERRIDE: OPEN UNTIL {shop.overrideUntil || "CLOSING"}
+                    </span>
+                  ) : shop.open ? (
+                    <span style={{ background: "#ecfdf5", color: "#065f46", border: "1px solid #10b981", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                      ● OPEN (SCHEDULED)
+                    </span>
+                  ) : shop.reason === "paused" ? (
+                    <span style={{ background: "#fff7ed", color: "#9a3412", border: "1px solid #f97316", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                      ⏸️ PAUSED
+                    </span>
+                  ) : (
+                    <span style={{ background: "#fef2f2", color: "#991b1b", border: "1px solid #ef4444", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                      🔴 CLOSED ({shop.reason === "manual" ? "MANUAL SWITCH" : "HOURS"})
+                    </span>
+                  )}
                 </div>
-                <strong style={{ display: "block", fontSize: 15, color: "var(--ink, #0b1020)", marginBottom: 6 }}>
-                  How Counter Open/Closed is decided
+                <strong style={{ display: "block", fontSize: 14, color: "var(--ink, #0b1020)", marginBottom: 6 }}>
+                  Precedence Rules: How Counter Open/Closed is decided
                 </strong>
-                <ol style={{ margin: "4px 0 0 18px", padding: 0, fontSize: 13, lineHeight: 1.5, color: "var(--ink-secondary, #334155)" }}>
-                  <li><strong>1. Manual Open/Closed Switch:</strong> Highest precedence. When set to CLOSED, ordering is paused immediately across all platforms.</li>
-                  <li><strong>2. Temporary Pause:</strong> Quick pause from the counter header.</li>
-                  <li><strong>3. Scheduled Hours:</strong> Regular operational hours ({shopDetails.hours || "8:30 AM – 6:00 PM (Mon–Sat)"}).</li>
+                <ol style={{ margin: "4px 0 0 18px", padding: 0, fontSize: 12.5, lineHeight: 1.6, color: "var(--ink-secondary, #334155)" }}>
+                  <li><strong>1. Manual CLOSED (Always Wins):</strong> If counter staff sets the switch to CLOSED, ordering is shut down immediately across all apps, overriding scheduled hours and previous overrides.</li>
+                  <li><strong>2. Temporary Pause:</strong> Counter pause toggle temporarily halts new incoming orders.</li>
+                  <li><strong>3. Manual OPEN Override Outside Hours:</strong> Turning the switch OPEN outside scheduled hours activates an <em>&ldquo;Open Now&rdquo; override</em> that keeps the shop open until the next scheduled closing time ({shopDetails.hours ? "e.g. 6:00 PM" : "closing"}), or until manually switched off.</li>
+                  <li><strong>4. Scheduled Operating Hours:</strong> During standard hours ({shopDetails.hours || "8:30 AM – 6:00 PM (Mon–Sat)"}), the shop automatically stays open.</li>
                 </ol>
               </section>
               <section className="setting-card delete-setting">

@@ -3,6 +3,13 @@ import { fetchLiveFeed, isStaffPaired, getStaffToken } from "./client"
 
 export interface LiveShop {
   open: boolean
+  effectiveOpen?: boolean
+  reason?: string
+  overrideActive?: boolean
+  overrideUntil?: string | null
+  reopenAt?: string | null
+  closedSince?: number | null
+  closed_since?: number | null
   version?: number
   announcement?: string
   rates?: Record<string, number>
@@ -11,6 +18,7 @@ export interface LiveShop {
   name?: string
   phone?: string
   address?: string
+  hours?: string
 }
 
 export interface LivePrinter {

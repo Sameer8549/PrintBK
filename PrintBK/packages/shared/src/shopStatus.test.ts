@@ -51,14 +51,58 @@ describe('shopStatus engine', () => {
     expect(openWithin).toBe(true);
   });
 
-  it('returns open: true when manual open is enabled and within hours', () => {
+  it('allows manual OPEN switch outside scheduled hours as an "open now" override until next close', () => {
+    // 7:00 AM IST on Monday (before 8:30 AM open)
+    const earlyDate = new Date('2026-10-19T01:30:00Z');
+    const earlySec = Math.floor(earlyDate.getTime() / 1000);
+
     const status = computeEffectiveShopStatus({
       open: true,
       paused: false,
-      hours_enabled: false
-    });
+      hours_enabled: true,
+      hours: '8:30 AM – 6:00 PM (Mon–Sat)'
+    }, earlySec);
+
     expect(status.open).toBe(true);
-    expect(status.reason).toBe('open');
-    expect(status.closedSince).toBeNull();
+    expect(status.reason).toBe('override_open');
+    expect(status.overrideActive).toBe(true);
+    expect(status.overrideUntil).toBe('Today at 6:00 PM');
+  });
+
+  it('enforces closing always wins: switching manual to CLOSED immediately overrides open now override', () => {
+    const earlyDate = new Date('2026-10-19T01:30:00Z');
+    const earlySec = Math.floor(earlyDate.getTime() / 1000);
+
+    const status = computeEffectiveShopStatus({
+      open: false, // Counter staff turned switch off
+      paused: false,
+      hours_enabled: true,
+      hours: '8:30 AM – 6:00 PM (Mon–Sat)'
+    }, earlySec);
+
+    expect(status.open).toBe(false);
+    expect(status.reason).toBe('manual');
+    expect(status.overrideActive).toBe(false);
+  });
+
+  it('lapses the override after closing time passes', () => {
+    // 7:00 PM IST on Monday (after 6:00 PM close)
+    const eveningDate = new Date('2026-10-19T13:30:00Z');
+    const eveningSec = Math.floor(eveningDate.getTime() / 1000);
+    // Explicit override set earlier that was valid until 6:00 PM (12:30 UTC)
+    const pastClosingSec = Math.floor(new Date('2026-10-19T12:30:00Z').getTime() / 1000);
+
+    const status = computeEffectiveShopStatus({
+      open: true,
+      paused: false,
+      hours_enabled: true,
+      override_until: pastClosingSec, // explicitly past
+      hours: '8:30 AM – 6:00 PM (Mon–Sat)'
+    }, eveningSec);
+
+    // Override has expired, so standard schedule hours rule applies: closed
+    expect(status.open).toBe(false);
+    expect(status.reason).toBe('hours');
   });
 });
+

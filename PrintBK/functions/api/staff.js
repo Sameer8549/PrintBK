@@ -3,7 +3,7 @@ const express = require('express');
 const crypto = require('crypto');
 const catalyst = require('zcatalyst-sdk-node');
 const { computePaymentStatus, getPaymentLabel } = require('./shared/paymentStatus');
-const { computeEffectiveShopStatus } = require('./shared/shopStatus');
+const { computeEffectiveShopStatus, getNextClosingTime } = require('./shared/shopStatus');
 
 const router = express.Router();
 
@@ -1343,15 +1343,23 @@ router.put('/settings', authenticateStaff, async (req, res) => {
 
     const newVersion = currentVersion + 1;
 
-    // Track open status and closed_since
+    // Track open status, closed_since, and override_until
     let isOpen = existing.open !== false && String(existing.open) !== 'false';
     let closedSince = existing.closed_since || mem.closed_since || null;
+    let overrideUntil = existing.override_until || mem.override_until || null;
+
     if (typeof req.body.open !== 'undefined') {
       const requestedOpen = req.body.open === true || req.body.open === 'true';
       if (isOpen && !requestedOpen) {
+        // Closing always wins: immediate close, reset override
         closedSince = now;
+        overrideUntil = null;
       } else if (!isOpen && requestedOpen) {
         closedSince = null;
+        // Check if opening outside scheduled hours -> activate "Open Now" override
+        const hoursConfig = req.body.hours || (req.body.shop_info && req.body.shop_info.hours) || existing.hours || (existing.shop_info && existing.shop_info.hours) || '8:30 AM – 6:00 PM (Mon–Sat)';
+        const closingInfo = getNextClosingTime(hoursConfig, new Date(now * 1000));
+        overrideUntil = closingInfo ? closingInfo.nextCloseSec : null;
       }
       isOpen = requestedOpen;
     }
@@ -1423,6 +1431,7 @@ router.put('/settings', authenticateStaff, async (req, res) => {
     mem.hours_enabled = hoursEnabled;
     mem.open_by_hours = hoursEnabled;
     mem.closed_since = closedSince;
+    mem.override_until = overrideUntil;
     mem.announcement = announcement;
     mem.rates = ratesMerged;
     mem.services = servicesMerged;

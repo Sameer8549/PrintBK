@@ -11,6 +11,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parseTimeToMinutes = parseTimeToMinutes;
+exports.getNextClosingTime = getNextClosingTime;
 exports.isWithinOperationalHours = isWithinOperationalHours;
 exports.computeEffectiveShopStatus = computeEffectiveShopStatus;
 /**
@@ -31,6 +32,32 @@ function parseTimeToMinutes(timeStr) {
     if (ampm === 'AM' && hours === 12)
         hours = 0;
     return hours * 60 + minutes;
+}
+/**
+ * Computes the next scheduled closing time given hours config string and current date.
+ */
+function getNextClosingTime(hoursStr, date = new Date()) {
+    if (!hoursStr)
+        return null;
+    const utc = date.getTime() + date.getTimezoneOffset() * 60000;
+    const istDate = new Date(utc + 5.5 * 3600000);
+    const currentMinutes = istDate.getHours() * 60 + istDate.getMinutes();
+    const rangeMatch = hoursStr.match(/(\d{1,2}(?::\d{2})?\s*(?:AM|PM)?)\s*[–\-—]\s*(\d{1,2}(?::\d{2})?\s*(?:AM|PM)?)/i);
+    if (!rangeMatch)
+        return null;
+    const endMin = parseTimeToMinutes(rangeMatch[2]);
+    if (endMin === null)
+        return null;
+    const closeHours = Math.floor(endMin / 60);
+    const closeMinutes = endMin % 60;
+    let closeIst = new Date(istDate);
+    closeIst.setHours(closeHours, closeMinutes, 0, 0);
+    if (currentMinutes >= endMin) {
+        closeIst.setDate(closeIst.getDate() + 1);
+    }
+    const nextCloseSec = Math.floor((closeIst.getTime() - 5.5 * 3600000) / 1000);
+    const closeTimeStr = `${closeIst.getDate() === istDate.getDate() ? 'Today' : 'Tomorrow'} at ${rangeMatch[2].trim()}`;
+    return { nextCloseSec, closeTimeStr };
 }
 /**
  * Checks if current time is within operational hours.
@@ -75,10 +102,18 @@ function isWithinOperationalHours(hoursStr, date = new Date()) {
 }
 /**
  * Computes single authoritative server-calculated effective shop status.
+ *
+ * Precedence Rule:
+ * 1. Manual switch CLOSED always wins: If manually set to CLOSED, shop is CLOSED regardless of schedule.
+ * 2. Pause toggle: If paused, shop is CLOSED.
+ * 3. Manual switch OPEN outside scheduled hours: Activates an "Open Now" override that lasts
+ *    until the next scheduled closing time or until switched off.
+ * 4. Normal Scheduled Hours: If open_by_hours is enabled, follows schedule (open during hours, closed outside).
+ * 5. Default: OPEN if manual switch is open and no pause.
  */
 function computeEffectiveShopStatus(settings, nowSec = Math.floor(Date.now() / 1000)) {
-    const precedenceDesc = 'Precedence: Manual switch (CLOSED) > Temporary Pause > Scheduled Hours > Open';
-    // 1. Manual override takes highest precedence
+    const precedenceDesc = 'Precedence: Manual CLOSED (always wins) > Temporary Pause > Manual OPEN override outside hours (until next close) > Scheduled Hours';
+    // 1. Manual CLOSED always wins over schedule and previous overrides
     const manualOpen = settings.open !== false && String(settings.open) !== 'false';
     if (!manualOpen) {
         return {
@@ -86,7 +121,9 @@ function computeEffectiveShopStatus(settings, nowSec = Math.floor(Date.now() / 1
             reason: 'manual',
             closedSince: settings.closed_since || nowSec,
             reopenAt: null,
-            announcement: settings.announcement || 'Shop is currently closed.',
+            overrideActive: false,
+            overrideUntil: null,
+            announcement: settings.announcement || 'Shop is currently closed by counter staff.',
             precedenceDescription: precedenceDesc
         };
     }
@@ -98,23 +135,49 @@ function computeEffectiveShopStatus(settings, nowSec = Math.floor(Date.now() / 1
             reason: 'paused',
             closedSince: settings.closed_since || nowSec,
             reopenAt: null,
+            overrideActive: false,
+            overrideUntil: null,
             announcement: settings.announcement || 'Ordering is temporarily paused by counter staff.',
             precedenceDescription: precedenceDesc
         };
     }
     // 3. Operational Hours check (if enabled)
-    const hoursEnabled = settings.hours_enabled === true || String(settings.hours_enabled) === 'true' ||
-        settings.open_by_hours === true || String(settings.open_by_hours) === 'true';
+    const hoursEnabled = settings.hours_enabled === true ||
+        String(settings.hours_enabled) === 'true' ||
+        settings.open_by_hours === true ||
+        String(settings.open_by_hours) === 'true';
     const hoursConfig = settings.hours || settings.shop_info?.hours || '8:30 AM – 6:00 PM (Mon–Sat)';
     if (hoursEnabled) {
         const { within, reopenAt } = isWithinOperationalHours(hoursConfig, new Date(nowSec * 1000));
         if (!within) {
+            // Outside scheduled hours. Did staff explicitly toggle manual switch to OPEN?
+            // When manual switch is OPEN while outside hours, it serves as an "Open Now" override!
+            const closingInfo = getNextClosingTime(hoursConfig, new Date(nowSec * 1000));
+            const overrideLimitSec = settings.override_until || closingInfo?.nextCloseSec || null;
+            if (overrideLimitSec && nowSec < overrideLimitSec) {
+                // Manual "Open Now" override is ACTIVE until the next scheduled closing time
+                return {
+                    open: true,
+                    reason: 'override_open',
+                    closedSince: null,
+                    reopenAt: null,
+                    overrideActive: true,
+                    overrideUntil: closingInfo?.closeTimeStr || 'Next closing time',
+                    announcement: settings.announcement ||
+                        `Shop is open via counter override until ${closingInfo?.closeTimeStr || 'next closing'}.`,
+                    precedenceDescription: precedenceDesc
+                };
+            }
+            // Override expired or not set, standard schedule applies: CLOSED
             return {
                 open: false,
                 reason: 'hours',
                 closedSince: settings.closed_since || nowSec,
                 reopenAt,
-                announcement: settings.announcement || `Shop is outside working hours (${hoursConfig}). Reopens ${reopenAt || 'soon'}.`,
+                overrideActive: false,
+                overrideUntil: null,
+                announcement: settings.announcement ||
+                    `Shop is outside working hours (${hoursConfig}). Reopens ${reopenAt || 'soon'}.`,
                 precedenceDescription: precedenceDesc
             };
         }
@@ -125,6 +188,8 @@ function computeEffectiveShopStatus(settings, nowSec = Math.floor(Date.now() / 1
         reason: 'open',
         closedSince: null,
         reopenAt: null,
+        overrideActive: false,
+        overrideUntil: null,
         announcement: settings.announcement || '',
         precedenceDescription: precedenceDesc
     };
