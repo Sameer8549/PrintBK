@@ -13,16 +13,16 @@ PrintBK connects students, counter staff, and shop printers in real-time with **
 PrintBK/
 ├── student/          # React 19 + Vite student web app (QR entry, upload, layout engine, UPI intent & cash)
 ├── staff/            # React 19 + Vite counter staff app (real-time delta feed, payment verify, approve & print)
+├── counter-app/      # Electron Windows desktop counter wrapper (supervisor, silent printing, one-code setup)
 ├── agent/            # Node.js TypeScript Windows print agent (outbound HTTPS, silent SumatraPDF spooling)
 ├── functions/api/    # Zoho Catalyst serverless backend (ZCQL Data Store, File Store, Cron, capability tokens)
 │   ├── index.js      # Public student API, upload with magic-byte checks, orders, UPI flow, auto-delete
 │   ├── staff.js      # Staff pairing, real-time live feed delta (/staff/live), cash collect, undo, approve
+│   ├── counter.js    # Unified counter pairing, rate-limiting, and version check (/counter/pair)
 │   └── agent.js      # Shop PC agent registration, job poll (/agent/jobs/poll), progress reporting
 ├── packages/shared/  # Shared TypeScript/Zod schemas, pricing engine, typed order item mappers
-├── scripts/          # CI and verification scripts
-│   ├── no-mock-data.mjs   # Strict CI gate asserting 0 mock data in src/ and production bundles
-│   └── e2e-live.mjs       # End-to-end integration test verifying complete real-time lifecycle
-└── docs/             # Technical specifications, data models, runbooks, and audits
+├── scripts/          # CI, verification and packaging scripts
+└── docs/             # Technical specifications, release guide, and runbooks
 ```
 
 ---
@@ -58,19 +58,22 @@ pnpm dev
 # Opens at http://localhost:5173
 ```
 
-#### Staff Counter App
+#### Staff Counter App (Web)
 ```bash
 cd staff
 pnpm dev
 # Opens at http://localhost:5174
 ```
 
-#### Windows Print Agent
+#### PrintBK Counter (Single Windows Desktop Application)
 ```bash
-cd agent
-pnpm run build
-pnpm start
+# Build Development Installer
+pnpm build:installer:dev
+
+# Build Production Installer
+pnpm build:installer:prod
 ```
+The output installer is generated at `counter-app/dist/installer/PrintBK-Counter-Setup-1.0.0.exe`.
 
 ---
 
@@ -82,30 +85,33 @@ Verifies the complete 12-step lifecycle across student order creation, UPI inten
 node scripts/e2e-live.mjs
 ```
 
-### 2. CI Mock Data Gate (`no-mock-data.mjs`)
+### 2. Desktop Counter E2E Field Verification
+Verifies clean install, one-code dual-pairing, printer detection, direct launch into Orders queue, tray minimize, supervisor auto-restart, and persistence across relaunch:
+```bash
+node scripts/verify-counter-app.mjs
+```
+
+### 3. CI Mock Data Gate (`no-mock-data.mjs`)
 Verifies that no mock markers, simulated timers, or sample order datasets exist in source code or production bundles:
 ```bash
 node scripts/no-mock-data.mjs
-```
-
-### 3. Staff App Visual & Live Playwright Tests
-Executes visual regression, responsive breakpoints (Desktop 1920, Desktop 1440, Tablet 1024, Mobile 390), and real-time live delta synchronization tests:
-```bash
-pnpm -C staff exec playwright test
 ```
 
 ### 4. Production Builds
 ```bash
 pnpm -C student run build
 pnpm -C staff run build
-pnpm -C agent run build
+pnpm build:installer:prod
 ```
 
 ---
 
 ## Documentation
 
-- [Production Runbook](docs/runbook.md) — Windows agent NSSM service installation, pairing, and credential rotation.
+- [Shop PC Setup Checklist](docs/shop-pc-checklist.md) — 3-step shopkeeper onboarding guide for the Windows installer.
+- [Release Guide](docs/RELEASE.md) — Building, version bumping, and SmartScreen bypass guide.
+- [Installer Architecture Audit](docs/installer-audit.md) — Architecture decision record and electron-builder design.
+- [Production Runbook](docs/runbook.md) — Workstation management, pairing, and credential rotation.
 - [Security & Reliability Audit](docs/security-audit.md) — Capability tokens, rate limits, audit events, and crash resistance.
 - [Data Model & State Machine](docs/data-model.md) — ZCQL tables, item kinds, and transition rules.
 - [Environment Configuration](docs/environment.md) — Catalyst environment variables and secrets.

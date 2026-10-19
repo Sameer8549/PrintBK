@@ -1,0 +1,33 @@
+{
+  "name": "printbk-counter",
+  "version": "1.0.0",
+  "description": "PrintBK Counter — Single-Install Windows Desktop Application",
+  "main": "dist/main/main.js",
+  "author": "PrintBK Engineering",
+  "license": "UNLICENSED",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "node scripts/build.mjs --env=dev",
+    "build:dev": "node scripts/build.mjs --env=dev",
+    "build:prod": "node scripts/build.mjs --env=prod",
+    "start": "electron dist/main/main.js",
+    "dist:dev": "node scripts/build.mjs --env=dev && electron-builder --win nsis -c electron-builder.config.js --publish never",
+    "dist:prod": "node scripts/build.mjs --env=prod && electron-builder --win nsis -c electron-builder.config.js --publish never"
+  },
+  "dependencies": {
+    "@printbk/shared": "workspace:*",
+    "electron-updater": "^6.3.9",
+    "form-data": "^4.0.0",
+    "node-fetch": "^2.7.0",
+    "pdf-lib": "^1.17.1",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "@types/node-fetch": "^2.6.13",
+    "@types/qrcode": "^1.5.6",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.6.3"
+  }
+}

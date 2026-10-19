@@ -1,0 +1,10 @@
+SumatraPDF is a free, open-source PDF, eBook (ePub, Mobi), XPS, DjVu, CHM, Comic Book (CBZ and CBR) reader for Windows.
+
+Copyright (c) 2006-2024 by Krzysztof Kowalczyk and contributors.
+Website: https://www.sumatrapdfreader.org
+
+SumatraPDF is released under the GNU General Public License, Version 3.
+Source code is available at: https://github.com/sumatrapdfreader/sumatrapdf
+
+Redistribution and use in binary form as part of PrintBK Counter is permitted under the terms of the GNU General Public License (GPLv3).
+The executable binary is bundled unmodified in portable mode.

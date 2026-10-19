@@ -6,7 +6,19 @@ const DEVICE_ID_KEY = "printbk_staff_device_id"
 
 export function getStaffToken(): string | null {
   try {
-    return localStorage.getItem(TOKEN_KEY)
+    const local = localStorage.getItem(TOKEN_KEY)
+    if (local) return local
+    if (typeof window !== "undefined" && (window as any).printbkCounter?.getStaffTokenSync) {
+      const token = (window as any).printbkCounter.getStaffTokenSync()
+      if (token) {
+        try {
+          localStorage.setItem(TOKEN_KEY, token)
+          localStorage.setItem("printbk-paired", "true")
+        } catch (_) {}
+        return token
+      }
+    }
+    return null
   } catch {
     return null
   }
@@ -34,6 +46,9 @@ export function clearStaffCredentials(): void {
 
 export function isStaffPaired(): boolean {
   try {
+    if (typeof window !== "undefined" && (window as any).printbkCounter) {
+      return true
+    }
     return !!getStaffToken() || localStorage.getItem("printbk-paired") === "true"
   } catch {
     return false

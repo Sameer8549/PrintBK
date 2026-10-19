@@ -1,0 +1,10 @@
+{
+  "environment": "production",
+  "apiBase": "https://api.printbk.com",
+  "staffAppUrl": "https://counter.printbk.com",
+  "updateFeedUrl": "https://releases.printbk.com/counter/win32",
+  "autoUpdate": true,
+  "heartbeatIntervalMs": 5000,
+  "pollIntervalMs": 2000,
+  "openAtLogin": true
+}

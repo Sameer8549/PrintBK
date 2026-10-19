@@ -5,6 +5,8 @@
   "main": "index.js",
   "scripts": {
     "build:client": "node scripts/build-client.mjs",
+    "build:installer:dev": "pnpm --filter printbk-counter dist:dev",
+    "build:installer:prod": "pnpm --filter printbk-counter dist:prod",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

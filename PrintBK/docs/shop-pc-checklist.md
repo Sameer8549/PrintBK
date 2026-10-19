@@ -5,16 +5,31 @@
 
 ---
 
-## 1. Initial Shop PC Setup Checklist (One-Time)
+## 1. Initial Shop PC Setup Checklist (One-Time — 3 Steps)
 
-| Step | Component | Action | Verification |
-|------|-----------|--------|--------------|
-| 1.1 | **Operating System** | Windows 10 or 11 (64-bit) with latest security updates | Check `winver` |
-| 1.2 | **Node.js Runtime** | Install Node.js v18 or v20 LTS from [nodejs.org](https://nodejs.org) | Run `node -v` in terminal (should return `>= v18.0.0`) |
-| 1.3 | **Printer Hardware** | Connect B&W laser printer & Colour printer via high-speed USB or Gigabit Ethernet | Printers appear in Windows *Settings → Bluetooth & devices → Printers & scanners* |
-| 1.4 | **PDF Print Engine** | Install [SumatraPDF](https://www.sumatrapdfreader.org) for zero-dialog, silent physical printing | SumatraPDF located in standard path `C:\Program Files\SumatraPDF\SumatraPDF.exe` |
-| 1.5 | **Agent Auto-Start** | Run `C:\PrintBK\agent\install-service.bat` as Administrator | Task `PrintBK_Agent` registered in Windows Task Scheduler (`schtasks /query /tn PrintBK_Agent`) |
-| 1.6 | **Device Pairing** | On first startup, complete the pairing prompt via the system tray or Staff App | `%APPDATA%\PrintBK\agent-config.json` created with DPAPI-encrypted token |
+Setting up a new shop counter PC takes under 2 minutes. The shop PC does **NOT** require Node.js, pnpm, Git, or terminal commands.
+
+### Step 1: Check Windows Printers Exist
+- Connect your B&W laser printer and Colour printer via USB or local network.
+- Confirm both printers appear and print a test page in Windows:
+  *Windows Settings → Bluetooth & devices → Printers & scanners*.
+
+### Step 2: Run `PrintBK-Counter-Setup-1.0.0.exe`
+- Double-click the single installer file: `PrintBK-Counter-Setup-1.0.0.exe`.
+- Click **Next → Next → Install**.
+- No administrator permissions required (installs per-user). Everything is bundled automatically:
+  - PrintBK Counter desktop application window
+  - Background print agent daemon and crash recovery watchdog
+  - Silent printing engine (SumatraPDF portable)
+  - Document conversion engine (LibreOffice / MS Office)
+  - Windows auto-start on login and system tray integration
+
+### Step 3: Type the Setup Code Once
+- On first launch, the setup wizard appears with the official PrintBK logo.
+- Type the 24-character setup code from your Catalyst management console.
+- Click **Connect Workstation →**.
+- Select your B&W and Colour printers from the detected list, then click **Open Counter Window**.
+- **Done!** Both the print agent and staff counter app are permanently paired. The app opens directly to the Orders counter forever: no login, no password, no pairing prompt again.
 
 ---
 

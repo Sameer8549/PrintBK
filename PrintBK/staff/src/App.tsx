@@ -2159,7 +2159,6 @@ function SetupFlow({ onFinish }: { onFinish: () => void }) {
     <main className="pairing-flow">
       <div className="pairing-brand">
         <img src="./hkbk-logo.jpg" alt="HKBK Group of Institutions" />
-        <img src="./printbk-logo.svg" alt="PrintBK" style={{ height: 32, marginLeft: 8 }} />
         <div><strong>PrintBK</strong><span>COUNTER SETUP</span></div>
       </div>
       <div className="pairing-progress">{[1, 2, 3].map((item) => <div className={item <= step ? "active" : ""} key={item}><i>{item < step ? <Icon name="check" /> : item}</i><span>{item === 1 ? "Connect" : item === 2 ? "Printers" : "Ready"}</span></div>)}</div>

@@ -1,0 +1,10 @@
+{
+  "environment": "test",
+  "apiBase": "http://localhost:4321",
+  "staffAppUrl": "http://localhost:4321/staff/",
+  "updateFeedUrl": "http://localhost:4321/updates",
+  "autoUpdate": false,
+  "heartbeatIntervalMs": 1000,
+  "pollIntervalMs": 1000,
+  "openAtLogin": false
+}

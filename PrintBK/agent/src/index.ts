@@ -67,24 +67,40 @@ class PrintAgentDaemon {
     }
     logger.info('----------------------------------------------------');
 
-    // Initialize System Tray Companion
-    const staffUrl = `${this.config.apiBase.replace(/\/server\/api$/, '')}/staff`;
-    this.trayManager = new TrayManager(process.pid, logger.getLogPath(), staffUrl);
-    this.trayManager.start();
-    this.trayManager.onAction(async (action) => {
-      logger.info(`[Agent] System tray action: ${action}`);
-      if (action === 'test_print') {
-        await this.triggerLocalTestPrint();
-      } else if (action === 'check_update') {
-        await this.sendHeartbeat();
-      } else if (action === 'exit') {
-        this.shutdown();
-      }
-    });
+    // Initialize System Tray Companion (standalone CLI only; skipped when supervised by Electron desktop app)
+    if (process.env.DESKTOP_SUPERVISED !== 'true') {
+      const staffUrl = `${this.config.apiBase.replace(/\/server\/api$/, '')}/staff`;
+      this.trayManager = new TrayManager(process.pid, logger.getLogPath(), staffUrl);
+      this.trayManager.start();
+      this.trayManager.onAction(async (action) => {
+        logger.info(`[Agent] System tray action: ${action}`);
+        if (action === 'test_print') {
+          await this.triggerLocalTestPrint();
+        } else if (action === 'check_update') {
+          await this.sendHeartbeat();
+        } else if (action === 'exit') {
+          this.shutdown();
+        }
+      });
+    }
+
+    // Listen for IPC messages from desktop supervisor
+    if (process.on) {
+      process.on('message', async (msg: any) => {
+        if (msg?.type === 'test_print') {
+          logger.info(`[Agent] IPC test_print requested for role: ${msg.role || 'bw'}`);
+          await this.triggerLocalTestPrint(msg.role);
+        } else if (msg?.type === 'shutdown') {
+          this.shutdown();
+        }
+      });
+    }
 
     // 1. Pair if no token exists
     if (!this.config.agentToken) {
-      this.trayManager.notify('PrintBK Agent Setup Required', 'Agent not yet paired. Click to configure counter.');
+      if (this.trayManager) {
+        this.trayManager.notify('PrintBK Agent Setup Required', 'Agent not yet paired. Click to configure counter.');
+      }
       await this.pairDevice();
     }
 
@@ -143,6 +159,9 @@ class PrintAgentDaemon {
   private async sendHeartbeat(): Promise<void> {
     try {
       const printers = await discoverPrinters(this.config.dryRun, this.config.printerProfiles);
+      if (process.send) {
+        process.send({ type: 'printers', printers });
+      }
       const res = await fetch(`${this.config.apiBase}/server/api/agent/heartbeat`, {
         method: 'POST',
         headers: this.authHeaders,

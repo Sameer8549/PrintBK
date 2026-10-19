@@ -3,4 +3,5 @@ packages:
   - 'staff'
   - 'backend'
   - 'agent'
+  - 'counter-app'
   - 'packages/*'

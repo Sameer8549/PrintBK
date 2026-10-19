@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrintBK Counter Setup</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f7f4ee;
+      color: #0f172a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      user-select: none;
+    }
+    .container {
+      background: #ffffff;
+      border: 2px solid #0f172a;
+      border-radius: 20px;
+      box-shadow: 6px 6px 0px #0f172a;
+      max-width: 540px;
+      width: 100%;
+      overflow: hidden;
+      animation: fadeIn 0.25s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .header {
+      padding: 28px 32px 20px;
+      border-bottom: 1.5px solid #e2e8f0;
+      background: #fafaf9;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .logo-badge {
+      width: 48px;
+      height: 48px;
+      background: #0f172a;
+      color: #f7f4ee;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+      font-size: 20px;
+      letter-spacing: -1px;
+    }
+    .header-text h1 {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+    .header-text p {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    .step-content {
+      padding: 32px;
+    }
+    .step-indicator {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 24px;
+    }
+    .step-pill {
+      height: 4px;
+      flex: 1;
+      border-radius: 999px;
+      background: #e2e8f0;
+    }
+    .step-pill.active {
+      background: #0f172a;
+    }
+    .step-title {
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+    .step-desc {
+      font-size: 14px;
+      color: #64748b;
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      color: #475569;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    input[type="text"], select {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid #cbd5e1;
+      border-radius: 12px;
+      font-size: 16px;
+      font-family: inherit;
+      color: #0f172a;
+      background: #ffffff;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+    input[type="text"]:focus, select:focus {
+      border-color: #0f172a;
+    }
+    input.code-input {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      letter-spacing: 2px;
+      font-weight: 700;
+      font-size: 18px;
+      text-transform: uppercase;
+    }
+    .error-box {
+      background: #fee2e2;
+      border: 1.5px solid #fecaca;
+      color: #b91c1c;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .error-box.visible {
+      display: block;
+    }
+    .footer {
+      padding: 20px 32px;
+      border-top: 1.5px solid #e2e8f0;
+      background: #fafaf9;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    button.btn {
+      padding: 14px 24px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.15s ease;
+      border: none;
+    }
+    button.btn-primary {
+      background: #0f172a;
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+    }
+    button.btn-primary:hover {
+      background: #1e293b;
+    }
+    button.btn-secondary {
+      background: transparent;
+      color: #475569;
+      border: 1.5px solid #cbd5e1;
+    }
+    button.btn-secondary:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+    }
+    .toggle-row span {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .printer-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .printer-row select {
+      flex: 1;
+    }
+    .test-badge {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 700;
+      display: none;
+    }
+    .test-badge.success {
+      background: #dcfce7;
+      color: #15803d;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="../public/hkbk-logo.jpg" alt="HKBK Group of Institutions" style="width: 44px; height: 44px; border-radius: 50%; object-fit: contain; background: #ffffff; padding: 2px; border: 1.5px solid #0f172a; flex-shrink: 0;" />
+      <div class="header-text">
+        <div style="display: flex; align-items: baseline; gap: 8px;">
+          <h1 style="font-size: 20px; font-weight: 800; letter-spacing: -0.5px; margin: 0;">PrintBK</h1>
+          <span style="font-size: 11px; font-weight: 800; letter-spacing: 1.5px; color: #64748b; text-transform: uppercase;">COUNTER SETUP</span>
+        </div>
+        <p style="margin: 2px 0 0 0; font-size: 13px; color: #64748b;">One-time workstation pairing &amp; printer configuration</p>
+      </div>
+    </div>
+
+    <!-- STEP 1: WELCOME & CODE -->
+    <div id="step1" class="step-content">
+      <div class="step-indicator">
+        <div class="step-pill active"></div>
+        <div class="step-pill"></div>
+        <div class="step-pill"></div>
+      </div>
+      <div class="step-title">Enter Setup Code</div>
+      <div class="step-desc">
+        Type the 24-character setup code from your Catalyst management console. This pairs both the counter app and the background print agent.
+      </div>
+      <div id="errorBox" class="error-box"></div>
+      <div class="form-group">
+        <label>Counter Setup Code</label>
+        <input type="text" id="setupCodeInput" class="code-input" placeholder="PBK-SETUP-XXXX-XXXX-XXXX" spellcheck="false" autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label>Workstation Label</label>
+        <input type="text" id="deviceLabelInput" value="Campus Store Counter PC #1" />
+      </div>
+    </div>
+
+    <!-- STEP 2: PRINTERS -->
+    <div id="step2" class="step-content" style="display: none;">
+      <div class="step-indicator">
+        <div class="step-pill active"></div>
+        <div class="step-pill active"></div>
+        <div class="step-pill"></div>
+      </div>
+      <div class="step-title">Choose Shop Printers</div>
+      <div class="step-desc">
+        Printers detected on this Windows PC. PrintBK directs student print jobs directly to these queues.
+      </div>
+      <div class="toggle-row">
+        <span>Use same printer for both B&amp;W and Colour</span>
+        <input type="checkbox" id="samePrinterCheck" />
+      </div>
+      <div class="form-group">
+        <label>Black &amp; White Printer (Laser / Mono)</label>
+        <div class="printer-row">
+          <select id="bwPrinterSelect"></select>
+          <button type="button" class="btn btn-secondary" id="testBwBtn">Test Print</button>
+        </div>
+        <div id="bwTestBadge" class="test-badge">Printed</div>
+      </div>
+      <div class="form-group" id="colourGroup">
+        <label>Colour Printer (Tank / Inkjet)</label>
+        <div class="printer-row">
+          <select id="colourPrinterSelect"></select>
+          <button type="button" class="btn btn-secondary" id="testColourBtn">Test Print</button>
+        </div>
+        <div id="colourTestBadge" class="test-badge">Printed</div>
+      </div>
+      <div style="margin-top: 16px;">
+        <button type="button" class="btn btn-secondary" id="openWinPrintersBtn" style="font-size: 13px;">
+          ⚙ Open Windows Printers &amp; Scanners
+        </button>
+        <button type="button" class="btn btn-secondary" id="refreshPrintersBtn" style="font-size: 13px; margin-left: 8px;">
+          ↻ Refresh
+        </button>
+      </div>
+    </div>
+
+    <!-- STEP 3: READY -->
+    <div id="step3" class="step-content" style="display: none;">
+      <div class="step-indicator">
+        <div class="step-pill active"></div>
+        <div class="step-pill active"></div>
+        <div class="step-pill active"></div>
+      </div>
+      <div class="step-title">Workstation Ready</div>
+      <div class="step-desc">
+        Your PC is securely paired. The app will open directly to your Orders counter queue.
+      </div>
+      <div class="toggle-row">
+        <span>Start PrintBK Counter when Windows starts</span>
+        <input type="checkbox" id="autoStartCheck" checked />
+      </div>
+      <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+        <div style="font-size: 13px; color: #64748b; margin-bottom: 4px;">SUMMARY</div>
+        <div style="font-weight: 700; font-size: 15px;" id="summaryLabel">Campus Store Counter PC #1</div>
+        <div style="font-size: 13px; color: #475569; margin-top: 4px;" id="summaryPrinters">Printers configured</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <button type="button" class="btn btn-secondary" id="backBtn" style="visibility: hidden;">Back</button>
+      <button type="button" class="btn btn-primary" id="nextBtn">Connect Workstation →</button>
+    </div>
+  </div>
+
+  <script>
+    let currentStep = 1;
+    let printersList = [];
+
+    const step1 = document.getElementById('step1');
+    const step2 = document.getElementById('step2');
+    const step3 = document.getElementById('step3');
+    const nextBtn = document.getElementById('nextBtn');
+    const backBtn = document.getElementById('backBtn');
+    const errorBox = document.getElementById('errorBox');
+    const setupCodeInput = document.getElementById('setupCodeInput');
+    const deviceLabelInput = document.getElementById('deviceLabelInput');
+    const bwPrinterSelect = document.getElementById('bwPrinterSelect');
+    const colourPrinterSelect = document.getElementById('colourPrinterSelect');
+    const samePrinterCheck = document.getElementById('samePrinterCheck');
+    const colourGroup = document.getElementById('colourGroup');
+    const testBwBtn = document.getElementById('testBwBtn');
+    const testColourBtn = document.getElementById('testColourBtn');
+    const bwTestBadge = document.getElementById('bwTestBadge');
+    const colourTestBadge = document.getElementById('colourTestBadge');
+    const openWinPrintersBtn = document.getElementById('openWinPrintersBtn');
+    const refreshPrintersBtn = document.getElementById('refreshPrintersBtn');
+    const autoStartCheck = document.getElementById('autoStartCheck');
+    const summaryLabel = document.getElementById('summaryLabel');
+    const summaryPrinters = document.getElementById('summaryPrinters');
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.classList.add('visible');
+    }
+    function hideError() {
+      errorBox.classList.remove('visible');
+    }
+
+    async function loadPrinters() {
+      if (!window.printbkCounter) return;
+      try {
+        printersList = await window.printbkCounter.getDiscoveredPrinters();
+        bwPrinterSelect.innerHTML = '';
+        colourPrinterSelect.innerHTML = '';
+
+        if (!printersList || printersList.length === 0) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'No printers detected (Click Open Windows Printers)';
+          bwPrinterSelect.appendChild(opt);
+          colourPrinterSelect.appendChild(opt.cloneNode(true));
+          return;
+        }
+
+        printersList.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.name;
+          opt.textContent = p.name + (p.online ? ' (Ready)' : ' (Offline)');
+          bwPrinterSelect.appendChild(opt);
+          colourPrinterSelect.appendChild(opt.cloneNode(true));
+        });
+
+        // Set sensible defaults
+        const bwMatch = printersList.find(p => p.role === 'bw') || printersList[0];
+        const colourMatch = printersList.find(p => p.role === 'colour') || printersList[1] || bwMatch;
+        if (bwMatch) bwPrinterSelect.value = bwMatch.name;
+        if (colourMatch) colourPrinterSelect.value = colourMatch.name;
+      } catch (err) {
+        showError('Could not query Windows printers: ' + err.message);
+      }
+    }
+
+    samePrinterCheck.addEventListener('change', () => {
+      if (samePrinterCheck.checked) {
+        colourGroup.style.display = 'none';
+        colourPrinterSelect.value = bwPrinterSelect.value;
+      } else {
+        colourGroup.style.display = 'block';
+      }
+    });
+
+    bwPrinterSelect.addEventListener('change', () => {
+      if (samePrinterCheck.checked) {
+        colourPrinterSelect.value = bwPrinterSelect.value;
+      }
+    });
+
+    testBwBtn.addEventListener('click', async () => {
+      testBwBtn.disabled = true;
+      testBwBtn.textContent = 'Printing…';
+      try {
+        await window.printbkCounter.triggerTestPrint('bw');
+        bwTestBadge.classList.add('success');
+        bwTestBadge.textContent = '✓ Sent to printer';
+      } catch (e) {
+        alert('Test print error: ' + e.message);
+      } finally {
+        testBwBtn.disabled = false;
+        testBwBtn.textContent = 'Test Print';
+      }
+    });
+
+    testColourBtn.addEventListener('click', async () => {
+      testColourBtn.disabled = true;
+      testColourBtn.textContent = 'Printing…';
+      try {
+        await window.printbkCounter.triggerTestPrint('colour');
+        colourTestBadge.classList.add('success');
+        colourTestBadge.textContent = '✓ Sent to printer';
+      } catch (e) {
+        alert('Test print error: ' + e.message);
+      } finally {
+        testColourBtn.disabled = false;
+        testColourBtn.textContent = 'Test Print';
+      }
+    });
+
+    openWinPrintersBtn.addEventListener('click', () => {
+      window.printbkCounter?.openWindowsPrinterSettings();
+    });
+
+    refreshPrintersBtn.addEventListener('click', () => {
+      loadPrinters();
+    });
+
+    nextBtn.addEventListener('click', async () => {
+      hideError();
+      if (currentStep === 1) {
+        const code = setupCodeInput.value.trim();
+        const label = deviceLabelInput.value.trim();
+        if (!code) {
+          showError('Please enter the 24-character setup code.');
+          return;
+        }
+        if (code.length < 24) {
+          showError('Setup code must be at least 24 characters.');
+          return;
+        }
+
+        nextBtn.disabled = true;
+        nextBtn.textContent = 'Pairing Workstation…';
+
+        try {
+          const res = await window.printbkCounter.pairWorkstation(code, label);
+          if (!res.ok) {
+            showError(res.error || 'Pairing failed. Check code or internet connectivity.');
+            nextBtn.disabled = false;
+            nextBtn.textContent = 'Connect Workstation →';
+            return;
+          }
+
+          // Advance to step 2
+          currentStep = 2;
+          step1.style.display = 'none';
+          step2.style.display = 'block';
+          backBtn.style.visibility = 'visible';
+          nextBtn.textContent = 'Continue to Ready →';
+          nextBtn.disabled = false;
+          await loadPrinters();
+        } catch (err) {
+          showError('Error: ' + err.message);
+          nextBtn.disabled = false;
+          nextBtn.textContent = 'Connect Workstation →';
+        }
+      } else if (currentStep === 2) {
+        // Advance to step 3
+        currentStep = 3;
+        step2.style.display = 'none';
+        step3.style.display = 'block';
+        summaryLabel.textContent = deviceLabelInput.value.trim();
+        summaryPrinters.textContent = `B&W: ${bwPrinterSelect.value || 'None'} · Colour: ${samePrinterCheck.checked ? bwPrinterSelect.value : colourPrinterSelect.value}`;
+        nextBtn.textContent = 'Open Counter Window';
+      } else if (currentStep === 3) {
+        // Finish wizard
+        nextBtn.disabled = true;
+        nextBtn.textContent = 'Opening Counter…';
+        const bridge = window.printbkCounter || window.electronAPI;
+        if (bridge?.finishWizard) {
+          bridge.finishWizard({
+            bwPrinter: bwPrinterSelect.value,
+            colourPrinter: samePrinterCheck.checked ? bwPrinterSelect.value : colourPrinterSelect.value,
+            openAtLogin: autoStartCheck.checked
+          });
+        }
+      }
+    });
+
+    backBtn.addEventListener('click', () => {
+      if (currentStep === 2) {
+        currentStep = 1;
+        step2.style.display = 'none';
+        step1.style.display = 'block';
+        backBtn.style.visibility = 'hidden';
+        nextBtn.textContent = 'Connect Workstation →';
+      } else if (currentStep === 3) {
+        currentStep = 2;
+        step3.style.display = 'none';
+        step2.style.display = 'block';
+        nextBtn.textContent = 'Continue to Ready →';
+      }
+    });
+  </script>
+</body>
+</html>

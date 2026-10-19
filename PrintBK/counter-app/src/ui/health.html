@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrintBK Counter — System Health Check</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f7f4ee;
+      color: #0f172a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #ffffff;
+      border: 2px solid #0f172a;
+      border-radius: 20px;
+      box-shadow: 6px 6px 0px #0f172a;
+      max-width: 600px;
+      width: 100%;
+      padding: 32px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1.5px solid #e2e8f0;
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+    .badge-all-good {
+      background: #dcfce7;
+      color: #15803d;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .item-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .item-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+    .status-dot.green { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+    .status-dot.red { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+    .status-dot.yellow { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
+    .item-content {
+      flex: 1;
+    }
+    .item-title {
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+    }
+    .item-detail {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    .fix-hint {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #b91c1c;
+      background: #fee2e2;
+      padding: 4px 8px;
+      border-radius: 6px;
+      display: none;
+    }
+    .fix-hint.visible {
+      display: block;
+    }
+    .actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      border-top: 1.5px solid #e2e8f0;
+      padding-top: 20px;
+    }
+    button.btn {
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+    }
+    button.btn-primary {
+      background: #0f172a;
+      color: #ffffff;
+    }
+    button.btn-secondary {
+      background: transparent;
+      color: #475569;
+      border: 1.5px solid #cbd5e1;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div>
+        <h1>System Health &amp; Diagnostics</h1>
+        <p style="font-size: 13px; color: #64748b; margin-top: 2px;">PrintBK Counter workstation verification</p>
+      </div>
+      <div id="overallBadge" class="badge-all-good">CHECKING…</div>
+    </div>
+
+    <div class="item-list" id="itemList">
+      <!-- 1. App Version -->
+      <div class="item-row">
+        <div class="status-dot green"></div>
+        <div class="item-content">
+          <div class="item-title">
+            <span>Desktop App Version</span>
+            <span id="appVersion">v1.0.0</span>
+          </div>
+          <div class="item-detail">Electron runtime with Chromium and Node.js bundled.</div>
+        </div>
+      </div>
+
+      <!-- 2. Agent Connected -->
+      <div class="item-row">
+        <div class="status-dot" id="agentDot"></div>
+        <div class="item-content">
+          <div class="item-title">
+            <span>Print Agent Background Supervisor</span>
+            <span id="agentStatusText">Connecting…</span>
+          </div>
+          <div class="item-detail" id="agentDetail">Subprocess watchdog polling approved jobs.</div>
+          <div class="fix-hint" id="agentHint">Check internet access or re-pair using setup code.</div>
+        </div>
+      </div>
+
+      <!-- 3. Printers Detected -->
+      <div class="item-row">
+        <div class="status-dot" id="printerDot"></div>
+        <div class="item-content">
+          <div class="item-title">
+            <span>Windows Spooler Printers</span>
+            <span id="printerCount">Detecting…</span>
+          </div>
+          <div class="item-detail" id="printerDetail">Local USB and Network print queues.</div>
+          <div class="fix-hint" id="printerHint">No printers detected. Connect USB/Network printer in Windows Settings.</div>
+        </div>
+      </div>
+
+      <!-- 4. SumatraPDF Silent Engine -->
+      <div class="item-row">
+        <div class="status-dot" id="sumatraDot"></div>
+        <div class="item-content">
+          <div class="item-title">
+            <span>Silent PDF Print Tool (SumatraPDF)</span>
+            <span id="sumatraStatus">Checking…</span>
+          </div>
+          <div class="item-detail" id="sumatraDetail">Direct zero-dialog physical printing tool.</div>
+          <div class="fix-hint" id="sumatraHint">Click "Repair Installation" below to re-extract bundled SumatraPDF binary.</div>
+        </div>
+      </div>
+
+      <!-- 5. Document Converter -->
+      <div class="item-row">
+        <div class="status-dot" id="converterDot"></div>
+        <div class="item-content">
+          <div class="item-title">
+            <span>Document Converter (Office / LibreOffice)</span>
+            <span id="converterStatus">Detecting…</span>
+          </div>
+          <div class="item-detail" id="converterDetail">Converts Word, PPT, Excel submissions to PDF.</div>
+          <div class="fix-hint" id="converterHint">Microsoft Office or LibreOffice not detected. Run LibreOffice installer.</div>
+        </div>
+      </div>
+
+      <!-- 6. Last Print Result -->
+      <div class="item-row">
+        <div class="status-dot green" id="printResultDot"></div>
+        <div class="item-content">
+          <div class="item-title">
+            <span>Last Print Dispatch</span>
+            <span id="lastPrintResult">Ready</span>
+          </div>
+          <div class="item-detail" id="lastPrintDetail">Spooler queue health verified.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-secondary" id="refreshBtn">Refresh Health</button>
+      <button class="btn btn-secondary" id="repairBtn">Repair Installation</button>
+      <button class="btn btn-primary" id="closeBtn">Back to Counter</button>
+    </div>
+  </div>
+
+  <script>
+    async function refreshHealth() {
+      if (!window.printbkCounter?.getHealth) return;
+      try {
+        const h = await window.printbkCounter.getHealth();
+        document.getElementById('appVersion').textContent = 'v' + (h.appVersion || '1.0.0');
+
+        // Agent
+        const agentDot = document.getElementById('agentDot');
+        const agentStatusText = document.getElementById('agentStatusText');
+        const agentHint = document.getElementById('agentHint');
+        agentStatusText.textContent = h.agentStatus;
+        if (h.agentStatus === 'connected' || h.agentStatus === 'printing') {
+          agentDot.className = 'status-dot green';
+          agentHint.classList.remove('visible');
+        } else {
+          agentDot.className = 'status-dot red';
+          agentHint.classList.add('visible');
+        }
+
+        // Printers
+        const printerDot = document.getElementById('printerDot');
+        const printerCount = document.getElementById('printerCount');
+        const printerHint = document.getElementById('printerHint');
+        const count = h.printers?.length || 0;
+        printerCount.textContent = `${count} printer${count !== 1 ? 's' : ''}`;
+        if (count > 0) {
+          printerDot.className = 'status-dot green';
+          printerHint.classList.remove('visible');
+        } else {
+          printerDot.className = 'status-dot red';
+          printerHint.classList.add('visible');
+        }
+
+        // SumatraPDF
+        const sumatraDot = document.getElementById('sumatraDot');
+        const sumatraStatus = document.getElementById('sumatraStatus');
+        const sumatraHint = document.getElementById('sumatraHint');
+        if (h.sumatraPresent) {
+          sumatraStatus.textContent = 'Installed (Bundled)';
+          sumatraDot.className = 'status-dot green';
+          sumatraHint.classList.remove('visible');
+        } else {
+          sumatraStatus.textContent = 'Missing';
+          sumatraDot.className = 'status-dot red';
+          sumatraHint.classList.add('visible');
+        }
+
+        // Converter
+        const converterDot = document.getElementById('converterDot');
+        const converterStatus = document.getElementById('converterStatus');
+        const converterHint = document.getElementById('converterHint');
+        if (h.converterPresent) {
+          converterStatus.textContent = h.converterType || 'Available';
+          converterDot.className = 'status-dot green';
+          converterHint.classList.remove('visible');
+        } else {
+          converterStatus.textContent = 'Not Found';
+          converterDot.className = 'status-dot yellow';
+          converterHint.classList.add('visible');
+        }
+
+        const overall = document.getElementById('overallBadge');
+        if (h.agentStatus === 'connected' && count > 0 && h.sumatraPresent) {
+          overall.className = 'badge-all-good';
+          overall.textContent = 'ALL SYSTEMS NOMINAL';
+        } else {
+          overall.style.background = '#fee2e2';
+          overall.style.color = '#dc2626';
+          overall.textContent = 'ACTION REQUIRED';
+        }
+      } catch (err) {
+        console.error('Health check error:', err);
+      }
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', refreshHealth);
+    document.getElementById('closeBtn').addEventListener('click', () => {
+      window.history.back();
+    });
+    document.getElementById('repairBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('repairBtn');
+      btn.disabled = true;
+      btn.textContent = 'Repairing…';
+      try {
+        const res = await window.printbkCounter?.repairInstallation();
+        alert(res?.message || 'Repair completed.');
+        refreshHealth();
+      } catch (e) {
+        alert('Repair error: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Repair Installation';
+      }
+    });
+
+    refreshHealth();
+  </script>
+</body>
+</html>

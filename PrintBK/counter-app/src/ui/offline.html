@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrintBK Counter — Offline</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f7f4ee;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .card {
+      background: #ffffff;
+      border: 1.5px solid #0f172a;
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: 6px 6px 0px #0f172a;
+      text-align: center;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #fee2e2;
+      color: #dc2626;
+      border: 1px solid #fca5a5;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin-bottom: 20px;
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #dc2626;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.9); opacity: 0.8; }
+      50% { transform: scale(1.3); opacity: 1; }
+      100% { transform: scale(0.9); opacity: 0.8; }
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 12px;
+    }
+    p {
+      color: #475569;
+      font-size: 15px;
+      line-height: 1.5;
+      margin-bottom: 28px;
+    }
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    button.primary {
+      background: #0f172a;
+      color: #ffffff;
+      border: none;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+      transition: all 0.15s ease;
+    }
+    button.primary:hover {
+      background: #1e293b;
+    }
+    button.secondary {
+      background: transparent;
+      color: #475569;
+      border: 1.5px solid #cbd5e1;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.secondary:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .status-text {
+      margin-top: 20px;
+      font-size: 13px;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">
+      <div class="pulse-dot"></div>
+      SERVER REACHABILITY PAUSED
+    </div>
+    <h1>Network Connection Lost</h1>
+    <p>
+      PrintBK Counter cannot reach the shop cloud gateway. Background print agent is still monitoring local queues.
+    </p>
+    <div class="actions">
+      <button class="primary" id="retryBtn">Retry Connection Now</button>
+      <button class="secondary" id="checkHealthBtn">Check System Health</button>
+    </div>
+    <div class="status-text" id="statusText">
+      Auto-reconnecting in <span id="countdown">5</span> seconds…
+    </div>
+  </div>
+
+  <script>
+    let secondsLeft = 5;
+    const countdownEl = document.getElementById('countdown');
+    const retryBtn = document.getElementById('retryBtn');
+    const checkHealthBtn = document.getElementById('checkHealthBtn');
+
+    function checkOnline() {
+      if (navigator.onLine) {
+        window.location.reload();
+      }
+    }
+
+    const timer = setInterval(() => {
+      secondsLeft--;
+      if (countdownEl) countdownEl.textContent = secondsLeft;
+      if (secondsLeft <= 0) {
+        secondsLeft = 5;
+        window.location.reload();
+      }
+    }, 1000);
+
+    retryBtn.addEventListener('click', () => {
+      window.location.reload();
+    });
+
+    checkHealthBtn.addEventListener('click', () => {
+      if (window.printbkCounter?.getHealth) {
+        window.location.href = 'health.html';
+      }
+    });
+
+    window.addEventListener('online', checkOnline);
+  </script>
+</body>
+</html>
