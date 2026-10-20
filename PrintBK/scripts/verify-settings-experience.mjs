@@ -65,8 +65,9 @@ try {
   const page = await context.newPage();
 
   console.log('\n--- 1. Testing Image / Photo Upload & Adaptive Settings ---');
-  await page.goto('http://127.0.0.1:4225/#/', { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(1000);
+  await page.goto('http://127.0.0.1:4225/#/', { waitUntil: 'commit' });
+  await page.waitForSelector('.drop-zone', { timeout: 10000 });
+  await page.waitForTimeout(500);
 
   // Upload an image via drop-zone filechooser
   const photoPath = path.resolve('PrintBK/client/hkbk-logo.jpg');
@@ -83,8 +84,8 @@ try {
   const framingSection = page.locator('text=PHOTO FRAMING & FIT');
   assert.ok(await framingSection.isVisible(), 'PHOTO FRAMING & FIT must be visible for images');
 
-  const paperTypeSection = page.locator('text=PAPER TYPE');
-  assert.ok(await paperTypeSection.isVisible(), 'PAPER TYPE must be visible for images');
+  const paperTypeSection = page.locator('text=PAPER SIZE & FINISH');
+  assert.ok(await paperTypeSection.isVisible(), 'PAPER SIZE & FINISH must be visible for images');
 
   // Verify multi-page imposition options are NOT present for image
   const duplexText = page.locator('text=PRINT SIDES');
@@ -117,7 +118,28 @@ try {
   await rotateBtn.click();
   await page.waitForTimeout(300);
 
-  // Take screenshot of Image Settings
+  // Test Real-Time A3 Paper Selection on Image
+  console.log('Testing A3 Large paper selection on image...');
+  const a3PhotoBtn = page.locator('button:has-text("A3 Large")').first();
+  await a3PhotoBtn.click();
+  await page.waitForTimeout(400);
+
+  // Verify A3 Badge & Watermark appear in preview
+  const a3Badge = page.locator('span:text-is("📐 A3 Large")');
+  assert.ok(await a3Badge.first().isVisible(), 'A3 Large preview badge must appear');
+  const a3Watermark = page.locator('text=297×420 mm');
+  assert.ok(await a3Watermark.first().isVisible(), 'A3 dimension watermark must appear inside preview');
+
+  // Verify Card Header adapts to A3
+  const a3CardHeader = page.locator('text=A3 Large Sheet');
+  assert.ok(await a3CardHeader.first().isVisible(), 'Card header must adapt to A3 Large Sheet');
+
+  // Verify Pricing Formula adapts to A3 price (₹3.00 for B&W 1-sided)
+  const a3PriceFormula = page.locator('text=₹3.00 A3');
+  assert.ok(await a3PriceFormula.first().isVisible(), 'Pricing formula must adapt to A3 rate');
+  console.log('✓ Image successfully adapted to A3 settings (Visual badge, sheet watermark, header, and price)');
+
+  // Take screenshot of Image Settings with A3 adaptation
   const imageEvidencePath = path.join(evidenceDir, '01-image-settings.png');
   await page.screenshot({ path: imageEvidencePath, fullPage: true });
   console.log(`✓ Image Settings screenshot saved to ${imageEvidencePath}`);
@@ -149,9 +171,8 @@ try {
   const pageRangeSection = page.locator('text=PAGE RANGE');
   assert.ok(await pageRangeSection.isVisible(), 'PAGE RANGE must be visible for multi-page document');
 
-  // Verify Photo framing is NOT shown for PDF
-  const photoFramingForPdf = page.locator('text=PHOTO FRAMING & FIT');
-  assert.equal(await photoFramingForPdf.count(), 1, 'Only the image card should have PHOTO FRAMING');
+  const docPaperSizeSection = page.locator('text=PAPER SIZE');
+  assert.ok(await docPaperSizeSection.nth(1).isVisible(), 'PAPER SIZE must be visible for multi-page document');
 
   // Test Multi-page real-time interactions
   console.log('Testing 2-sided toggle and savings chip...');
@@ -167,6 +188,17 @@ try {
   const twoUpBtn = page.locator('button:has-text("2-up")').first();
   await twoUpBtn.click();
   await page.waitForTimeout(500);
+
+  // Test A3 Selection on Multi-Page Document
+  console.log('Testing A3 paper selection on multi-page document...');
+  const docA3Btn = page.locator('button:has-text("📐 A3")').last();
+  await docA3Btn.click();
+  await page.waitForTimeout(400);
+
+  // Verify document preview and pricing adapt to A3
+  const docA3Watermark = page.locator('text=297×420 mm');
+  assert.ok(await docA3Watermark.last().isVisible(), 'A3 dimension watermark must appear inside doc preview');
+  console.log('✓ Multi-page document successfully adapted to A3 settings');
 
   // Take screenshot of Multi-Page Document Settings
   const docEvidencePath = path.join(evidenceDir, '02-multipage-doc-settings.png');

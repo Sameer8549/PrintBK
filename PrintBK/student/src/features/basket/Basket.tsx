@@ -648,6 +648,19 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
           }}>
             {effectiveIsLandscape ? 'Landscape' : 'Portrait'}
           </span>
+          {s.paper === 'A3' && (
+            <span style={{
+              background: '#fef08a',
+              color: '#854d0e',
+              border: '1px solid #facc15',
+              padding: '2px 8px',
+              borderRadius: 6,
+              fontSize: 10,
+              fontWeight: 800
+            }}>
+              📐 A3 Large
+            </span>
+          )}
           {isImage && (
             <span style={{
               background: (s.imageFit === 'fill' || (s as any).fit === 'fill') ? '#fef3c7' : '#ecfdf5',
@@ -747,13 +760,15 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
       <div style={{
         position: 'relative',
         width: '100%',
-        maxWidth: isSheetWide ? 330 : 245,
+        maxWidth: isSheetWide ? (s.paper === 'A3' ? 360 : 330) : (s.paper === 'A3' ? 275 : 245),
         aspectRatio: isSheetWide ? '1.414 / 1' : '1 / 1.414',
-        minHeight: isSheetWide ? 220 : 310,
+        minHeight: isSheetWide ? (s.paper === 'A3' ? 245 : 220) : (s.paper === 'A3' ? 350 : 310),
         background: '#fff',
         borderRadius: 8,
-        border: '2px solid #0f172a',
-        boxShadow: isDouble ? '4px 4px 0 #cbd5e1, 8px 8px 0 #94a3b8' : '4px 4px 0 #cbd5e1',
+        border: s.paper === 'A3' ? '2.5px solid #0f172a' : '2px solid #0f172a',
+        boxShadow: isDouble
+          ? (s.paper === 'A3' ? '5px 5px 0 #ca8a04, 9px 9px 0 #0f172a' : '4px 4px 0 #cbd5e1, 8px 8px 0 #94a3b8')
+          : (s.paper === 'A3' ? '5px 5px 0 #eab308' : '4px 4px 0 #cbd5e1'),
         overflow: 'hidden',
         display: 'flex',
         alignItems: 'center',
@@ -761,6 +776,29 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
         transition: 'all 0.25s ease',
         boxSizing: 'border-box'
       }}>
+        {/* A3 Large Sheet Watermark Badge */}
+        {s.paper === 'A3' && (
+          <div style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            background: 'rgba(15, 23, 42, 0.88)',
+            color: '#fde047',
+            padding: '2px 7px',
+            borderRadius: 5,
+            fontSize: 9,
+            fontWeight: 800,
+            letterSpacing: 0.6,
+            zIndex: 15,
+            pointerEvents: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4
+          }}>
+            <span>📐 A3</span>
+            <span style={{ opacity: 0.8, fontWeight: 500 }}>297×420 mm</span>
+          </div>
+        )}
         {/* ── Imposition Rendering based on Layout Mode ── */}
         {selectedLayout === 'handout' ? (
           <div style={{
@@ -1211,10 +1249,17 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
       {/* Live mode info text */}
       <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center' }}>
         Previewing in <b>{
-          s.colorMode === 'bw' ? 'B&W (₹1.50/p single, ₹0.85/p double)' :
-          s.colorMode === 'color' ? 'Full Colour (₹8.00/p)' :
-          isCustom ? `Custom Plan (${customColorPages.length} Colour @ ₹8.00, ${(file.pages || 1) - customColorPages.length} B&W)` :
-          'Auto Detection'
+          s.paper === 'A3' ? (
+            s.colorMode === 'bw' ? 'A3 B&W (₹3.00/p single, ₹1.70/p double)' :
+            s.colorMode === 'color' ? 'A3 Full Colour (₹16.00/p)' :
+            isCustom ? `A3 Custom Plan (${customColorPages.length} Colour @ ₹16.00, ${(file.pages || 1) - customColorPages.length} B&W @ ₹3.00)` :
+            'A3 Auto Detection'
+          ) : (
+            s.colorMode === 'bw' ? 'B&W (₹1.50/p single, ₹0.85/p double)' :
+            s.colorMode === 'color' ? 'Full Colour (₹8.00/p)' :
+            isCustom ? `Custom Plan (${customColorPages.length} Colour @ ₹8.00, ${(file.pages || 1) - customColorPages.length} B&W)` :
+            'Auto Detection'
+          )
         }</b>
       </div>
     </div>
@@ -1327,15 +1372,15 @@ function FileCard({
           <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
             {isImage ? (
               <span>
-                Photo Print · 1 Sheet · {s.colorMode === 'bw' ? 'B&W' : 'Colour'} · {(s.imageFit === 'fill' || (s as any).fit === 'fill') ? 'Full Sheet' : 'Fitted to Paper'} · ×{s.copies}
+                Photo Print · {s.paper === 'A3' ? 'A3 Large Sheet' : '1 Sheet'} · {s.colorMode === 'bw' ? 'B&W' : 'Colour'} · {(s.imageFit === 'fill' || (s as any).fit === 'fill') ? 'Full Sheet' : 'Fitted to Paper'} · ×{s.copies}
               </span>
             ) : isSinglePageDoc ? (
               <span>
-                Single Page Document · 1 Page · {s.colorMode === 'bw' ? 'B&W' : 'Colour'} · ×{s.copies}
+                Single Page Document · {s.paper === 'A3' ? 'A3 Large Sheet' : '1 Page'} · {s.colorMode === 'bw' ? 'B&W' : 'Colour'} · ×{s.copies}
               </span>
             ) : (
               <span>
-                {file.pages} pages · {
+                {file.pages} pages · {s.paper === 'A3' ? 'A3 Paper · ' : ''}{
                   s.colorMode === 'bw' ? 'B&W' :
                   s.colorMode === 'color' ? 'Colour' :
                   s.colorMode === 'custom' ? `Custom (${(s.colorPlan?.colorPages || []).length} col)` :
@@ -1553,33 +1598,62 @@ function FileCard({
                 </div>
               </div>
 
-              {/* Paper Type */}
+              {/* Paper Size & Finish */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8 }}>PAPER TYPE</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>PAPER SIZE &amp; FINISH</span>
+                  <span style={{ color: '#0f172a', fontWeight: 800 }}>
+                    {s.paper === 'A3' ? 'A3 Large Sheet (297×420 mm)' : s.paper === 'Legal' ? 'Glossy Photo Paper' : 'A4 Standard Paper'}
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                   <button
                     type="button"
                     onClick={() => upd({ paper: 'A4' })}
                     style={{
                       ...btn,
-                      padding: '9px 6px',
+                      padding: '8px 4px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 2,
                       ...sel((s.paper ?? 'A4') === 'A4')
                     }}
                   >
-                    <span style={{ fontSize: 12, fontWeight: 700 }}>A4 Standard Paper</span>
-                    <br /><span style={{ fontSize: 10, opacity: 0.75 }}>Clean 80 GSM paper</span>
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>A4 Standard</span>
+                    <span style={{ fontSize: 9, opacity: 0.75 }}>Clean 80 GSM</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => upd({ paper: 'A3' })}
+                    style={{
+                      ...btn,
+                      padding: '8px 4px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 2,
+                      ...sel(s.paper === 'A3')
+                    }}
+                  >
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>📐 A3 Large</span>
+                    <span style={{ fontSize: 9, opacity: 0.75 }}>2× A4 Poster</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => upd({ paper: 'Legal' } as any)}
                     style={{
                       ...btn,
-                      padding: '9px 6px',
+                      padding: '8px 4px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 2,
                       ...sel(s.paper === 'Legal')
                     }}
                   >
-                    <span style={{ fontSize: 12, fontWeight: 700 }}>Glossy Photo Paper</span>
-                    <br /><span style={{ fontSize: 10, opacity: 0.75 }}>Heavy photographic paper</span>
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>✨ Glossy</span>
+                    <span style={{ fontSize: 9, opacity: 0.75 }}>Photo Paper</span>
                   </button>
                 </div>
               </div>
@@ -1681,12 +1755,18 @@ function FileCard({
 
               {/* Paper Size */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8 }}>PAPER SIZE</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>PAPER SIZE</span>
+                  <span style={{ color: '#0f172a', fontWeight: 800 }}>
+                    {s.paper === 'A3' ? 'A3 (Large Format · 2× A4)' : s.paper === 'Legal' ? 'Legal (Long Sheet)' : 'A4 Standard'}
+                  </span>
+                </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {(['A4', 'A3', 'Legal'] as const).map(p => (
                     <button key={p} onClick={() => upd({ paper: p })}
-                      style={{ ...btn, flex: 1, padding: '9px 4px', ...sel((s.paper ?? 'A4') === p) }}>
-                      <b>{p}</b><br /><span style={{ fontSize: 10, opacity: 0.75 }}>{p === 'A4' ? 'Standard' : p === 'A3' ? '2× A4' : 'Long'}</span>
+                      style={{ ...btn, flex: 1, padding: '9px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel((s.paper ?? 'A4') === p) }}>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{p === 'A3' ? '📐 A3' : p}</span>
+                      <span style={{ fontSize: 9, opacity: 0.75 }}>{p === 'A4' ? 'Standard' : p === 'A3' ? '2× A4 (Large)' : 'Long'}</span>
                     </button>
                   ))}
                 </div>
@@ -1854,6 +1934,25 @@ function FileCard({
                     <span style={{ fontSize: 12, fontWeight: 700 }}>↻ Rotate 90°</span>
                     <span style={{ fontSize: 9, opacity: 0.75 }}>Turn page</span>
                   </button>
+                </div>
+              </div>
+
+              {/* Paper Size */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1.2, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>PAPER SIZE</span>
+                  <span style={{ color: '#0f172a', fontWeight: 800 }}>
+                    {s.paper === 'A3' ? 'A3 (Large Format · 2× A4)' : s.paper === 'Legal' ? 'Legal (Long Sheet)' : 'A4 Standard'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {(['A4', 'A3', 'Legal'] as const).map(p => (
+                    <button key={p} onClick={() => upd({ paper: p })}
+                      style={{ ...btn, flex: 1, padding: '9px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel((s.paper ?? 'A4') === p) }}>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{p === 'A3' ? '📐 A3' : p}</span>
+                      <span style={{ fontSize: 9, opacity: 0.75 }}>{p === 'A4' ? 'Standard' : p === 'A3' ? '2× A4 (Large)' : 'Long'}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 

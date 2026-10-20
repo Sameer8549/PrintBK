@@ -103,19 +103,20 @@ function priceOrder(basket, config = defaultConfig_1.defaultShopConfig, now = ne
         }
         const fileTotal = (bwPages * pricePerPageBW + colorPages * pricePerPageColor) * copies;
         const roundedTotal = Math.round(fileTotal * 100) / 100;
+        const paperLabel = paper === 'A3' ? ' A3' : paper === 'Legal' ? ' Legal' : '';
         let formulaStr = '';
         if (colorPages > 0 && bwPages > 0) {
-            formulaStr = `${colorPages * copies} colour pgs × ₹${pricePerPageColor.toFixed(2)} + ${bwPages * copies} B&W pgs × ₹${pricePerPageBW.toFixed(2)}`;
+            formulaStr = `${colorPages * copies} colour pgs × ₹${pricePerPageColor.toFixed(2)}${paperLabel} + ${bwPages * copies} B&W pgs × ₹${pricePerPageBW.toFixed(2)}${paperLabel}`;
         }
         else if (colorPages > 0) {
-            formulaStr = `${colorPages * copies} pgs × ₹${pricePerPageColor.toFixed(2)} (Colour) × ${copies} cop${copies > 1 ? 'ies' : 'y'}`;
+            formulaStr = `${colorPages * copies} pgs × ₹${pricePerPageColor.toFixed(2)}${paperLabel} (Colour) × ${copies} cop${copies > 1 ? 'ies' : 'y'}`;
         }
         else {
-            formulaStr = `${bwPages * copies} pgs × ₹${pricePerPageBW.toFixed(2)} (${sided === 'double' ? '2-sided' : '1-sided'}) × ${copies} cop${copies > 1 ? 'ies' : 'y'}`;
+            formulaStr = `${bwPages * copies} pgs × ₹${pricePerPageBW.toFixed(2)}${paperLabel} (${sided === 'double' ? '2-sided' : '1-sided'}) × ${copies} cop${copies > 1 ? 'ies' : 'y'}`;
         }
         const detailStr = (colorPages > 0 && bwPages > 0)
-            ? `${physicalPages} pages (${colorPages * copies} colour, ${bwPages * copies} B&W) · ${sided === 'double' ? 'Double-sided' : 'Single-sided'}${nUp > 1 ? ` · ${nUp}-up` : ''}`
-            : `${physicalPages} pages · ${colorPages > 0 ? 'Colour' : 'B&W'} · ${sided === 'double' ? 'Double-sided' : 'Single-sided'}${nUp > 1 ? ` · ${nUp}-up` : ''}`;
+            ? `${physicalPages} pages (${colorPages * copies} colour, ${bwPages * copies} B&W)${paperLabel ? ` · ${paper}` : ''} · ${sided === 'double' ? 'Double-sided' : 'Single-sided'}${nUp > 1 ? ` · ${nUp}-up` : ''}`
+            : `${physicalPages} pages${paperLabel ? ` · ${paper}` : ''} · ${colorPages > 0 ? 'Colour' : 'B&W'} · ${sided === 'double' ? 'Double-sided' : 'Single-sided'}${nUp > 1 ? ` · ${nUp}-up` : ''}`;
         lines.push({
             id: file.id,
             name: file.name,
@@ -127,7 +128,7 @@ function priceOrder(basket, config = defaultConfig_1.defaultShopConfig, now = ne
         });
         subtotal += roundedTotal;
         if (sided === 'single' && !s.booklet && physicalPages > 1) {
-            const duplexTotal = (bwPages * duplexRate + colorPages * colourRate) * copies;
+            const duplexTotal = (bwPages * (duplexRate * paperMult) + colorPages * (colourRate * paperMult)) * copies;
             const savings = roundedTotal - (Math.round(duplexTotal * 100) / 100);
             if (savings > potentialSavings) {
                 potentialSavings = savings;
