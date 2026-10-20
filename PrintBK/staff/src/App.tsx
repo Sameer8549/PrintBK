@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react"
 import QRCode from "qrcode"
 import {
   isStaffPaired,
+  getStaffToken,
   pairStaffDevice,
   collectCash,
   approvePrintItem,
@@ -55,6 +56,7 @@ export type Job = {
   printed_at?: string
   delete_after?: string
   files_deleted_at?: string
+  cloudId?: string
   payload?: any
 }
 
@@ -392,6 +394,7 @@ function mapLiveItemToJob(item: LiveItem): Job {
     printed_at: item.printed_at,
     delete_after: item.delete_after,
     files_deleted_at: item.files_deleted_at,
+    cloudId: (item as any).cloudId || pld.cloudId || (Array.isArray(pld.fileRefs) ? pld.fileRefs[0] : undefined),
     payload: pld,
   }
 }
@@ -1750,6 +1753,297 @@ function SheetPeek({ colour = false }: { colour?: boolean }) {
   )
 }
 
+function UltraHdPreviewPanel({ job, isColour, isPhoto }: { job: Job; isColour: boolean; isPhoto: boolean }) {
+  const [fileUrl, setFileUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [zoomLevel, setZoomLevel] = useState<number>(1)
+  const cloudId = job.cloudId || job.payload?.cloudId
+
+  useEffect(() => {
+    if (!cloudId || job.files_deleted_at) return
+    let active = true
+    const token = getStaffToken()
+
+    async function loadAsset() {
+      setLoading(true)
+      try {
+        const headers: Record<string, string> = {}
+        if (token) headers['X-Staff-Device-Token'] = token
+        const res = await fetch(`/server/api/files/${cloudId}`, { headers })
+        if (res.ok && active) {
+          const blob = await res.blob()
+          const url = URL.createObjectURL(blob)
+          setFileUrl(url)
+        }
+      } catch (err) {
+        console.warn('Failed to fetch file asset:', err)
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+    loadAsset()
+    return () => {
+      active = false
+    }
+  }, [cloudId, job.files_deleted_at])
+
+  const handleDownload = () => {
+    if (!fileUrl) return
+    const a = document.createElement('a')
+    a.href = fileUrl
+    const ext = isPhoto ? 'jpg' : (job.values[1]?.toLowerCase().endsWith('.pdf') ? 'pdf' : 'jpg')
+    a.download = `Order_${job.order}_${job.values[1] || 'Asset'}.${ext}`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
+  if (job.files_deleted_at) {
+    return (
+      <div className="sheet-peek" style={{ padding: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', textAlign: 'center', color: '#64748b' }}>
+        <Icon name="check" size={16} />
+        <div style={{ fontSize: '12px', fontWeight: 700, marginTop: '4px' }}>Files purged per privacy retention policy</div>
+        <small style={{ fontSize: '10px' }}>Deleted {formatTimeOnly(job.files_deleted_at)}</small>
+      </div>
+    )
+  }
+
+  return (
+    <div className="ultra-hd-preview-container" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {/* Thumbnail Surface / Status */}
+      <div style={{
+        position: 'relative',
+        width: '100%',
+        minHeight: '140px',
+        maxHeight: '220px',
+        background: '#0b1020',
+        borderRadius: '8px',
+        border: '1.5px solid #1e293b',
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+      }}>
+        {fileUrl ? (
+          <img
+            src={fileUrl}
+            alt="Asset Preview"
+            style={{
+              width: '100%',
+              height: '100%',
+              maxHeight: '220px',
+              objectFit: 'contain',
+              imageRendering: 'high-quality',
+              background: '#ffffff'
+            }}
+          />
+        ) : loading ? (
+          <div style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 600 }}>
+            Loading Ultra HD asset…
+          </div>
+        ) : (
+          <SheetPeek colour={isColour || isPhoto} />
+        )}
+
+        {/* Quality pill badge */}
+        <div style={{
+          position: 'absolute',
+          top: '8px',
+          right: '8px',
+          background: 'rgba(15, 23, 42, 0.85)',
+          backdropFilter: 'blur(4px)',
+          border: '1px solid #334155',
+          borderRadius: '4px',
+          padding: '2px 8px',
+          color: '#38bdf8',
+          fontSize: '10px',
+          fontWeight: 800,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px'
+        }}>
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#38bdf8' }} />
+          ULTRA HD 300 DPI
+        </div>
+      </div>
+
+      {/* Action buttons: Inspect Full Screen & Download Original */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+        <button
+          type="button"
+          onClick={() => setIsModalOpen(true)}
+          disabled={!fileUrl}
+          style={{
+            padding: '8px 12px',
+            borderRadius: '6px',
+            border: '1.5px solid #0f172a',
+            background: fileUrl ? '#0f172a' : '#f1f5f9',
+            color: fileUrl ? '#ffffff' : '#94a3b8',
+            fontSize: '12px',
+            fontWeight: 700,
+            cursor: fileUrl ? 'pointer' : 'not-allowed',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px'
+          }}
+        >
+          🔍 Full HD Preview
+        </button>
+
+        <button
+          type="button"
+          onClick={handleDownload}
+          disabled={!fileUrl}
+          style={{
+            padding: '8px 12px',
+            borderRadius: '6px',
+            border: '1.5px solid #cbd5e1',
+            background: fileUrl ? '#ffffff' : '#f1f5f9',
+            color: fileUrl ? '#0f172a' : '#94a3b8',
+            fontSize: '12px',
+            fontWeight: 700,
+            cursor: fileUrl ? 'pointer' : 'not-allowed',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px'
+          }}
+        >
+          ⬇ Download Original
+        </button>
+      </div>
+
+      {/* Full Ultra HD Inspection Modal */}
+      {isModalOpen && fileUrl && (
+        <div
+          className="ultra-hd-modal-scrim"
+          onClick={() => setIsModalOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(11, 16, 32, 0.92)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '16px',
+            boxSizing: 'border-box'
+          }}
+        >
+          {/* Top modal bar */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '8px 16px',
+              background: '#0f172a',
+              borderRadius: '8px',
+              border: '1px solid #1e293b',
+              marginBottom: '12px',
+              color: '#ffffff'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <strong>#{job.order} · Ultra HD Inspection</strong>
+              <span style={{ fontSize: '11px', background: '#0284c7', padding: '2px 8px', borderRadius: '4px', fontWeight: 800 }}>
+                300 DPI Original Asset
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setZoomLevel((z) => (z === 1 ? 1.5 : z === 1.5 ? 2 : 1))}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid #334155',
+                  background: '#1e293b',
+                  color: '#ffffff',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Zoom: {zoomLevel * 100}%
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDownload}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid #334155',
+                  background: '#1e293b',
+                  color: '#ffffff',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                ⬇ Download
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid #ef4444',
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  fontSize: '12px',
+                  fontWeight: 900,
+                  cursor: 'pointer'
+                }}
+              >
+                ✕ Close
+              </button>
+            </div>
+          </div>
+
+          {/* Modal viewport */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              flex: 1,
+              overflow: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#070b14',
+              borderRadius: '8px',
+              border: '1px solid #1e293b',
+              padding: '16px'
+            }}
+          >
+            <img
+              src={fileUrl}
+              alt="Ultra HD Asset"
+              style={{
+                width: zoomLevel > 1 ? `${zoomLevel * 100}%` : 'auto',
+                maxWidth: zoomLevel === 1 ? '100%' : undefined,
+                maxHeight: zoomLevel === 1 ? '85vh' : undefined,
+                objectFit: 'contain',
+                imageRendering: 'high-quality',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                borderRadius: '4px'
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function OrderDetailPanel({
   job,
   onClose,
@@ -1830,8 +2124,8 @@ function OrderDetailPanel({
         </section>
 
         <section className="detail-block">
-          <div className="detail-heading"><span>PEEK</span><b>EXACT SHEETS · READ ONLY</b></div>
-          <SheetPeek colour={isColour || isPhoto} />
+          <div className="detail-heading"><span>PREVIEW</span><b>ULTRA HD PRINT ASSET · 300 DPI</b></div>
+          <UltraHdPreviewPanel job={job} isColour={isColour} isPhoto={isPhoto} />
         </section>
 
         <section className="price-receipt">

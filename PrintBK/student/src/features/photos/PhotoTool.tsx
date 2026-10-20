@@ -4,6 +4,7 @@ import { Screen, Sheet } from '../../lib/types';
 import { notify } from '../../lib/store';
 import { useBasket, fileFromRaw, rawFileMap, type PrintFile } from '../../store/basket';
 import { api } from '../../services/api';
+import { generateUltraHdPhotoSheet } from '../../lib/photoSheet';
 
 function PhotoTool({
   go,
@@ -15,6 +16,8 @@ function PhotoTool({
   const addService = useBasket(s => s.addService);
   const addFile = useBasket(s => s.addFile);
   const rawFileRef = React.useRef<File | null>(null);
+  const secondaryFileRef = React.useRef<File | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [layout, setLayout] = useState<string>(initialLayout || "Passport 8-up");
   const [colorMode, setColorMode] = useState<'colour' | 'bw'>('colour');
   const [cloudId, setCloudId] = useState<string | null>(null);
@@ -139,7 +142,11 @@ function PhotoTool({
 
   const importPhoto = (file?: File) => {
     if (!file) return;
-    rawFileRef.current = file;
+    if (isCardLayout && selectedSlot === 1) {
+      secondaryFileRef.current = file;
+    } else {
+      rawFileRef.current = file;
+    }
     const url = URL.createObjectURL(file);
     if (isCardLayout) {
       setCardPhotos(photos => photos.map((photo, index) => index === selectedSlot ? url : photo));
@@ -167,7 +174,10 @@ function PhotoTool({
   const imageStyle: React.CSSProperties = {
     objectFit: fit === "Fit" ? "contain" : fit === "Fill" ? "cover" : "fill",
     transform: `translate(${photoOffset.x}px, ${photoOffset.y}px) scale(${1 + zoom / 180}) rotate(${rotation}deg)`,
-    filter: colorMode === 'bw' ? 'grayscale(100%) contrast(1.12)' : 'none',
+    filter: colorMode === 'bw' ? 'grayscale(100%) contrast(1.15)' : 'none',
+    imageRendering: 'high-quality',
+    WebkitBackfaceVisibility: 'hidden',
+    backfaceVisibility: 'hidden',
     transition: 'filter 0.2s ease, transform 0.12s ease',
   };
 
@@ -425,68 +435,100 @@ function PhotoTool({
         <button
           type="button"
           className="primary"
-          disabled={isCardLayout ? cardPhotos.some(photo => !photo) : !photoSrc}
-          onClick={() => {
-            const fileId = crypto.randomUUID();
-            const pFile: PrintFile = {
-              id: fileId,
-              name: `Photo Sheet — ${config.label} (${colorMode === 'bw' ? 'B&W' : 'Colour'})`,
-              size: rawFileRef.current?.size || 2048,
-              type: rawFileRef.current?.name.split('.').pop()?.toLowerCase() || 'jpg',
-              pages: 1,
-              colorPages: colorMode === 'bw' ? 0 : 1,
-              colorDetection: 'ready',
-              settings: {
-                copies: 1,
-                colorMode: colorMode === 'bw' ? 'bw' : 'colour',
-                paper: 'A4',
-                sided: 'single',
-                orientation: 'auto',
-                nUp: 1,
-                layout: 'standard',
-                pageRotations: {},
-                booklet: false,
-                range: 'all',
-              },
-            };
-            if (cloudId) {
-              (pFile as any).cloudId = cloudId;
-            }
-            (pFile as any).isPhotoSheet = true;
-            (pFile as any).photoLayout = layout;
-            if (photoSrc) (pFile as any).previewUrl = photoSrc;
+          disabled={isGenerating || (isCardLayout ? cardPhotos.some(photo => !photo) : !photoSrc)}
+          onClick={async () => {
+            if (isGenerating) return;
+            setIsGenerating(true);
+            try {
+              const fileId = crypto.randomUUID();
+              let targetFile: File | null = rawFileRef.current;
+              let finalPreviewUrl: string = photoSrc;
 
-            if (rawFileRef.current) {
-              rawFileMap.set(fileId, rawFileRef.current);
-            }
-
-            useBasket.getState().addFile(pFile);
-
-            // If background upload is still in-flight, bind cloudId once finished
-            if (!cloudId && uploadPromiseRef.current) {
-              uploadPromiseRef.current.then(res => {
-                if (res?.cloudId) {
-                  useBasket.getState().updateFile(fileId, { cloudId: res.cloudId } as any);
+              if (rawFileRef.current) {
+                notify("Generating Ultra HD 300 DPI photo sheet…");
+                try {
+                  const hdResult = await generateUltraHdPhotoSheet({
+                    primaryFile: rawFileRef.current,
+                    secondaryFile: secondaryFileRef.current,
+                    layout,
+                    colorMode,
+                    zoom,
+                    rotation,
+                    photoOffset,
+                    fit,
+                    customRows,
+                    customColumns,
+                    slotScale,
+                    filledAll
+                  });
+                  targetFile = hdResult.file;
+                  finalPreviewUrl = hdResult.previewUrl;
+                } catch (genErr) {
+                  console.warn("Ultra HD generation error, falling back to original:", genErr);
                 }
-              }).catch(() => {});
+              }
+
+              const pFile: PrintFile = {
+                id: fileId,
+                name: `Photo Sheet — ${config.label} (${colorMode === 'bw' ? 'B&W' : 'Colour'})`,
+                size: targetFile?.size || 2048,
+                type: 'jpg',
+                pages: 1,
+                colorPages: colorMode === 'bw' ? 0 : 1,
+                colorDetection: 'ready',
+                settings: {
+                  copies: 1,
+                  colorMode: colorMode === 'bw' ? 'bw' : 'colour',
+                  paper: 'A4',
+                  sided: 'single',
+                  orientation: 'auto',
+                  nUp: 1,
+                  layout: 'standard',
+                  pageRotations: {},
+                  booklet: false,
+                  range: 'all',
+                },
+              };
+
+              (pFile as any).isPhotoSheet = true;
+              (pFile as any).photoLayout = layout;
+              if (finalPreviewUrl) (pFile as any).previewUrl = finalPreviewUrl;
+
+              if (targetFile) {
+                rawFileMap.set(fileId, targetFile);
+                try {
+                  const uploadRes = await api.uploadFile(targetFile);
+                  if (uploadRes?.cloudId) {
+                    (pFile as any).cloudId = uploadRes.cloudId;
+                  }
+                } catch (err) {
+                  console.warn("Ultra HD sheet upload warning:", err);
+                }
+              }
+
+              useBasket.getState().addFile(pFile);
+
+              addService({
+                id: crypto.randomUUID(),
+                type: 'addon',
+                name: `Photo print — ${config.label}`,
+                detail: `A4 · ${config.slots} slot${config.slots > 1 ? 's' : ''} · ${colorMode === 'bw' ? 'B&W' : 'Colour'}`,
+                price: finalPrice,
+                qty: 1,
+                attachTo: fileId,
+                attachedToFileId: fileId,
+              });
+
+              notify(`${config.label} (${colorMode === 'bw' ? 'B&W' : 'Colour'}) added to basket`);
+              go("basket");
+            } finally {
+              setIsGenerating(false);
             }
-
-            addService({
-              id: crypto.randomUUID(),
-              type: 'addon',
-              name: `Photo print — ${config.label}`,
-              detail: `A4 · ${config.slots} slot${config.slots > 1 ? 's' : ''} · ${colorMode === 'bw' ? 'B&W' : 'Colour'}`,
-              price: finalPrice,
-              qty: 1,
-              attachTo: fileId,
-              attachedToFileId: fileId,
-            });
-
-            notify(`${config.label} (${colorMode === 'bw' ? 'B&W' : 'Colour'}) added to basket`);
-            go("basket");
           }}
         >
-          {isCardLayout && cardPhotos.some(photo => !photo) ? "Add front + back" : "Add photo sheet"}
+          {isGenerating
+            ? "Generating Ultra HD…"
+            : (isCardLayout && cardPhotos.some(photo => !photo) ? "Add front + back" : "Add photo sheet")}
         </button>
       </div>
     </main>

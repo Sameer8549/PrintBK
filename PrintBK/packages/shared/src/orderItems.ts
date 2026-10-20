@@ -115,6 +115,7 @@ export function basketToOrderItems(basket: Basket, cfg?: ShopConfig): OrderItem[
         nUp,
         duplexEdge,
         fileId: file.id,
+        cloudId: (file as any).cloudId,
         originalFilename: file.name,
         layout,
         colorPlan: details.colorPlan,
@@ -158,6 +159,7 @@ export function basketToOrderItems(basket: Basket, cfg?: ShopConfig): OrderItem[
         nUp,
         duplexEdge,
         fileId: file.id,
+        cloudId: (file as any).cloudId,
         originalFilename: file.name,
         layout
       };
@@ -204,11 +206,15 @@ export function basketToOrderItems(basket: Basket, cfg?: ShopConfig): OrderItem[
       const sizeMatch = sDetail.match(/(passport|stamp|4x6|5x7|a4)/i);
       const size = (sizeMatch ? sizeMatch[1].toLowerCase() : 'passport') as any;
       const paperType = sDetail.includes('matte') ? 'matte' : 'glossy';
+      const attachedFileId = s.attachTo || s.attachedToFileId;
+      const attachedFile = (basket.files || []).find(f => f.id === attachedFileId);
+      const photoCloudId = s.cloudId || (attachedFile as any)?.cloudId;
       specs = {
         size,
         paperType,
         copies: qty,
-        fileId: s.attachTo || s.attachedToFileId
+        fileId: attachedFileId,
+        cloudId: photoCloudId
       } satisfies PhotoSpecs;
       printInstructions = `Photo print (${size}), ${qty} ${qty > 1 ? 'copies' : 'copy'}, ${paperType}`;
     } else if (sName.includes('binding') || sId.startsWith('binding') || sId === 'binding') {

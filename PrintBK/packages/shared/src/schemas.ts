@@ -142,6 +142,7 @@ export const DocumentBwSpecsSchema = z.object({
   nUp: z.number().default(1),
   duplexEdge: z.enum(['long', 'short']).optional(),
   fileId: z.string(),
+  cloudId: z.string().optional(),
   originalFilename: z.string(),
   layout: z.enum(['standard', 'handout', 'booklet']).default('standard')
 });
@@ -158,7 +159,8 @@ export const PhotoSpecsSchema = z.object({
   size: z.enum(['passport', 'stamp', '4x6', '5x7', 'A4']),
   paperType: z.enum(['glossy', 'matte']).default('glossy'),
   copies: z.number().default(1),
-  fileId: z.string().optional()
+  fileId: z.string().optional(),
+  cloudId: z.string().optional()
 });
 export type PhotoSpecs = z.infer<typeof PhotoSpecsSchema>;
 

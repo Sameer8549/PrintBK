@@ -50,15 +50,20 @@ export function DocumentPageSlot({
   const raw = rawFileMap.get(file.id);
   const fileName = (raw?.name || file.name || '').toLowerCase();
   const isPdf = fileName.endsWith('.pdf');
-  const isImage = raw?.type?.startsWith('image/') || /\.(jpe?g|png|webp|gif)$/i.test(fileName);
+  const isImage = raw?.type?.startsWith('image/') || /\.(jpe?g|png|webp|gif)$/i.test(fileName) || (file as any).isPhotoSheet;
   const isPpt = fileName.endsWith('.pptx') || fileName.endsWith('.ppt');
   const isDoc = fileName.endsWith('.docx') || fileName.endsWith('.doc');
 
-  const [imageUrl, setImageUrl] = useState<string | null>(() => imageUrlCache.get(file.id) || null);
+  const [imageUrl, setImageUrl] = useState<string | null>(() => (file as any).previewUrl || imageUrlCache.get(file.id) || null);
   const [officeData, setOfficeData] = useState(() => officeContentCache.get(file.id) || null);
 
-  // 1. Handle Images
+  // 1. Handle Images and Photo Sheets
   useEffect(() => {
+    if ((file as any).isPhotoSheet && (file as any).previewUrl) {
+      setImageUrl((file as any).previewUrl);
+      setRendered(true);
+      return;
+    }
     if (!raw || !isImage) return;
     if (imageUrlCache.has(file.id)) {
       setImageUrl(imageUrlCache.get(file.id)!);
@@ -69,7 +74,7 @@ export function DocumentPageSlot({
     imageUrlCache.set(file.id, url);
     setImageUrl(url);
     setRendered(true);
-  }, [file.id, raw, isImage]);
+  }, [file.id, raw, isImage, (file as any).isPhotoSheet, (file as any).previewUrl]);
 
   // 2. Handle PDFs
   useEffect(() => {
@@ -104,13 +109,15 @@ export function DocumentPageSlot({
 
         const canvas = canvasRef.current;
         const baseVp = pageObj.getViewport({ scale: 1.0 });
-        // Target container width for crisp rendering without excess memory
-        const scale = Math.min(360 / baseVp.width, 480 / baseVp.height, 1.8);
-        const viewport = pageObj.getViewport({ scale: Math.max(scale, 0.6) });
+        // Target high-DPI Ultra HD preview scale (2.5x to 3.5x based on devicePixelRatio)
+        const dpr = typeof window !== 'undefined' ? Math.max(window.devicePixelRatio || 1, 2) : 2;
+        const targetRenderWidth = Math.max(baseVp.width * dpr, 1400);
+        const scale = targetRenderWidth / baseVp.width;
+        const viewport = pageObj.getViewport({ scale });
 
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        const ctx = canvas.getContext('2d');
+        canvas.width = Math.round(viewport.width);
+        canvas.height = Math.round(viewport.height);
+        const ctx = canvas.getContext('2d', { alpha: false });
         if (!ctx) return;
 
         renderTask = pageObj.render({ canvasContext: ctx, viewport });
@@ -272,9 +279,10 @@ export function DocumentPageSlot({
             maxWidth: '100%',
             maxHeight: '100%',
             width: '100%',
-            height: 'auto',
+            height: '100%',
             display: rendered ? 'block' : 'none',
             objectFit: 'contain',
+            imageRendering: 'auto',
             filter: filterStyle,
             transform: rotTransform,
             transition: 'transform 0.2s ease'
@@ -291,9 +299,10 @@ export function DocumentPageSlot({
             maxWidth: '100%',
             maxHeight: '100%',
             width: '100%',
-            height: 'auto',
+            height: '100%',
             display: 'block',
             objectFit: 'contain',
+            imageRendering: 'high-quality',
             filter: filterStyle,
             transform: rotTransform,
             transition: 'transform 0.2s ease'

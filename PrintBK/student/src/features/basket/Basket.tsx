@@ -109,7 +109,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
   const isPdf = fileName.endsWith('.pdf');
   const isPpt = fileName.endsWith('.pptx') || fileName.endsWith('.ppt') || fileName.endsWith('.odp');
   const isDoc = fileName.endsWith('.docx') || fileName.endsWith('.doc') || fileName.endsWith('.odt');
-  const isImage = Boolean(raw?.type?.startsWith('image/')) || /\.(jpe?g|png|webp|gif)$/i.test(fileName);
+  const isImage = Boolean(raw?.type?.startsWith('image/')) || /\.(jpe?g|png|webp|gif)$/i.test(fileName) || Boolean((file as any).isPhotoSheet);
 
   // 1. Check Image DPI for printing quality
   useEffect(() => {
@@ -192,11 +192,13 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const viewport = pageObj.getViewport({ scale: 2.0 });
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
+        const dpr = typeof window !== 'undefined' ? Math.max(window.devicePixelRatio || 1, 2) : 2;
+        const scale = Math.max(2.0, dpr * 1.25);
+        const viewport = pageObj.getViewport({ scale });
+        canvas.height = Math.round(viewport.height);
+        canvas.width = Math.round(viewport.width);
 
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { alpha: false });
         if (!ctx) return;
 
         renderTask = pageObj.render({ canvasContext: ctx, viewport });
@@ -529,13 +531,17 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
 
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   useEffect(() => {
+    if ((file as any).isPhotoSheet && (file as any).previewUrl) {
+      setPreviewImageUrl((file as any).previewUrl);
+      return;
+    }
     if (!raw || !isImage) return;
     const url = URL.createObjectURL(raw);
     setPreviewImageUrl(url);
     return () => {
       URL.revokeObjectURL(url);
     };
-  }, [raw, isImage]);
+  }, [raw, isImage, (file as any).isPhotoSheet, (file as any).previewUrl]);
 
   // Detect mixed slide sizes
   const portraitPages = (file.pageMetrics || []).filter(m => {
@@ -909,6 +915,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
                   height: 'auto',
                   display: 'block',
                   objectFit: 'contain',
+                  imageRendering: 'auto',
                   filter: filterStyle,
                   transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
                   transition: 'transform 0.2s ease'
@@ -928,6 +935,9 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
                   height: 'auto',
                   display: 'block',
                   objectFit: 'contain',
+                  imageRendering: 'high-quality',
+                  WebkitBackfaceVisibility: 'hidden',
+                  backfaceVisibility: 'hidden',
                   filter: filterStyle,
                   transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
                   transition: 'transform 0.2s ease'

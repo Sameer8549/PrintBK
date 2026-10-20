@@ -419,6 +419,14 @@ router.get('/live', async (req, res) => {
       if (orderMemItems.length > 0) {
         for (const it of orderMemItems) {
           const specObj = typeof it.payload === 'string' ? JSON.parse(it.payload || '{}') : (it.payload || {});
+          let fileRefsArr = [];
+          try {
+            fileRefsArr = typeof it.file_refs === 'string' ? JSON.parse(it.file_refs || '[]') : (it.file_refs || []);
+          } catch (_) {}
+          const itemCloudId = specObj.cloudId || (fileRefsArr.length > 0 ? fileRefsArr[0] : undefined);
+          if (itemCloudId) {
+            specObj.cloudId = itemCloudId;
+          }
           const matchingTyped = (b.typedItems || []).find(t => t.id === it.id);
           const printInstructions = it.printInstructions || it.print_instructions || matchingTyped?.printInstructions || specObj.printInstructions || '';
           items.push({
@@ -429,6 +437,8 @@ router.get('/live', async (req, res) => {
             order_number: orderObj.orderNumber,
             pickup_code: orderObj.pickupCode,
             pickupCode: orderObj.pickupCode,
+            cloudId: itemCloudId,
+            cloud_id: itemCloudId,
             kind: it.kind,
             type: it.kind,
             title: it.kind.includes('colour') ? 'Colour Document' : (it.kind.includes('photo') ? 'Photo Print' : (it.kind.includes('bw') ? 'B&W Document' : (it.kind.includes('binding') ? 'Spiral binding' : (it.kind.includes('lamination') ? 'Lamination' : 'Service Document')))),
@@ -449,6 +459,12 @@ router.get('/live', async (req, res) => {
         // Fallback to typedItems in basket
         const typed = b.typedItems || [];
         for (const item of typed) {
+          const specObj = item.specifications || {};
+          const matchingFile = (b.files || []).find(f => f.id === specObj.fileId);
+          const itemCloudId = matchingFile?.cloudId || specObj.cloudId;
+          if (itemCloudId) {
+            specObj.cloudId = itemCloudId;
+          }
           items.push({
             id: item.id || `${o.id}_${item.type || 'doc'}`,
             orderId: o.id,
@@ -457,6 +473,8 @@ router.get('/live', async (req, res) => {
             order_number: orderObj.orderNumber,
             pickup_code: orderObj.pickupCode,
             pickupCode: orderObj.pickupCode,
+            cloudId: itemCloudId,
+            cloud_id: itemCloudId,
             kind: item.type,
             type: item.type,
             title: item.title,
@@ -467,8 +485,8 @@ router.get('/live', async (req, res) => {
             pages_done: 0,
             pages_total: 1,
             created_at: new Date(orderObj.createdAt * 1000).toISOString(),
-            specifications: item.specifications || {},
-            payload: item.specifications || {},
+            specifications: specObj,
+            payload: specObj,
             printInstructions: item.printInstructions || ''
           });
         }

@@ -130,6 +130,7 @@ exports.DocumentBwSpecsSchema = zod_1.z.object({
     nUp: zod_1.z.number().default(1),
     duplexEdge: zod_1.z.enum(['long', 'short']).optional(),
     fileId: zod_1.z.string(),
+    cloudId: zod_1.z.string().optional(),
     originalFilename: zod_1.z.string(),
     layout: zod_1.z.enum(['standard', 'handout', 'booklet']).default('standard')
 });
@@ -142,7 +143,8 @@ exports.PhotoSpecsSchema = zod_1.z.object({
     size: zod_1.z.enum(['passport', 'stamp', '4x6', '5x7', 'A4']),
     paperType: zod_1.z.enum(['glossy', 'matte']).default('glossy'),
     copies: zod_1.z.number().default(1),
-    fileId: zod_1.z.string().optional()
+    fileId: zod_1.z.string().optional(),
+    cloudId: zod_1.z.string().optional()
 });
 exports.BindingSpecsSchema = zod_1.z.object({
     kind: zod_1.z.enum(['soft', 'spiral', 'hard']),

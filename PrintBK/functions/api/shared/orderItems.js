@@ -101,6 +101,7 @@ function basketToOrderItems(basket, cfg) {
                 nUp,
                 duplexEdge,
                 fileId: file.id,
+                cloudId: file.cloudId,
                 originalFilename: file.name,
                 layout,
                 colorPlan: details.colorPlan,
@@ -142,6 +143,7 @@ function basketToOrderItems(basket, cfg) {
                 nUp,
                 duplexEdge,
                 fileId: file.id,
+                cloudId: file.cloudId,
                 originalFilename: file.name,
                 layout
             };
@@ -182,11 +184,15 @@ function basketToOrderItems(basket, cfg) {
             const sizeMatch = sDetail.match(/(passport|stamp|4x6|5x7|a4)/i);
             const size = (sizeMatch ? sizeMatch[1].toLowerCase() : 'passport');
             const paperType = sDetail.includes('matte') ? 'matte' : 'glossy';
+            const attachedFileId = s.attachTo || s.attachedToFileId;
+            const attachedFile = (basket.files || []).find(f => f.id === attachedFileId);
+            const photoCloudId = s.cloudId || attachedFile?.cloudId;
             specs = {
                 size,
                 paperType,
                 copies: qty,
-                fileId: s.attachTo || s.attachedToFileId
+                fileId: attachedFileId,
+                cloudId: photoCloudId
             };
             printInstructions = `Photo print (${size}), ${qty} ${qty > 1 ? 'copies' : 'copy'}, ${paperType}`;
         }

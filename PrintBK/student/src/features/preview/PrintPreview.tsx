@@ -23,6 +23,7 @@ function PrintPreview({
 
   const [selectedFileIdx, setSelectedFileIdx] = useState(initialIndex);
   const [currentSheetIdx, setCurrentSheetIdx] = useState(0);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
 
   // Keep selectedFileIdx valid if files change
   useEffect(() => {
@@ -126,24 +127,47 @@ function PrintPreview({
         )}
 
         {/* Header Label: What you see is what prints */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, fontSize: 13 }}>
-          <span style={{ color: '#64748b', fontWeight: 600 }}>What you see is what prints</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, fontSize: 13 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ color: '#64748b', fontWeight: 600 }}>What you see is what prints</span>
+            <span style={{ fontSize: 10, fontWeight: 800, background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: 4 }}>
+              Ultra HD 300 DPI
+            </span>
+          </div>
           <b style={{ color: '#0f172a', fontWeight: 800 }}>Sheet {currentSheetIdx + 1} of {totalSheets}</b>
         </div>
 
         {/* Orientation & Duplex Banner */}
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
-          <span style={{ background: '#e2e8f0', color: '#334155', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
-            {layoutResult.paper} ({currentSheet?.orientation})
-          </span>
-          <span style={{ background: '#dbeafe', color: '#1d4ed8', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
-            Flip on {layoutResult.duplexEdge}-edge
-          </span>
-          {activeFile.settings.sided === 'double' && (
-            <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
-              {currentSheet?.side === 'front' ? 'Side A (Front)' : 'Side B (Back)'}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ background: '#e2e8f0', color: '#334155', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+              {layoutResult.paper} ({currentSheet?.orientation})
             </span>
-          )}
+            <span style={{ background: '#dbeafe', color: '#1d4ed8', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+              Flip on {layoutResult.duplexEdge}-edge
+            </span>
+            {activeFile.settings.sided === 'double' && (
+              <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                {currentSheet?.side === 'front' ? 'Side A (Front)' : 'Side B (Back)'}
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setZoomLevel(z => z === 1 ? 1.5 : z === 1.5 ? 2 : 1)}
+            style={{
+              padding: '3px 10px',
+              borderRadius: 6,
+              border: '1px solid #cbd5e1',
+              background: zoomLevel > 1 ? '#0f172a' : '#fff',
+              color: zoomLevel > 1 ? '#fff' : '#0f172a',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            🔍 {zoomLevel > 1 ? `${zoomLevel * 100}% Fit` : 'Zoom'}
+          </button>
         </div>
 
         {/* Auto Notes (e.g. Mixed slide notice) */}
@@ -155,16 +179,25 @@ function PrintPreview({
 
         {/* ── Realistic Sheet Surface with Imposed Slots ── */}
         <div style={{
-          position: 'relative',
-          width: '100%',
-          aspectRatio: `${sheetAspect}`,
-          background: '#ffffff',
+          overflowX: zoomLevel > 1 ? 'auto' : 'visible',
+          overflowY: zoomLevel > 1 ? 'auto' : 'visible',
+          maxHeight: zoomLevel > 1 ? '60vh' : undefined,
           borderRadius: 8,
-          border: '2px solid #0f172a',
-          boxShadow: '0 8px 24px rgba(15,23,42,0.12), 4px 4px 0 #cbd5e1',
-          overflow: 'hidden',
-          boxSizing: 'border-box'
+          padding: zoomLevel > 1 ? 4 : 0
         }}>
+          <div style={{
+            position: 'relative',
+            width: zoomLevel > 1 ? `${zoomLevel * 100}%` : '100%',
+            minWidth: zoomLevel > 1 ? `${zoomLevel * 100}%` : undefined,
+            aspectRatio: `${sheetAspect}`,
+            background: '#ffffff',
+            borderRadius: 8,
+            border: '2px solid #0f172a',
+            boxShadow: '0 8px 24px rgba(15,23,42,0.12), 4px 4px 0 #cbd5e1',
+            overflow: 'hidden',
+            boxSizing: 'border-box',
+            transition: 'width 0.15s ease'
+          }}>
           {/* Booklet Spine / Fold line */}
           {(activeFile.settings.layout === 'booklet' || activeFile.settings.booklet) && (
             <div style={{
@@ -296,6 +329,7 @@ function PrintPreview({
               </div>
             );
           })}
+          </div>
         </div>
 
         {/* ── Pager Controls ── */}
