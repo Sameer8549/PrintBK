@@ -29,13 +29,11 @@ export class RazorpayProvider implements PaymentProvider {
         currency: 'INR',
         name: 'PrintBK',
         description: `Order ${orderId}`,
-        order_id: '', // To be generated via backend in a real scenario
+        order_id: '',
         handler: function (response: any) {
           resolve({ success: true, transactionId: response.razorpay_payment_id });
         },
-        prefill: {
-          contact: '9999999999' // mock
-        },
+        prefill: {},
         theme: {
           color: '#000000'
         }
