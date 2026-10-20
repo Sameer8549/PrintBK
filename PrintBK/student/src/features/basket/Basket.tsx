@@ -626,7 +626,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
     }}>
       {/* Top Preview Status */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', fontSize: 11, fontWeight: 700, color: '#64748b' }}>
-        <span>DOCUMENT PREVIEW</span>
+        <span>{isImage ? 'PHOTO PRINT PREVIEW' : 'DOCUMENT PREVIEW'}</span>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{
             background: isBW ? '#e2e8f0' : '#dbeafe',
@@ -648,7 +648,19 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
           }}>
             {effectiveIsLandscape ? 'Landscape' : 'Portrait'}
           </span>
-          {selectedLayout !== 'standard' && (
+          {isImage && (
+            <span style={{
+              background: (s.imageFit === 'fill' || (s as any).fit === 'fill') ? '#fef3c7' : '#ecfdf5',
+              color: (s.imageFit === 'fill' || (s as any).fit === 'fill') ? '#b45309' : '#047857',
+              padding: '2px 8px',
+              borderRadius: 6,
+              fontSize: 10,
+              fontWeight: 800
+            }}>
+              {(s.imageFit === 'fill' || (s as any).fit === 'fill') ? 'Full Sheet' : 'Fitted to Paper'}
+            </span>
+          )}
+          {!isImage && selectedLayout !== 'standard' && (
             <span style={{
               background: '#fef3c7',
               color: '#b45309',
@@ -660,7 +672,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
               {selectedLayout === 'handout' ? 'Handout' : 'Booklet'}
             </span>
           )}
-          {(s.nUp ?? 1) > 1 && (
+          {!isImage && (s.nUp ?? 1) > 1 && (
             <span style={{
               background: '#e0f2fe',
               color: '#0369a1',
@@ -672,7 +684,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
               {s.nUp}-Up
             </span>
           )}
-          {isDouble && (
+          {!isImage && isDouble && (
             <span style={{ background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 800 }}>
               Double-Sided
             </span>
@@ -928,19 +940,27 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
               <img
                 src={previewImageUrl}
                 alt="Document preview"
+                onLoad={(e) => {
+                  const img = e.currentTarget;
+                  if (img.naturalWidth && img.naturalHeight && (!file.pageMetrics || !file.pageMetrics[0])) {
+                    useBasket.getState().updateFile(file.id, {
+                      pageMetrics: [{ pageNumber: 1, width: img.naturalWidth, height: img.naturalHeight, rotation: 0 }]
+                    });
+                  }
+                }}
                 style={{
                   maxWidth: '100%',
                   maxHeight: '100%',
-                  width: '100%',
-                  height: 'auto',
+                  width: (s.imageFit === 'fill' || (s as any).fit === 'fill') ? '100%' : '100%',
+                  height: (s.imageFit === 'fill' || (s as any).fit === 'fill') ? '100%' : 'auto',
                   display: 'block',
-                  objectFit: 'contain',
+                  objectFit: (s.imageFit === 'fill' || (s as any).fit === 'fill') ? 'cover' : 'contain',
                   imageRendering: 'high-quality',
                   WebkitBackfaceVisibility: 'hidden',
                   backfaceVisibility: 'hidden',
                   filter: filterStyle,
                   transform: currentRot ? `rotate(${currentRot}deg)` : undefined,
-                  transition: 'transform 0.2s ease'
+                  transition: 'filter 0.2s ease, transform 0.2s ease, object-fit 0.2s ease'
                 }}
               />
             )}
@@ -1169,12 +1189,12 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
           style={{
             width: '100%',
             maxWidth: 320,
-            padding: '10px 14px',
+            padding: '11px 14px',
             borderRadius: 10,
             border: '1.5px solid #0f172a',
             background: '#0f172a',
             color: '#fff',
-            fontWeight: 700,
+            fontWeight: 800,
             fontSize: 13,
             cursor: 'pointer',
             display: 'flex',
@@ -1184,7 +1204,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
             boxShadow: '0 2px 8px rgba(15, 23, 42, 0.15)'
           }}
         >
-          Full Sheet Print Preview
+          <span>🔍 Full Sheet Print Preview (300 DPI Ultra HD)</span>
         </button>
       )}
 
@@ -1289,20 +1309,40 @@ function FileCard({
     minHeight: 36
   };
 
+  const fileName = (raw?.name || file.name || '').toLowerCase();
+  const isPhotoSheet = Boolean((file as any).isPhotoSheet);
+  const isImage = Boolean(raw?.type?.startsWith('image/')) || /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(fileName) || isPhotoSheet;
+  const isSinglePageDoc = !isImage && (file.pages === 1);
+  const isMultiPageDoc = !isImage && (file.pages > 1);
+
   return (
     <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #e2e8f0', marginBottom: 10, position: 'relative', overflow: open ? 'visible' : 'hidden' }}>
       {/* ── Header row: Clean single Edit toggle, formula, savings chip ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px' }}>
-        <div style={{ display: 'grid', placeItems: 'center', marginTop: 2 }}><Icon name="file" size={22} /></div>
+        <div style={{ display: 'grid', placeItems: 'center', marginTop: 2 }}>
+          <Icon name={isImage ? "camera" : "file"} size={22} />
+        </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0f172a' }}>{file.name}</div>
           <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
-            {file.pages} page{file.pages !== 1 ? 's' : ''} · {
-              s.colorMode === 'bw' ? 'B&W' :
-              s.colorMode === 'color' ? 'Colour' :
-              s.colorMode === 'custom' ? `Custom (${(s.colorPlan?.colorPages || []).length} col)` :
-              'Auto'
-            } · {s.sided === 'double' ? '2-sided' : '1-sided'} · ×{s.copies}
+            {isImage ? (
+              <span>
+                Photo Print · 1 Sheet · {s.colorMode === 'bw' ? 'B&W' : 'Colour'} · {(s.imageFit === 'fill' || (s as any).fit === 'fill') ? 'Full Sheet' : 'Fitted to Paper'} · ×{s.copies}
+              </span>
+            ) : isSinglePageDoc ? (
+              <span>
+                Single Page Document · 1 Page · {s.colorMode === 'bw' ? 'B&W' : 'Colour'} · ×{s.copies}
+              </span>
+            ) : (
+              <span>
+                {file.pages} pages · {
+                  s.colorMode === 'bw' ? 'B&W' :
+                  s.colorMode === 'color' ? 'Colour' :
+                  s.colorMode === 'custom' ? `Custom (${(s.colorPlan?.colorPages || []).length} col)` :
+                  'Auto'
+                } · {s.sided === 'double' ? '2-sided' : '1-sided'} · ×{s.copies}
+              </span>
+            )}
           </div>
 
           {/* Pricing Formula and Total */}
@@ -1315,12 +1355,12 @@ function FileCard({
 
           {/* Savings chips */}
           <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-            {s.sided === 'double' && s.colorMode !== 'color' && (
+            {isMultiPageDoc && s.sided === 'double' && s.colorMode !== 'color' && (
               <span style={{ fontSize: 10, fontWeight: 700, background: '#dcfce7', color: '#15803d', padding: '2px 7px', borderRadius: 4 }}>
                 Saved ₹{((file.pages || 1) * 0.65 * (s.copies || 1)).toFixed(2)} with 2-sided
               </span>
             )}
-            {(s.nUp ?? 1) > 1 && (
+            {isMultiPageDoc && (s.nUp ?? 1) > 1 && (
               <span style={{ fontSize: 10, fontWeight: 700, background: '#e0f2fe', color: '#0369a1', padding: '2px 7px', borderRadius: 4 }}>
                 Saved sheets with {s.nUp}-up
               </span>
@@ -1381,211 +1421,512 @@ function FileCard({
           {/* Live Document Preview (PDF / Images / PPTX / DOCX) */}
           <DocumentPreview file={file} go={go} />
 
-          {/* Colour */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#718096', letterSpacing: 1.2, marginBottom: 8 }}>COLOUR MODE</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {colorOptions.map(opt => (
-                <button key={opt.value} onClick={() => upd({ colorMode: opt.value })}
-                  style={{ ...btn, flex: 1, padding: '9px 4px', lineHeight: 1.3, ...sel(s.colorMode === opt.value) }}>
-                  {opt.label}<br /><span style={{ fontSize: 10, fontWeight: 400, opacity: 0.75 }}>{opt.sub}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Custom Colour Configuration */}
-            {s.colorMode === 'custom' && (
-              <div style={{ background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>CUSTOM COLOUR PAGES</span>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: '#2563eb', background: '#dbeafe', padding: '2px 8px', borderRadius: 6 }}>
-                    {(s.colorPlan?.colorPages || []).length} of {file.pages || 1} pages colour
-                  </span>
+          {/* ══════════════════════════════════════════════════════════
+              CASE 1: IMAGE / PHOTO SETTINGS (Clean, specialized, intuitive)
+              ══════════════════════════════════════════════════════════ */}
+          {isImage && (
+            <>
+              {/* Photo Framing (Fit vs Fill) */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>PHOTO FRAMING &amp; FIT</span>
+                  <span style={{ color: '#0f172a', fontWeight: 800 }}>{(s.imageFit === 'fill' || (s as any).fit === 'fill') ? 'Full Sheet (Borderless)' : 'Fit to Paper (No crop)'}</span>
                 </div>
-
-                <div>
-                  <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>
-                    Colour pages (e.g. 1, 5-7):
-                  </label>
-                  <input
-                    type="text"
-                    value={customRangeText}
-                    placeholder="e.g. 1, 5-7"
-                    onChange={e => handleCustomRangeInput(e.target.value)}
-                    onBlur={handleCustomRangeBlur}
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #cbd5e1', fontSize: 13, boxSizing: 'border-box' }}
-                  />
-                  {customRangeError && (
-                    <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>
-                      {customRangeError}
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', marginBottom: 6, letterSpacing: 0.5 }}>QUICK PRESETS</div>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button type="button" onClick={() => applyColorPreset([1])} style={presetBtn}>
-                      First page colour only
-                    </button>
-                    <button type="button" onClick={() => applyColorPreset([1, file.pages || 1])} style={presetBtn}>
-                      First & last page colour
-                    </button>
-                    <button type="button" onClick={() => applyColorPreset(Array.from({ length: file.colorPages || 1 }, (_, i) => i + 1))} style={presetBtn}>
-                      Pages detected as colour
-                    </button>
-                    <button type="button" onClick={() => applyColorPreset([])} style={presetBtn}>
-                      Clear (All B&W)
-                    </button>
-                  </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => upd({ imageFit: 'fit' } as any)}
+                    style={{
+                      ...btn,
+                      padding: '10px 8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 3,
+                      ...sel(s.imageFit !== 'fill' && (s as any).fit !== 'fill')
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 800 }}>🖼️ Fit to Paper</span>
+                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>Full photo · Clean white border</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => upd({ imageFit: 'fill' } as any)}
+                    style={{
+                      ...btn,
+                      padding: '10px 8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 3,
+                      ...sel(s.imageFit === 'fill' || (s as any).fit === 'fill')
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 800 }}>🔲 Fill Sheet</span>
+                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>Edge-to-edge · No white margins</span>
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Orientation */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#718096', letterSpacing: 1.2, marginBottom: 8 }}>ORIENTATION</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {orientationOptions.map(opt => (
-                <button key={opt.value} onClick={() => upd({ orientation: opt.value })}
-                  style={{ ...btn, flex: 1, padding: '9px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel((s.orientation ?? 'auto') === opt.value) }}>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>{opt.icon} {opt.label}</span>
-                  <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 500 }}>{opt.sub}</span>
-                </button>
-              ))}
-            </div>
-            <div style={{
-              fontSize: 11,
-              color: '#334155',
-              background: '#f8fafc',
-              border: '1px solid #cbd5e1',
-              borderRadius: 8,
-              padding: '7px 10px',
-              marginTop: 6,
-              lineHeight: 1.4
-            }}>
-              <b>Live Preview Effect:</b> {
-                (s.orientation ?? 'auto') === 'auto' ? 'Adapts sheet rotation automatically to best fit your document.' :
-                s.orientation === 'portrait' ? 'Sheet displays upright vertically (Portrait).' :
-                'Sheet displays rotated horizontally (Landscape).'
-              }
-            </div>
-          </div>
+              {/* Print Color */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>PRINT COLOR</span>
+                  <span style={{ color: s.colorMode === 'bw' ? '#16a34a' : '#2563eb', fontWeight: 800 }}>
+                    {s.colorMode === 'bw' ? 'Black & White (₹1.50/sheet)' : 'Full Natural Colour (₹8.00/sheet)'}
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => upd({ colorMode: 'color' })}
+                    style={{
+                      ...btn,
+                      padding: '10px 8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 3,
+                      ...sel(s.colorMode === 'color' || s.colorMode === 'colour')
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 800 }}>🎨 Full Colour</span>
+                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>Vibrant natural photo colours</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => upd({ colorMode: 'bw' })}
+                    style={{
+                      ...btn,
+                      padding: '10px 8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 3,
+                      ...sel(s.colorMode === 'bw')
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 800 }}>⬛ Black &amp; White</span>
+                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>Studio monochrome · Economical</span>
+                  </button>
+                </div>
+              </div>
 
-          {/* Layout Mode */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#718096', letterSpacing: 1.2, marginBottom: 8 }}>LAYOUT MODE</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {layoutModeOptions.map(opt => (
-                <button key={opt.value} onClick={() => upd({ layout: opt.value })}
-                  style={{ ...btn, flex: 1, padding: '9px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel((s.layout ?? 'standard') === opt.value) }}>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>{opt.icon} {opt.label}</span>
-                  <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 500 }}>{opt.sub}</span>
-                </button>
-              ))}
-            </div>
-            <div style={{
-              fontSize: 11,
-              color: '#334155',
-              background: '#f8fafc',
-              border: '1px solid #cbd5e1',
-              borderRadius: 8,
-              padding: '7px 10px',
-              marginTop: 6,
-              lineHeight: 1.4
-            }}>
-              <b>Live Preview Effect:</b> {
-                (s.layout ?? 'standard') === 'standard' ? 'Standard 1 page per sheet filling full printable area.' :
-                s.layout === 'handout' ? 'Handout displays your slide on the left with ruled note lines on the right.' :
-                'Booklet displays a 2-page center-folded spread with a staple fold line.'
-              }
-            </div>
-          </div>
+              {/* Orientation & Quick Rotate */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>ORIENTATION &amp; ROTATION</span>
+                  <span style={{ color: '#0f172a', fontWeight: 800 }}>
+                    {(s.orientation === 'landscape' ? 'Landscape (Wide)' : s.orientation === 'portrait' ? 'Portrait (Upright)' : 'Auto Fit')}
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.1fr', gap: 6 }}>
+                  {orientationOptions.map(opt => (
+                    <button key={opt.value} onClick={() => upd({ orientation: opt.value })}
+                      style={{ ...btn, padding: '8px 2px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel((s.orientation ?? 'auto') === opt.value) }}>
+                      <span style={{ fontSize: 12, fontWeight: 700 }}>{opt.icon} {opt.label}</span>
+                      <span style={{ fontSize: 9, opacity: 0.75, fontWeight: 500 }}>{opt.sub}</span>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const curRot = s.pageRotations?.[1] || 0;
+                      const nextRot = (curRot + 90) % 360;
+                      upd({ pageRotations: { ...(s.pageRotations || {}), [1]: nextRot } });
+                    }}
+                    style={{
+                      ...btn,
+                      padding: '8px 2px',
+                      background: '#f8fafc',
+                      border: '1.5px solid #cbd5e1',
+                      color: '#0f172a',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 2
+                    }}
+                  >
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>↻ Rotate 90°</span>
+                    <span style={{ fontSize: 9, opacity: 0.75 }}>Turn photo</span>
+                  </button>
+                </div>
+              </div>
 
-          {/* Sides */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#718096', letterSpacing: 1.2, marginBottom: 8 }}>PRINT SIDES</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {sidedOptions.map(opt => (
-                <button key={opt.value} onClick={() => upd({ sided: opt.value })}
-                  style={{ ...btn, flex: 1, padding: '9px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel(s.sided === opt.value) }}>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>{opt.icon} {opt.label}</span>
-                  <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 500 }}>{opt.sub}</span>
-                </button>
-              ))}
-            </div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-              {s.sided === 'double' ? 'Double-sided saves paper and costs only ₹0.85/side instead of ₹1.50!' : 'Single-sided prints on one side only (₹1.50 per sheet).'}
-            </div>
-          </div>
+              {/* Paper Type */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8 }}>PAPER TYPE</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => upd({ paper: 'A4' })}
+                    style={{
+                      ...btn,
+                      padding: '9px 6px',
+                      ...sel((s.paper ?? 'A4') === 'A4')
+                    }}
+                  >
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>A4 Standard Paper</span>
+                    <br /><span style={{ fontSize: 10, opacity: 0.75 }}>Clean 80 GSM paper</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => upd({ paper: 'Legal' } as any)}
+                    style={{
+                      ...btn,
+                      padding: '9px 6px',
+                      ...sel(s.paper === 'Legal')
+                    }}
+                  >
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>Glossy Photo Paper</span>
+                    <br /><span style={{ fontSize: 10, opacity: 0.75 }}>Heavy photographic paper</span>
+                  </button>
+                </div>
+              </div>
 
-          {/* N-up */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#718096', letterSpacing: 1.2, marginBottom: 8 }}>PAGES PER SHEET</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {nUpOptions.map(opt => (
-                <button key={opt.value} onClick={() => upd({ nUp: opt.value })}
-                  style={{ ...btn, flex: 1, padding: '9px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel((s.nUp ?? 1) === opt.value) }}>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>{opt.icon} {opt.label}</span>
-                  <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 500 }}>{opt.sub}</span>
-                </button>
-              ))}
-            </div>
-            <div style={{
-              fontSize: 11,
-              color: '#334155',
-              background: '#f8fafc',
-              border: '1px solid #cbd5e1',
-              borderRadius: 8,
-              padding: '7px 10px',
-              marginTop: 6,
-              lineHeight: 1.4
-            }}>
-              <b>Live Preview Effect:</b> {
-                (s.nUp ?? 1) === 1 ? '1 full page per sheet.' :
-                (s.nUp ?? 1) === 2 ? '2 real pages placed side-by-side on each sheet (saves 50% paper).' :
-                '4 real pages placed in a 2×2 grid on each sheet.'
-              }
-            </div>
-          </div>
+              {/* Copies */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8 }}>NUMBER OF COPIES</div>
+                <div style={{ display: 'inline-flex', alignItems: 'center', background: '#f1f5f9', borderRadius: 10, border: '1px solid #cbd5e1' }}>
+                  <button type="button" onClick={() => upd({ copies: Math.max(1, s.copies - 1) })} style={{ width: 44, height: 44, background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', fontWeight: 800 }}>−</button>
+                  <span style={{ minWidth: 40, textAlign: 'center', fontWeight: 800, fontSize: 16 }}>{s.copies}</span>
+                  <button type="button" onClick={() => upd({ copies: s.copies + 1 })} style={{ width: 44, height: 44, background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', fontWeight: 800 }}>+</button>
+                </div>
+              </div>
+            </>
+          )}
 
-          {/* Copies */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#718096', letterSpacing: 1.2, marginBottom: 8 }}>COPIES</div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', background: '#f3f4f6', borderRadius: 10, overflow: 'hidden' }}>
-              <button onClick={() => upd({ copies: Math.max(1, s.copies - 1) })} style={{ width: 44, height: 44, background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>−</button>
-              <span style={{ minWidth: 36, textAlign: 'center', fontWeight: 700, fontSize: 17 }}>{s.copies}</span>
-              <button onClick={() => upd({ copies: s.copies + 1 })} style={{ width: 44, height: 44, background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>+</button>
-            </div>
-          </div>
+          {/* ══════════════════════════════════════════════════════════
+              CASE 2: SINGLE-PAGE DOCUMENT SETTINGS (No duplex / booklet clutter)
+              ══════════════════════════════════════════════════════════ */}
+          {isSinglePageDoc && (
+            <>
+              {/* Colour */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8 }}>COLOUR MODE</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => upd({ colorMode: 'bw' })}
+                    style={{
+                      ...btn,
+                      padding: '10px 8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 3,
+                      ...sel(s.colorMode === 'bw')
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 800 }}>⬛ Black &amp; White</span>
+                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>₹1.50 per page · Fast &amp; Crisp</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => upd({ colorMode: 'color' })}
+                    style={{
+                      ...btn,
+                      padding: '10px 8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 3,
+                      ...sel(s.colorMode === 'color' || s.colorMode === 'colour')
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 800 }}>🎨 Colour</span>
+                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>₹8.00 per page · Full Colour</span>
+                  </button>
+                </div>
+              </div>
 
-          {/* Page range */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#718096', letterSpacing: 1.2, marginBottom: 8 }}>PAGE RANGE</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {(['all', 'custom'] as const).map(r => (
-                <button key={r} onClick={() => upd({ range: r })}
-                  style={{ ...btn, flex: 1, padding: 10, ...sel((s.range ?? 'all') === r) }}>
-                  {r === 'all' ? 'All pages' : 'Custom range'}
-                </button>
-              ))}
-            </div>
-          </div>
+              {/* Orientation */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>ORIENTATION</span>
+                  <span style={{ color: '#0f172a', fontWeight: 800 }}>{(s.orientation ?? 'auto').toUpperCase()}</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.1fr', gap: 6 }}>
+                  {orientationOptions.map(opt => (
+                    <button key={opt.value} onClick={() => upd({ orientation: opt.value })}
+                      style={{ ...btn, padding: '8px 2px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel((s.orientation ?? 'auto') === opt.value) }}>
+                      <span style={{ fontSize: 12, fontWeight: 700 }}>{opt.icon} {opt.label}</span>
+                      <span style={{ fontSize: 9, opacity: 0.75, fontWeight: 500 }}>{opt.sub}</span>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const curRot = s.pageRotations?.[1] || 0;
+                      const nextRot = (curRot + 90) % 360;
+                      upd({ pageRotations: { ...(s.pageRotations || {}), [1]: nextRot } });
+                    }}
+                    style={{
+                      ...btn,
+                      padding: '8px 2px',
+                      background: '#f8fafc',
+                      border: '1.5px solid #cbd5e1',
+                      color: '#0f172a',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 2
+                    }}
+                  >
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>↻ Rotate 90°</span>
+                    <span style={{ fontSize: 9, opacity: 0.75 }}>Turn page</span>
+                  </button>
+                </div>
+              </div>
 
-          {/* Bottom Action Row: Dedicated Delete on left, Single prominent Red Close on right */}
-          <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              {/* Paper Size */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8 }}>PAPER SIZE</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {(['A4', 'A3', 'Legal'] as const).map(p => (
+                    <button key={p} onClick={() => upd({ paper: p })}
+                      style={{ ...btn, flex: 1, padding: '9px 4px', ...sel((s.paper ?? 'A4') === p) }}>
+                      <b>{p}</b><br /><span style={{ fontSize: 10, opacity: 0.75 }}>{p === 'A4' ? 'Standard' : p === 'A3' ? '2× A4' : 'Long'}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Copies */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8 }}>COPIES</div>
+                <div style={{ display: 'inline-flex', alignItems: 'center', background: '#f1f5f9', borderRadius: 10, border: '1px solid #cbd5e1' }}>
+                  <button type="button" onClick={() => upd({ copies: Math.max(1, s.copies - 1) })} style={{ width: 44, height: 44, background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', fontWeight: 800 }}>−</button>
+                  <span style={{ minWidth: 40, textAlign: 'center', fontWeight: 800, fontSize: 16 }}>{s.copies}</span>
+                  <button type="button" onClick={() => upd({ copies: s.copies + 1 })} style={{ width: 44, height: 44, background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', fontWeight: 800 }}>+</button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════
+              CASE 3: MULTI-PAGE DOCUMENT SETTINGS
+              ══════════════════════════════════════════════════════════ */}
+          {isMultiPageDoc && (
+            <>
+              {/* Colour */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1.2, marginBottom: 8 }}>COLOUR MODE</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {colorOptions.map(opt => (
+                    <button key={opt.value} onClick={() => upd({ colorMode: opt.value })}
+                      style={{ ...btn, flex: 1, padding: '9px 4px', lineHeight: 1.3, ...sel(s.colorMode === opt.value) }}>
+                      {opt.label}<br /><span style={{ fontSize: 10, fontWeight: 400, opacity: 0.75 }}>{opt.sub}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Custom Colour Configuration */}
+                {s.colorMode === 'custom' && (
+                  <div style={{ background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>CUSTOM COLOUR PAGES</span>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: '#2563eb', background: '#dbeafe', padding: '2px 8px', borderRadius: 6 }}>
+                        {(s.colorPlan?.colorPages || []).length} of {file.pages || 1} pages colour
+                      </span>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>
+                        Colour pages (e.g. 1, 5-7):
+                      </label>
+                      <input
+                        type="text"
+                        value={customRangeText}
+                        placeholder="e.g. 1, 5-7"
+                        onChange={e => handleCustomRangeInput(e.target.value)}
+                        onBlur={handleCustomRangeBlur}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #cbd5e1', fontSize: 13, boxSizing: 'border-box' }}
+                      />
+                      {customRangeError && (
+                        <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>
+                          {customRangeError}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', marginBottom: 6, letterSpacing: 0.5 }}>QUICK PRESETS</div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button type="button" onClick={() => applyColorPreset([1])} style={presetBtn}>
+                          First page colour only
+                        </button>
+                        <button type="button" onClick={() => applyColorPreset([1, file.pages || 1])} style={presetBtn}>
+                          First &amp; last page colour
+                        </button>
+                        <button type="button" onClick={() => applyColorPreset(Array.from({ length: file.colorPages || 1 }, (_, i) => i + 1))} style={presetBtn}>
+                          Pages detected as colour
+                        </button>
+                        <button type="button" onClick={() => applyColorPreset([])} style={presetBtn}>
+                          Clear (All B&amp;W)
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Sides */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1.2, marginBottom: 8 }}>PRINT SIDES</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {sidedOptions.map(opt => (
+                    <button key={opt.value} onClick={() => upd({ sided: opt.value })}
+                      style={{ ...btn, flex: 1, padding: '9px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel(s.sided === opt.value) }}>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{opt.icon} {opt.label}</span>
+                      <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 500 }}>{opt.sub}</span>
+                    </button>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {s.sided === 'double' ? 'Double-sided saves paper and costs only ₹0.85/side instead of ₹1.50!' : 'Single-sided prints on one side only (₹1.50 per sheet).'}
+                </div>
+              </div>
+
+              {/* N-up */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1.2, marginBottom: 8 }}>PAGES PER SHEET</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {nUpOptions.map(opt => (
+                    <button key={opt.value} onClick={() => upd({ nUp: opt.value })}
+                      style={{ ...btn, flex: 1, padding: '9px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel((s.nUp ?? 1) === opt.value) }}>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{opt.icon} {opt.label}</span>
+                      <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 500 }}>{opt.sub}</span>
+                    </button>
+                  ))}
+                </div>
+                <div style={{
+                  fontSize: 11,
+                  color: '#334155',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 8,
+                  padding: '7px 10px',
+                  marginTop: 6,
+                  lineHeight: 1.4
+                }}>
+                  <b>Live Preview Effect:</b> {
+                    (s.nUp ?? 1) === 1 ? '1 full page per sheet.' :
+                    (s.nUp ?? 1) === 2 ? '2 real pages placed side-by-side on each sheet (saves 50% paper).' :
+                    '4 real pages placed in a 2×2 grid on each sheet.'
+                  }
+                </div>
+              </div>
+
+              {/* Orientation */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1.2, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>ORIENTATION</span>
+                  <span style={{ color: '#0f172a', fontWeight: 800 }}>{(s.orientation ?? 'auto').toUpperCase()}</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.1fr', gap: 6 }}>
+                  {orientationOptions.map(opt => (
+                    <button key={opt.value} onClick={() => upd({ orientation: opt.value })}
+                      style={{ ...btn, padding: '8px 2px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel((s.orientation ?? 'auto') === opt.value) }}>
+                      <span style={{ fontSize: 12, fontWeight: 700 }}>{opt.icon} {opt.label}</span>
+                      <span style={{ fontSize: 9, opacity: 0.75, fontWeight: 500 }}>{opt.sub}</span>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const curRot = s.pageRotations?.[1] || 0;
+                      const nextRot = (curRot + 90) % 360;
+                      upd({ pageRotations: { ...(s.pageRotations || {}), [1]: nextRot } });
+                    }}
+                    style={{
+                      ...btn,
+                      padding: '8px 2px',
+                      background: '#f8fafc',
+                      border: '1.5px solid #cbd5e1',
+                      color: '#0f172a',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 2
+                    }}
+                  >
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>↻ Rotate 90°</span>
+                    <span style={{ fontSize: 9, opacity: 0.75 }}>Turn page</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Layout Mode */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1.2, marginBottom: 8 }}>LAYOUT MODE</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {layoutModeOptions.map(opt => (
+                    <button key={opt.value} onClick={() => upd({ layout: opt.value })}
+                      style={{ ...btn, flex: 1, padding: '9px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel((s.layout ?? 'standard') === opt.value) }}>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{opt.icon} {opt.label}</span>
+                      <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 500 }}>{opt.sub}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Page range */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1.2, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>PAGE RANGE</span>
+                  <span style={{ color: '#0f172a', fontWeight: 800 }}>{(s.range ?? 'all') === 'all' ? `All ${file.pages} pages` : 'Custom range'}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {(['all', 'custom'] as const).map(r => (
+                    <button key={r} onClick={() => upd({ range: r === 'all' ? 'all' : (s.range && s.range !== 'all' ? s.range : `1-${file.pages}`) })}
+                      style={{ ...btn, flex: 1, padding: 10, ...sel(r === 'all' ? (s.range ?? 'all') === 'all' : s.range !== 'all') }}>
+                      {r === 'all' ? `All pages (1–${file.pages})` : 'Custom range'}
+                    </button>
+                  ))}
+                </div>
+                {s.range !== 'all' && (
+                  <div style={{ marginTop: 8 }}>
+                    <input
+                      type="text"
+                      value={s.range === 'custom' ? '' : s.range}
+                      placeholder={`e.g. 1-${Math.min(file.pages, 5)}, ${file.pages}`}
+                      onChange={e => upd({ range: e.target.value })}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #cbd5e1', fontSize: 13, boxSizing: 'border-box' }}
+                    />
+                    <span style={{ fontSize: 10, color: '#64748b', marginTop: 4, display: 'block' }}>
+                      Enter page numbers or ranges separated by commas (e.g. 1-3, 5, 8).
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Copies */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1.2, marginBottom: 8 }}>COPIES</div>
+                <div style={{ display: 'inline-flex', alignItems: 'center', background: '#f3f4f6', borderRadius: 10, overflow: 'hidden' }}>
+                  <button type="button" onClick={() => upd({ copies: Math.max(1, s.copies - 1) })} style={{ width: 44, height: 44, background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>−</button>
+                  <span style={{ minWidth: 36, textAlign: 'center', fontWeight: 700, fontSize: 17 }}>{s.copies}</span>
+                  <button type="button" onClick={() => upd({ copies: s.copies + 1 })} style={{ width: 44, height: 44, background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>+</button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Bottom Action Row: Dedicated Delete on left, Single prominent Close on right */}
+          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
             <button
+              type="button"
               onClick={onRemove}
               style={{
                 flex: 1,
-                padding: '15px 12px',
+                padding: '14px 12px',
                 background: '#fee2e2',
                 color: '#dc2626',
                 border: '1.5px solid #fecaca',
-                borderRadius: 14,
+                borderRadius: 12,
                 fontWeight: 700,
-                fontSize: 14,
+                fontSize: 13,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -1596,25 +1937,26 @@ function FileCard({
               Delete
             </button>
             <button
+              type="button"
               onClick={() => setOpen(false)}
               style={{
                 flex: 2,
-                padding: '15px 16px',
+                padding: '14px 16px',
                 background: '#0f172a',
                 color: '#ffffff',
                 border: 'none',
-                borderRadius: 14,
+                borderRadius: 12,
                 fontWeight: 700,
-                fontSize: 15,
+                fontSize: 14,
                 cursor: 'pointer',
-                boxShadow: '0 4px 14px rgba(15, 23, 42, 0.25)',
+                boxShadow: '0 4px 12px rgba(15, 23, 42, 0.2)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 6
               }}
             >
-              Done · Close Settings
+              Done · Collapse
             </button>
           </div>
         </div>

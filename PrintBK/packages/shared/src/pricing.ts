@@ -154,7 +154,7 @@ export function priceOrder(basket: Basket, config: ShopConfig = defaultShopConfi
     });
     subtotal += roundedTotal;
 
-    if (sided === 'single' && !s.booklet) {
+    if (sided === 'single' && !s.booklet && physicalPages > 1) {
       const duplexTotal = (bwPages * duplexRate + colorPages * colourRate) * copies;
       const savings = roundedTotal - (Math.round(duplexTotal * 100) / 100);
       if (savings > potentialSavings) {

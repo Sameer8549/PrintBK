@@ -81,18 +81,20 @@ export function fileFromRaw(raw: File): PrintFile {
   // Cache File object in memory
   rawFileMap.set(id, raw);
 
+  const isImg = raw.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(raw.name);
+
   return {
     id,
     name: raw.name,
     size: raw.size,
     type: ext,
     pages: 1,       // placeholder — real count applied in addFile()
-    colorPages: 0,
-    colorDetection: 'pending',
+    colorPages: isImg ? 1 : 0,
+    colorDetection: isImg ? 'ready' : 'pending',
     settings: {
       copies: 1,
-      colorMode: 'bw',
-      sided: 'double',
+      colorMode: isImg ? 'color' : 'bw',
+      sided: isImg ? 'single' : 'double',
       paper: 'A4',
       orientation: 'auto',
       nUp: 1,
@@ -100,7 +102,8 @@ export function fileFromRaw(raw: File): PrintFile {
       pageRotations: {},
       booklet: false,
       range: 'all',
-    },
+      imageFit: 'fit',
+    } as any,
   };
 }
 

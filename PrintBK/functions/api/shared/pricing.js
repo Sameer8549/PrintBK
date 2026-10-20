@@ -126,7 +126,7 @@ function priceOrder(basket, config = defaultConfig_1.defaultShopConfig, now = ne
             formula: formulaStr
         });
         subtotal += roundedTotal;
-        if (sided === 'single' && !s.booklet) {
+        if (sided === 'single' && !s.booklet && physicalPages > 1) {
             const duplexTotal = (bwPages * duplexRate + colorPages * colourRate) * copies;
             const savings = roundedTotal - (Math.round(duplexTotal * 100) / 100);
             if (savings > potentialSavings) {
