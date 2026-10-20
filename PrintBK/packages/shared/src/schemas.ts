@@ -69,7 +69,8 @@ export const PrintFileSchema = z.object({
     booklet: z.boolean().default(false),
     range: z.string().default('all'),
     pageRotations: z.record(z.string(), z.number()).optional().default({}),
-    duplexEdge: z.enum(['long', 'short']).optional()
+    duplexEdge: z.enum(['long', 'short']).optional(),
+    imageFit: z.enum(['fit', 'fill']).optional()
   })
 }).passthrough();
 export type PrintFile = z.infer<typeof PrintFileSchema>;

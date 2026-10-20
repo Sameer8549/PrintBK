@@ -26,7 +26,7 @@ function History({ go, setSheet }: { go: (screen: Screen) => void; setSheet?: (s
     const activeOrders = orders.filter(
       o => !o.id.startsWith('local-') && (
         !['completed', 'cancelled', 'rejected', 'expired'].includes(o.status) ||
-        !['paid_verified', 'cash_collected', 'not_paid', 'refunded'].includes(o.payment_status)
+        (!o.payment_status || !['paid_verified', 'cash_collected', 'not_paid', 'refunded'].includes(o.payment_status))
       )
     );
     activeOrders.forEach(async (ord) => {

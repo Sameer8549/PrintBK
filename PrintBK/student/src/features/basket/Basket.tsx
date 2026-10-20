@@ -993,7 +993,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
                   height: (s.imageFit === 'fill' || (s as any).fit === 'fill') ? '100%' : 'auto',
                   display: 'block',
                   objectFit: (s.imageFit === 'fill' || (s as any).fit === 'fill') ? 'cover' : 'contain',
-                  imageRendering: 'high-quality',
+                  imageRendering: 'high-quality' as any,
                   WebkitBackfaceVisibility: 'hidden',
                   backfaceVisibility: 'hidden',
                   filter: filterStyle,

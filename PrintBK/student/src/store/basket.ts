@@ -90,7 +90,7 @@ export function fileFromRaw(raw: File): PrintFile {
     type: ext,
     pages: 1,       // placeholder — real count applied in addFile()
     colorPages: isImg ? 1 : 0,
-    colorDetection: isImg ? 'ready' : 'pending',
+    colorDetection: isImg ? 'done' : 'pending',
     settings: {
       copies: 1,
       colorMode: isImg ? 'color' : 'bw',

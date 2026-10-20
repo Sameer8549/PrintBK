@@ -175,7 +175,7 @@ function PhotoTool({
     objectFit: fit === "Fit" ? "contain" : fit === "Fill" ? "cover" : "fill",
     transform: `translate(${photoOffset.x}px, ${photoOffset.y}px) scale(${1 + zoom / 180}) rotate(${rotation}deg)`,
     filter: colorMode === 'bw' ? 'grayscale(100%) contrast(1.15)' : 'none',
-    imageRendering: 'high-quality',
+    imageRendering: 'high-quality' as any,
     WebkitBackfaceVisibility: 'hidden',
     backfaceVisibility: 'hidden',
     transition: 'filter 0.2s ease, transform 0.12s ease',
@@ -475,7 +475,7 @@ function PhotoTool({
                 type: 'jpg',
                 pages: 1,
                 colorPages: colorMode === 'bw' ? 0 : 1,
-                colorDetection: 'ready',
+                colorDetection: 'done',
                 settings: {
                   copies: 1,
                   colorMode: colorMode === 'bw' ? 'bw' : 'colour',
@@ -516,7 +516,6 @@ function PhotoTool({
                 price: finalPrice,
                 qty: 1,
                 attachTo: fileId,
-                attachedToFileId: fileId,
               });
 
               notify(`${config.label} (${colorMode === 'bw' ? 'B&W' : 'Colour'}) added to basket`);

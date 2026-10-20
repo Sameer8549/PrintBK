@@ -69,7 +69,8 @@ exports.PrintFileSchema = zod_1.z.object({
         booklet: zod_1.z.boolean().default(false),
         range: zod_1.z.string().default('all'),
         pageRotations: zod_1.z.record(zod_1.z.string(), zod_1.z.number()).optional().default({}),
-        duplexEdge: zod_1.z.enum(['long', 'short']).optional()
+        duplexEdge: zod_1.z.enum(['long', 'short']).optional(),
+        imageFit: zod_1.z.enum(['fit', 'fill']).optional()
     })
 }).passthrough();
 exports.ServiceLineSchema = zod_1.z.object({

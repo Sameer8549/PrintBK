@@ -80,6 +80,9 @@ function ReceiptSheet({
 
   const paymentStatus = computePaymentStatus(targetOrder);
   const payBadge = getPaymentBadgeDetails(paymentStatus, total, targetOrder?.status);
+  const badgeBg = payBadge.bg;
+  const badgeColor = payBadge.color;
+  const badgeText = payBadge.label;
 
   const saveAsPDF = () => {
     const popup = window.open('', '_blank', 'width=460,height=760');

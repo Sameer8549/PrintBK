@@ -302,7 +302,7 @@ export function DocumentPageSlot({
             height: '100%',
             display: 'block',
             objectFit: (file.settings as any)?.imageFit === 'fill' ? 'cover' : 'contain',
-            imageRendering: 'high-quality',
+            imageRendering: 'high-quality' as any,
             filter: filterStyle,
             transform: rotTransform,
             transition: 'transform 0.2s ease'

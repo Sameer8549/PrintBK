@@ -421,7 +421,7 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
   return <svg className="icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
 }
 
-function Button({ children, onClick, kind = "plain", disabled = false, className = "", style, title }: { children: React.ReactNode; onClick?: (event: React.MouseEvent) => void; kind?: "primary" | "plain" | "ghost"; disabled?: boolean; className?: string; style?: React.CSSProperties; title?: string }) {
+function Button({ children, onClick, kind = "plain", disabled = false, className = "", style, title }: { children: React.ReactNode; onClick?: (event: React.MouseEvent) => void; kind?: "primary" | "plain" | "ghost" | "danger"; disabled?: boolean; className?: string; style?: React.CSSProperties; title?: string }) {
   return <button className={`button button--${kind} ${className}`} type="button" onClick={onClick} disabled={disabled} style={style} title={title}>{children}</button>
 }
 
@@ -1835,7 +1835,7 @@ function UltraHdPreviewPanel({ job, isColour, isPhoto }: { job: Job; isColour: b
               height: '100%',
               maxHeight: '220px',
               objectFit: 'contain',
-              imageRendering: 'high-quality',
+              imageRendering: 'high-quality' as any,
               background: '#ffffff'
             }}
           />
@@ -2032,7 +2032,7 @@ function UltraHdPreviewPanel({ job, isColour, isPhoto }: { job: Job; isColour: b
                 maxWidth: zoomLevel === 1 ? '100%' : undefined,
                 maxHeight: zoomLevel === 1 ? '85vh' : undefined,
                 objectFit: 'contain',
-                imageRendering: 'high-quality',
+                imageRendering: 'high-quality' as any,
                 boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
                 borderRadius: '4px'
               }}

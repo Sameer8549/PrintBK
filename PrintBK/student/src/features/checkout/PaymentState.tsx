@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Topbar } from '../../components/ui';
+import { Topbar, Icon } from '../../components/ui';
 import { Screen } from '../../lib/types';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
