@@ -142,15 +142,16 @@ function priceOrder(basket, config = defaultConfig_1.defaultShopConfig, now = ne
             continue;
         }
         if (svc.price !== undefined) {
-            const lineTotal = Math.round(svc.price * svc.qty * 100) / 100;
+            const qty = (typeof svc.qty === 'number' && !isNaN(svc.qty) && svc.qty > 0) ? svc.qty : 1;
+            const lineTotal = Math.round(svc.price * qty * 100) / 100;
             lines.push({
                 id: svc.id,
                 name: svc.name,
-                qty: svc.qty,
+                qty,
                 unitPrice: svc.price,
                 total: lineTotal,
                 detail: svc.detail || svc.type,
-                formula: `${svc.qty} qty × ₹${svc.price.toFixed(2)}`
+                formula: `${qty} qty × ₹${svc.price.toFixed(2)}`
             });
             subtotal += lineTotal;
         }

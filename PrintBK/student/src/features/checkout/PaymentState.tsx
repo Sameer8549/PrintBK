@@ -34,6 +34,7 @@ function PaymentState({
   const [copied, setCopied] = useState(false);
   const [failedLaunch, setFailedLaunch] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
 
   // Platform detection
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
@@ -152,13 +153,8 @@ function PaymentState({
             return;
           }
 
-          // Valid return: Auto-claim and redirect straight to receipt
-          executeAutoClaim();
-        } else if (isDesktop || showQR) {
-          // Desktop QR flow: If QR has been visible >= 20s and user returns to tab
-          if ((now - qrShownAtRef.current) >= 20000) {
-            executeAutoClaim();
-          }
+          // Require explicit student verification before claiming payment
+          setAwaitingConfirmation(true);
         }
       }
     };
@@ -215,7 +211,7 @@ function PaymentState({
 
   if (loading) {
     return (
-      <main className="page" style={{ minHeight: '100dvh', background: '#f7f4ee', display: 'flex', flexDirection: 'column' }}>
+      <main className="page" style={{ height: '100dvh', maxHeight: '100dvh', overflow: 'hidden', background: '#f7f4ee', display: 'flex', flexDirection: 'column' }}>
         <Topbar title="UPI Payment" back onBack={() => go('checkout')} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div style={{ width: 56, height: 56, borderRadius: '50%', border: '4px solid #e2e8f0', borderTopColor: '#3b82f6', animation: 'spin 1s linear infinite' }} />
@@ -227,7 +223,7 @@ function PaymentState({
 
   if (error || !upiData) {
     return (
-      <main className="page" style={{ minHeight: '100dvh', background: '#f7f4ee', display: 'flex', flexDirection: 'column' }}>
+      <main className="page" style={{ height: '100dvh', maxHeight: '100dvh', overflow: 'hidden', background: '#f7f4ee', display: 'flex', flexDirection: 'column' }}>
         <Topbar title="UPI Payment" back onBack={() => go('checkout')} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
           <div style={{ display: 'grid', placeItems: 'center', marginBottom: 12 }}><Icon name="arrow" size={36} /></div>
@@ -245,7 +241,7 @@ function PaymentState({
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiData.intentUrl)}`;
 
   return (
-    <main className="page" style={{ minHeight: '100dvh', background: '#f7f4ee', display: 'flex', flexDirection: 'column' }}>
+    <main className="page" style={{ height: '100dvh', maxHeight: '100dvh', overflow: 'hidden', background: '#f7f4ee', display: 'flex', flexDirection: 'column' }}>
       <Topbar title={`Pay ₹${upiData.amount.toFixed(2)}`} back onBack={() => go('checkout')} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 100px', maxWidth: 440, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
@@ -322,8 +318,100 @@ function PaymentState({
           }}>
             <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #a7f3d0', borderTopColor: '#059669', animation: 'spin 0.8s linear infinite' }} />
             <span style={{ fontSize: 14, fontWeight: 800, color: '#065f46' }}>
-              Return detected! Opening confirmed receipt…
+              Confirming payment & opening confirmed receipt…
             </span>
+          </div>
+        )}
+
+        {/* ── Payment Return Verification Prompt ── */}
+        {awaitingConfirmation && !redirecting && (
+          <div style={{
+            background: '#ffffff',
+            borderRadius: 18,
+            border: '2px solid #2563eb',
+            padding: '20px 18px',
+            marginBottom: 16,
+            boxShadow: '0 8px 24px rgba(37, 99, 235, 0.15)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#eff6ff', display: 'grid', placeItems: 'center', color: '#2563eb', fontSize: 20 }}>
+                💳
+              </div>
+              <div>
+                <strong style={{ fontSize: 16, color: '#0f172a', fontWeight: 800, display: 'block' }}>
+                  Did you complete the payment?
+                </strong>
+                <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>
+                  Order #{upiData.orderNumber} · ₹{upiData.amount.toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            <p style={{ fontSize: 13, color: '#334155', margin: '8px 0 16px', lineHeight: 1.45 }}>
+              Please confirm if the payment was successful in your UPI app. If not completed yet, you can retry or switch to cash.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => executeAutoClaim()}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  borderRadius: 12,
+                  border: 'none',
+                  background: '#16a34a',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  fontSize: 15,
+                  cursor: 'pointer',
+                  boxShadow: '0 3px 10px rgba(22, 163, 74, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8
+                }}
+              >
+                <span>✓ Yes, I Have Paid ₹{upiData.amount.toFixed(2)}</span>
+              </button>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setAwaitingConfirmation(false)}
+                  style={{
+                    flex: 1,
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    border: '1.5px solid #cbd5e1',
+                    background: '#f8fafc',
+                    color: '#475569',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: 'pointer'
+                  }}
+                >
+                  ✕ Not Paid / Retry
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSwitchToCash}
+                  style={{
+                    flex: 1,
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    border: '1.5px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: 'pointer'
+                  }}
+                >
+                  💵 Pay Cash Instead
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -434,8 +522,30 @@ function PaymentState({
                 gap: 6
               }}
             >
-              
               <span>{showQR ? 'Hide UPI QR Code' : 'Show QR Code to Scan on Another Phone'}</span>
+            </button>
+
+            {/* Direct Confirmation Button */}
+            <button
+              type="button"
+              onClick={() => executeAutoClaim()}
+              style={{
+                padding: '12px 16px',
+                borderRadius: 12,
+                border: '1.5px solid #16a34a',
+                background: '#f0fdf4',
+                color: '#15803d',
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                marginTop: 2
+              }}
+            >
+              <span>✓ I Have Completed Payment (View Receipt)</span>
             </button>
           </div>
 

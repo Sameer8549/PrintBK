@@ -138,7 +138,7 @@ function RouteMapper() {
   };
 
   // Determine if current route should display closed barrier
-  const isExemptRoute = ['/history', '/settings', '/about', '/privacy'].includes(location.pathname) || location.pathname.startsWith('/order/') || location.pathname.startsWith('/receipt/');
+  const isExemptRoute = ['/history', '/settings', '/about', '/privacy'].includes(location.pathname) || location.pathname.startsWith('/order/') || location.pathname.startsWith('/receipt/') || location.pathname.startsWith('/pay/');
   const showClosedBarrier = !shopOpen && !isExemptRoute;
 
   return (

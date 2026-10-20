@@ -1368,8 +1368,8 @@ function FileCard({
           <Icon name={isImage ? "camera" : "file"} size={22} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0f172a' }}>{file.name}</div>
-          <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
+          <div style={{ fontWeight: 800, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0f172a' }}>{file.name}</div>
+          <div style={{ fontSize: 12, color: '#475569', fontWeight: 600, marginTop: 2 }}>
             {isImage ? (
               <span>
                 Photo Print · {s.paper === 'A3' ? 'A3 Large Sheet' : '1 Sheet'} · {s.colorMode === 'bw' ? 'B&W' : 'Colour'} · {(s.imageFit === 'fill' || (s as any).fit === 'fill') ? 'Full Sheet' : 'Fitted to Paper'} · ×{s.copies}
@@ -2013,7 +2013,7 @@ function FileCard({
           )}
 
           {/* Bottom Action Row: Dedicated Delete on left, Single prominent Close on right */}
-          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
             <button
               type="button"
               onClick={onRemove}
@@ -2024,8 +2024,8 @@ function FileCard({
                 color: '#dc2626',
                 border: '1.5px solid #fecaca',
                 borderRadius: 12,
-                fontWeight: 700,
-                fontSize: 13,
+                fontWeight: 800,
+                fontSize: 14,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -2045,7 +2045,7 @@ function FileCard({
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: 12,
-                fontWeight: 700,
+                fontWeight: 800,
                 fontSize: 14,
                 cursor: 'pointer',
                 boxShadow: '0 4px 12px rgba(15, 23, 42, 0.2)',
@@ -2106,10 +2106,10 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
   const totalPages = files.reduce((s, f) => s + f.pages * (f.settings.copies ?? 1), 0);
 
   return (
-    <main className="page" style={{ display: 'flex', flexDirection: 'column', background: '#f7f4ee', minHeight: '100dvh' }}>
+    <main className="page" style={{ display: 'flex', flexDirection: 'column', background: '#f7f4ee', height: '100dvh', maxHeight: '100dvh', overflow: 'hidden' }}>
       <Topbar title={`Basket · ${files.length + services.length} item${files.length + services.length !== 1 ? 's' : ''}`} back onBack={() => go('entry')} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 120px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 240px' }}>
         {/* Files */}
         {files.length > 0 && (
           <div>
@@ -2168,21 +2168,35 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
       </div>
 
       {/* Fixed bottom checkout bar */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #e2e8f0', padding: '12px 16px 28px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+      <div style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: '#ffffff',
+        borderTop: '1.5px solid #cbd5e1',
+        padding: '14px 20px 28px',
+        boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.08)',
+        zIndex: 50
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, maxWidth: 600, margin: '0 auto 10px' }}>
           <div>
-            <div style={{ fontSize: 13, color: '#718096' }}>{totalPages} page{totalPages !== 1 ? 's' : ''} to print</div>
-            {pricing.savingsTip && <div style={{ fontSize: 11, color: '#1f9d55', marginTop: 2 }}>{pricing.savingsTip}</div>}
+            <div style={{ fontSize: 13, color: '#334155', fontWeight: 700 }}>{totalPages} page{totalPages !== 1 ? 's' : ''} to print</div>
+            {pricing.savingsTip && <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, marginTop: 2 }}>{pricing.savingsTip}</div>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button style={{ fontSize: 12, color: '#718096', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }} onClick={() => setSheet('breakdown')}>
+            <button style={{ fontSize: 13, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontWeight: 700 }} onClick={() => setSheet('breakdown')}>
               Breakdown
             </button>
-            <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -1 }}>₹{pricing.total.toFixed(2)}</div>
+            <div style={{ fontSize: 30, fontWeight: 900, color: '#0f172a', letterSpacing: -1 }}>₹{pricing.total.toFixed(2)}</div>
           </div>
         </div>
-        <button className="primary full" style={{ width: '100%', padding: 15, fontSize: 17, fontWeight: 700, borderRadius: 14 }} onClick={() => go('checkout')}>
-          Checkout →
+        <button
+          className="primary full"
+          style={{ width: '100%', maxWidth: 600, margin: '0 auto', display: 'block', padding: 16, fontSize: 17, fontWeight: 800, borderRadius: 14, letterSpacing: 0.2 }}
+          onClick={() => go('checkout')}
+        >
+          Proceed to Checkout →
         </button>
       </div>
     </main>

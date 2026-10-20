@@ -97,9 +97,9 @@ function Checkout({ go, setSheet, services }: {
 
   /* ── Normal checkout ── */
   return (
-    <main className="page" style={{ display: 'flex', flexDirection: 'column', background: 'var(--color-bg,#f7f4ee)', minHeight: '100dvh' }}>
+    <main className="page" style={{ display: 'flex', flexDirection: 'column', background: 'var(--color-bg,#f7f4ee)', height: '100dvh', maxHeight: '100dvh', overflow: 'hidden' }}>
       <Topbar title="Checkout" back onBack={() => go('basket')} />
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 100px', maxWidth: 440, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 140px', maxWidth: 440, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
         
         {/* Order Summary Hero Card */}
         <div style={{
