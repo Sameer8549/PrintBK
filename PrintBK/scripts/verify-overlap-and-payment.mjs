@@ -3,14 +3,19 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 
-const staffRequire = createRequire(path.resolve('PrintBK/staff/package.json'));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, '..');
+
+const staffRequire = createRequire(path.join(rootDir, 'staff', 'package.json'));
 const { chromium } = staffRequire('@playwright/test');
 
-const evidenceDir = path.resolve('PrintBK/docs/final-evidence/overlap-and-payment');
+const evidenceDir = path.join(rootDir, 'docs', 'final-evidence', 'overlap-and-payment');
 fs.mkdirSync(evidenceDir, { recursive: true });
 
-const clientDir = path.resolve('PrintBK/client');
+const clientDir = path.join(rootDir, 'client');
 
 process.env.STAFF_TOKEN = 'test_staff_token_overlap';
 process.env.COUNTER_SETUP_CODE = 'PBK-COUNTER-SETUP-4f8a29b7c1e3456d890a12b4';
