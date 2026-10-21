@@ -3,23 +3,28 @@ import { Icon, Topbar } from '../../components/ui';
 import { Screen, Sheet } from '../../lib/types';
 import { notify } from '../../lib/store';
 import { useBasket, usePricing, fileFromRaw, rawFileMap } from '../../store/basket';
+import { useShopConfig } from '../../store/shopConfig';
 import { browseAndAddFiles } from '../../lib/filePicker';
 import { api } from '../../services/api';
 import { type PrintFile, parsePageRange } from '@printbk/shared';
 import { DocumentPageSlot, getPdfJsLib } from '../preview/DocumentPageSlot';
 
 
-/* ─── Option arrays ─────────────────────────────── */
-const colorOptions: { value: 'bw' | 'color' | 'auto' | 'custom'; label: string; sub: string }[] = [
-  { value: 'bw',     label: 'B&W',        sub: '₹1.50/p' },
-  { value: 'color',  label: 'Colour',     sub: '₹8.00/p' },
-  { value: 'auto',   label: 'Auto',       sub: 'detect'  },
-  { value: 'custom', label: 'Custom',     sub: 'pick pgs' },
-];
-const sidedOptions: { value: PrintFile['settings']['sided']; label: string; sub: string; icon: string }[] = [
-  { value: 'single', label: '1-Sided', sub: '₹1.50/sheet', icon: '1' },
-  { value: 'double', label: '2-Sided', sub: '₹0.85/side · Eco', icon: '2' },
-];
+/* ─── Option helper functions ─────────────────────── */
+function getColorOptions(bwRate: number, colourRate: number) {
+  return [
+    { value: 'bw' as const,     label: 'B&W',        sub: `₹${bwRate.toFixed(2)}/p` },
+    { value: 'color' as const,  label: 'Colour',     sub: `₹${colourRate.toFixed(2)}/p` },
+    { value: 'auto' as const,   label: 'Auto',       sub: 'detect'  },
+    { value: 'custom' as const, label: 'Custom',     sub: 'pick pgs' },
+  ];
+}
+function getSidedOptions(bwRate: number, duplexRate: number) {
+  return [
+    { value: 'single' as const, label: '1-Sided', sub: `₹${bwRate.toFixed(2)}/sheet`, icon: '1' },
+    { value: 'double' as const, label: '2-Sided', sub: `₹${duplexRate.toFixed(2)}/side · Eco`, icon: '2' },
+  ];
+}
 const nUpOptions: { value: number; label: string; sub: string; icon: string }[] = [
   { value: 1, label: '1-up', sub: 'Full page', icon: '■' },
   { value: 2, label: '2-up', sub: 'Save 50% paper', icon: '◫' },
@@ -1247,21 +1252,35 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
       )}
 
       {/* Live mode info text */}
-      <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center' }}>
-        Previewing in <b>{
-          s.paper === 'A3' ? (
-            s.colorMode === 'bw' ? 'A3 B&W (₹3.00/p single, ₹1.70/p double)' :
-            s.colorMode === 'color' ? 'A3 Full Colour (₹16.00/p)' :
-            isCustom ? `A3 Custom Plan (${customColorPages.length} Colour @ ₹16.00, ${(file.pages || 1) - customColorPages.length} B&W @ ₹3.00)` :
-            'A3 Auto Detection'
-          ) : (
-            s.colorMode === 'bw' ? 'B&W (₹1.50/p single, ₹0.85/p double)' :
-            s.colorMode === 'color' ? 'Full Colour (₹8.00/p)' :
-            isCustom ? `Custom Plan (${customColorPages.length} Colour @ ₹8.00, ${(file.pages || 1) - customColorPages.length} B&W)` :
-            'Auto Detection'
-          )
-        }</b>
-      </div>
+      {(() => {
+        const previewConfig = useShopConfig.getState().config;
+        const previewRates = (previewConfig?.rates as any) || {};
+        const pBw = previewRates.bw ?? 1.50;
+        const pDuplex = previewRates.duplex ?? (previewRates.doubleSideDiscount ? Number((pBw * (1 - previewRates.doubleSideDiscount)).toFixed(2)) : 0.85);
+        const pColor = previewRates.colour ?? previewRates.color ?? 8.00;
+        const pA3Mult = previewRates.paperMultipliers?.A3 ?? 2;
+        const a3Bw = pBw * pA3Mult;
+        const a3Duplex = pDuplex * pA3Mult;
+        const a3Color = pColor * pA3Mult;
+
+        return (
+          <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center' }}>
+            Previewing in <b>{
+              s.paper === 'A3' ? (
+                s.colorMode === 'bw' ? `A3 B&W (₹${a3Bw.toFixed(2)}/p single, ₹${a3Duplex.toFixed(2)}/p double)` :
+                s.colorMode === 'color' ? `A3 Full Colour (₹${a3Color.toFixed(2)}/p)` :
+                isCustom ? `A3 Custom Plan (${customColorPages.length} Colour @ ₹${a3Color.toFixed(2)}, ${(file.pages || 1) - customColorPages.length} B&W @ ₹${a3Bw.toFixed(2)})` :
+                'A3 Auto Detection'
+              ) : (
+                s.colorMode === 'bw' ? `B&W (₹${pBw.toFixed(2)}/p single, ₹${pDuplex.toFixed(2)}/p double)` :
+                s.colorMode === 'color' ? `Full Colour (₹${pColor.toFixed(2)}/p)` :
+                isCustom ? `Custom Plan (${customColorPages.length} Colour @ ₹${pColor.toFixed(2)}, ${(file.pages || 1) - customColorPages.length} B&W)` :
+                'Auto Detection'
+              )
+            }</b>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -1360,6 +1379,26 @@ function FileCard({
   const isSinglePageDoc = !isImage && (file.pages === 1);
   const isMultiPageDoc = !isImage && (file.pages > 1);
 
+  const cfg = useShopConfig(st => st.config);
+  const cfgRates = (cfg?.rates as any) || {};
+  const bwRate = cfgRates.bw ?? 1.50;
+  const duplexRate = cfgRates.duplex ?? (cfgRates.doubleSideDiscount ? Number((bwRate * (1 - cfgRates.doubleSideDiscount)).toFixed(2)) : 0.85);
+  const colourRate = cfgRates.colour ?? cfgRates.color ?? 8.00;
+  const a3Mult = cfgRates.paperMultipliers?.A3 ?? 2;
+  const glossyMult = cfgRates.paperMultipliers?.Glossy ?? 2;
+  const mult = s.paper === 'A3' ? a3Mult : (s.paper === 'Legal' || s.paper === 'Glossy') ? glossyMult : 1;
+
+  const layoutKey = (file as any).photoLayout || 'Passport 8-up';
+  const basePhotoRate = (typeof (file as any).photoUnitPrice === 'number' && (file as any).photoUnitPrice > 0)
+    ? (file as any).photoUnitPrice
+    : (layoutKey === 'Passport 8-up' && cfgRates.photoPassport)
+      ? cfgRates.photoPassport
+      : (layoutKey === '4×6' && cfgRates.photo4x6)
+        ? cfgRates.photo4x6
+        : (cfgRates.photoRates?.[layoutKey] ?? (layoutKey === 'Passport 8-up' ? 40 : layoutKey === '4×6' ? 30 : 20));
+  const photoColorRate = basePhotoRate;
+  const photoBwRate = Math.max(5, Math.round(basePhotoRate * 0.5));
+
   return (
     <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #e2e8f0', marginBottom: 10, position: 'relative', overflow: open ? 'visible' : 'hidden' }}>
       {/* ── Header row: Clean single Edit toggle, formula, savings chip ── */}
@@ -1402,7 +1441,7 @@ function FileCard({
           <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
             {isMultiPageDoc && s.sided === 'double' && s.colorMode !== 'color' && (
               <span style={{ fontSize: 10, fontWeight: 700, background: '#dcfce7', color: '#15803d', padding: '2px 7px', borderRadius: 4 }}>
-                Saved ₹{((file.pages || 1) * 0.65 * (s.copies || 1)).toFixed(2)} with 2-sided
+                Saved ₹{((file.pages || 1) * (bwRate - duplexRate) * mult * (s.copies || 1)).toFixed(2)} with 2-sided
               </span>
             )}
             {isMultiPageDoc && (s.nUp ?? 1) > 1 && (
@@ -1518,7 +1557,9 @@ function FileCard({
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
                   <span>PRINT COLOR</span>
                   <span style={{ color: s.colorMode === 'bw' ? '#16a34a' : '#2563eb', fontWeight: 800 }}>
-                    {s.colorMode === 'bw' ? 'Black & White (₹1.50/sheet)' : 'Full Natural Colour (₹8.00/sheet)'}
+                    {isPhotoSheet
+                      ? (s.colorMode === 'bw' ? `Black & White (₹${photoBwRate.toFixed(2)}/sheet)` : `Full Natural Colour (₹${photoColorRate.toFixed(2)}/sheet)`)
+                      : (s.colorMode === 'bw' ? `Black & White (₹${(bwRate * mult).toFixed(2)}/sheet)` : `Full Natural Colour (₹${(colourRate * mult).toFixed(2)}/sheet)`)}
                   </span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -1536,7 +1577,9 @@ function FileCard({
                     }}
                   >
                     <span style={{ fontSize: 13, fontWeight: 800 }}>🎨 Full Colour</span>
-                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>Vibrant natural photo colours</span>
+                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>
+                      {isPhotoSheet ? `₹${photoColorRate.toFixed(2)}/sheet · Natural photo colours` : 'Vibrant natural photo colours'}
+                    </span>
                   </button>
                   <button
                     type="button"
@@ -1552,7 +1595,9 @@ function FileCard({
                     }}
                   >
                     <span style={{ fontSize: 13, fontWeight: 800 }}>⬛ Black &amp; White</span>
-                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>Studio monochrome · Economical</span>
+                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>
+                      {isPhotoSheet ? `₹${photoBwRate.toFixed(2)}/sheet · 50% discount` : 'Studio monochrome · Economical'}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -1603,7 +1648,7 @@ function FileCard({
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
                   <span>PAPER SIZE &amp; FINISH</span>
                   <span style={{ color: '#0f172a', fontWeight: 800 }}>
-                    {s.paper === 'A3' ? 'A3 Large Sheet (297×420 mm)' : s.paper === 'Legal' ? 'Glossy Photo Paper' : 'A4 Standard Paper'}
+                    {s.paper === 'A3' ? 'A3 Large Sheet (297×420 mm)' : (s.paper === 'Glossy' || s.paper === 'Legal') ? 'Glossy Photo Paper' : 'A4 Standard Paper'}
                   </span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
@@ -1637,11 +1682,11 @@ function FileCard({
                     }}
                   >
                     <span style={{ fontSize: 12, fontWeight: 700 }}>📐 A3 Large</span>
-                    <span style={{ fontSize: 9, opacity: 0.75 }}>2× A4 Poster</span>
+                    <span style={{ fontSize: 9, opacity: 0.75 }}>{mult}× A4 Poster</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => upd({ paper: 'Legal' } as any)}
+                    onClick={() => upd({ paper: 'Glossy' } as any)}
                     style={{
                       ...btn,
                       padding: '8px 4px',
@@ -1649,7 +1694,7 @@ function FileCard({
                       flexDirection: 'column',
                       alignItems: 'center',
                       gap: 2,
-                      ...sel(s.paper === 'Legal')
+                      ...sel(s.paper === 'Glossy' || s.paper === 'Legal')
                     }}
                   >
                     <span style={{ fontSize: 12, fontWeight: 700 }}>✨ Glossy</span>
@@ -1667,6 +1712,44 @@ function FileCard({
                   <button type="button" onClick={() => upd({ copies: s.copies + 1 })} style={{ width: 44, height: 44, background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', fontWeight: 800 }}>+</button>
                 </div>
               </div>
+
+              {/* Photo Rate Editor */}
+              {isPhotoSheet && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>PHOTO BASE RATE</span>
+                    <span style={{ color: '#0f172a', fontWeight: 800 }}>₹{basePhotoRate.toFixed(2)} / sheet</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f8fafc', padding: '10px 14px', borderRadius: 10, border: '1px solid #cbd5e1', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', background: '#fff', borderRadius: 8, border: '1px solid #cbd5e1' }}>
+                      <button type="button" onClick={() => onUpdate({ ...file, photoUnitPrice: Math.max(5, basePhotoRate - 5) } as any)} style={{ width: 36, height: 36, background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', fontWeight: 800 }}>−</button>
+                      <span style={{ minWidth: 54, textAlign: 'center', fontWeight: 800, fontSize: 14 }}>₹{basePhotoRate}</span>
+                      <button type="button" onClick={() => onUpdate({ ...file, photoUnitPrice: basePhotoRate + 5 } as any)} style={{ width: 36, height: 36, background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', fontWeight: 800 }}>+</button>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {[15, 20, 30, 40, 50].map(preset => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => onUpdate({ ...file, photoUnitPrice: preset } as any)}
+                          style={{
+                            padding: '6px 10px',
+                            borderRadius: 6,
+                            border: basePhotoRate === preset ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
+                            background: basePhotoRate === preset ? '#eff6ff' : '#fff',
+                            color: basePhotoRate === preset ? '#1d4ed8' : '#334155',
+                            fontWeight: 700,
+                            fontSize: 12,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ₹{preset}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -1693,7 +1776,7 @@ function FileCard({
                     }}
                   >
                     <span style={{ fontSize: 13, fontWeight: 800 }}>⬛ Black &amp; White</span>
-                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>₹1.50 per page · Fast &amp; Crisp</span>
+                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>₹{bwRate.toFixed(2)} per page · Fast &amp; Crisp</span>
                   </button>
                   <button
                     type="button"
@@ -1709,7 +1792,7 @@ function FileCard({
                     }}
                   >
                     <span style={{ fontSize: 13, fontWeight: 800 }}>🎨 Colour</span>
-                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>₹8.00 per page · Full Colour</span>
+                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>₹{colourRate.toFixed(2)} per page · Full Colour</span>
                   </button>
                 </div>
               </div>
@@ -1758,7 +1841,7 @@ function FileCard({
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
                   <span>PAPER SIZE</span>
                   <span style={{ color: '#0f172a', fontWeight: 800 }}>
-                    {s.paper === 'A3' ? 'A3 (Large Format · 2× A4)' : s.paper === 'Legal' ? 'Legal (Long Sheet)' : 'A4 Standard'}
+                    {s.paper === 'A3' ? `A3 (Large Format · ${mult}× A4)` : s.paper === 'Legal' ? 'Legal (Long Sheet)' : 'A4 Standard'}
                   </span>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -1766,7 +1849,7 @@ function FileCard({
                     <button key={p} onClick={() => upd({ paper: p })}
                       style={{ ...btn, flex: 1, padding: '9px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel((s.paper ?? 'A4') === p) }}>
                       <span style={{ fontSize: 13, fontWeight: 700 }}>{p === 'A3' ? '📐 A3' : p}</span>
-                      <span style={{ fontSize: 9, opacity: 0.75 }}>{p === 'A4' ? 'Standard' : p === 'A3' ? '2× A4 (Large)' : 'Long'}</span>
+                      <span style={{ fontSize: 9, opacity: 0.75 }}>{p === 'A4' ? 'Standard' : p === 'A3' ? `${mult}× A4 (Large)` : 'Long'}</span>
                     </button>
                   ))}
                 </div>
@@ -1793,7 +1876,7 @@ function FileCard({
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1.2, marginBottom: 8 }}>COLOUR MODE</div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  {colorOptions.map(opt => (
+                  {getColorOptions(bwRate * mult, colourRate * mult).map(opt => (
                     <button key={opt.value} onClick={() => upd({ colorMode: opt.value })}
                       style={{ ...btn, flex: 1, padding: '9px 4px', lineHeight: 1.3, ...sel(s.colorMode === opt.value) }}>
                       {opt.label}<br /><span style={{ fontSize: 10, fontWeight: 400, opacity: 0.75 }}>{opt.sub}</span>
@@ -1855,7 +1938,7 @@ function FileCard({
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1.2, marginBottom: 8 }}>PRINT SIDES</div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  {sidedOptions.map(opt => (
+                  {getSidedOptions(bwRate * mult, duplexRate * mult).map(opt => (
                     <button key={opt.value} onClick={() => upd({ sided: opt.value })}
                       style={{ ...btn, flex: 1, padding: '9px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel(s.sided === opt.value) }}>
                       <span style={{ fontSize: 13, fontWeight: 700 }}>{opt.icon} {opt.label}</span>
@@ -1864,7 +1947,9 @@ function FileCard({
                   ))}
                 </div>
                 <div style={{ fontSize: 11, color: '#64748b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {s.sided === 'double' ? 'Double-sided saves paper and costs only ₹0.85/side instead of ₹1.50!' : 'Single-sided prints on one side only (₹1.50 per sheet).'}
+                  {s.sided === 'double'
+                    ? `Double-sided saves paper and costs only ₹${(duplexRate * mult).toFixed(2)}/side instead of ₹${(bwRate * mult).toFixed(2)}!`
+                    : `Single-sided prints on one side only (₹${(bwRate * mult).toFixed(2)} per sheet).`}
                 </div>
               </div>
 
@@ -1942,7 +2027,7 @@ function FileCard({
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1.2, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
                   <span>PAPER SIZE</span>
                   <span style={{ color: '#0f172a', fontWeight: 800 }}>
-                    {s.paper === 'A3' ? 'A3 (Large Format · 2× A4)' : s.paper === 'Legal' ? 'Legal (Long Sheet)' : 'A4 Standard'}
+                    {s.paper === 'A3' ? `A3 (Large Format · ${mult}× A4)` : s.paper === 'Legal' ? 'Legal (Long Sheet)' : 'A4 Standard'}
                   </span>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -1950,7 +2035,7 @@ function FileCard({
                     <button key={p} onClick={() => upd({ paper: p })}
                       style={{ ...btn, flex: 1, padding: '9px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...sel((s.paper ?? 'A4') === p) }}>
                       <span style={{ fontSize: 13, fontWeight: 700 }}>{p === 'A3' ? '📐 A3' : p}</span>
-                      <span style={{ fontSize: 9, opacity: 0.75 }}>{p === 'A4' ? 'Standard' : p === 'A3' ? '2× A4 (Large)' : 'Long'}</span>
+                      <span style={{ fontSize: 9, opacity: 0.75 }}>{p === 'A4' ? 'Standard' : p === 'A3' ? `${mult}× A4 (Large)` : 'Long'}</span>
                     </button>
                   ))}
                 </div>
@@ -2150,21 +2235,25 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
         )}
 
         {/* Services */}
-        {services.length > 0 && (
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: '#718096', margin: '12px 2px 8px' }}>SERVICES</div>
-            {services.map(s => (
-              <div key={s.id} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #e2e8f0', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{s.name}</div>
-                  {s.detail && <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>{s.detail}</div>}
+        {(() => {
+          const visibleServices = services.filter(s => !(s.attachTo && files.some(f => f.id === s.attachTo && (f as any).isPhotoSheet)));
+          if (visibleServices.length === 0) return null;
+          return (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: '#718096', margin: '12px 2px 8px' }}>SERVICES</div>
+              {visibleServices.map(s => (
+                <div key={s.id} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #e2e8f0', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{s.name}</div>
+                    {s.detail && <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>{s.detail}</div>}
+                  </div>
+                  <span style={{ fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap' }}>{s.price == null ? 'Quote' : `₹${s.price}`}</span>
+                  <button onClick={() => removeService(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e53e3e', fontSize: 22, lineHeight: 1, padding: '0 2px' }}>×</button>
                 </div>
-                <span style={{ fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap' }}>{s.price == null ? 'Quote' : `₹${s.price}`}</span>
-                <button onClick={() => removeService(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e53e3e', fontSize: 22, lineHeight: 1, padding: '0 2px' }}>×</button>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Fixed bottom checkout bar */}

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Topbar, Icon } from '../../components/ui';
 import { Screen } from '../../lib/types';
+import { useShopConfig } from '../../store/shopConfig';
 
 interface AboutProps {
   go: (screen: Screen) => void;
@@ -8,35 +9,103 @@ interface AboutProps {
 
 export function About({ go }: AboutProps) {
   const logoUrl = import.meta.env.BASE_URL + 'assets/hkbk-logo.png';
+  const cfg = useShopConfig(s => s.config);
+  const shopName = cfg.shopInfo?.name || 'HKBK Student Point';
+  const shopAddress = cfg.shopInfo?.address || 'HKBK Campus, Nagawara, Bengaluru - 560045';
+
+  // Ensure page always opens from the very top
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    const pageEl = document.querySelector('.page');
+    if (pageEl) pageEl.scrollTop = 0;
+  }, []);
+
+  const campusFeatures = [
+    {
+      title: 'High-Speed Document & Assignment Printing',
+      desc: 'Instant in-browser rendering for PDFs, DOCX files, and PPTX presentations with live slide-by-slide previews.',
+      icon: 'file' as const,
+      accent: '#2563eb',
+      bg: '#eff6ff',
+      border: '#bfdbfe',
+    },
+    {
+      title: 'Precision Color & Monochrome Reprographics',
+      desc: 'Crystal-clear 1200 DPI output on premium 75 GSM paper with duplex (double-sided) or single-sided options.',
+      icon: 'copy' as const,
+      accent: '#059669',
+      bg: '#ecfdf5',
+      border: '#a7f3d0',
+    },
+    {
+      title: 'Lab Manuals, Records & Thesis Binding',
+      desc: 'Spiral binding, soft-cover thermal binding, and executive hard-bound project reports directly at the campus desk.',
+      icon: 'check' as const,
+      accent: '#d97706',
+      bg: '#fffbeb',
+      border: '#fde68a',
+    },
+    {
+      title: 'Queue-Free Counter Dispatch',
+      desc: 'Zero waiting in long queues. Submit from your mobile phone anywhere on campus and pick up with your 4-digit code.',
+      icon: 'shop' as const,
+      accent: '#7c3aed',
+      bg: '#f5f3ff',
+      border: '#ddd6fe',
+    },
+  ];
 
   return (
-    <main className="page" style={{ background: 'var(--color-bg, #f7f4ee)', minHeight: '100dvh', paddingBottom: 56 }}>
+    <main
+      className="page"
+      style={{
+        background: 'var(--color-bg, #f7f4ee)',
+        minHeight: '100dvh',
+        paddingBottom: 64,
+        overflowY: 'auto',
+      }}
+    >
       <Topbar title="About PrintBK" back onBack={() => go('settings')} />
 
-      <div style={{ maxWidth: 600, margin: '14px auto 0', display: 'flex', flexDirection: 'column', gap: 16, padding: '0 12px' }}>
+      <div
+        style={{
+          maxWidth: 640,
+          margin: '16px auto 0',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 18,
+          padding: '0 14px',
+        }}
+      >
         {/* ── Official Crest & Hero Card ── */}
-        <section style={{
-          background: '#ffffff',
-          borderRadius: 22,
-          border: '1.5px solid #e2e8f0',
-          padding: '28px 22px 24px',
-          boxShadow: '0 4px 24px rgba(15, 23, 42, 0.05)',
-          textAlign: 'center'
-        }}>
-          {/* Official HD HKBK Crest */}
-          <div style={{
-            width: 96,
-            height: 96,
-            margin: '0 auto 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: '#ffffff',
+        <section
+          style={{
+            background: 'linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%)',
             borderRadius: 24,
-            padding: 8,
-            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.06)',
-            border: '1.5px solid #e2e8f0'
-          }}>
+            border: '1.5px solid #e2e8f0',
+            padding: '28px 20px 24px',
+            boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
+            textAlign: 'center',
+          }}
+        >
+          {/* Official HD HKBK Crest */}
+          <div
+            style={{
+              width: 104,
+              height: 104,
+              margin: '0 auto 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#ffffff',
+              borderRadius: 26,
+              padding: 8,
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08)',
+              border: '2px solid #e2e8f0',
+            }}
+          >
             <img
               src={logoUrl}
               alt="Official HKBK Crest"
@@ -44,111 +113,258 @@ export function About({ go }: AboutProps) {
                 width: '100%',
                 height: '100%',
                 objectFit: 'contain',
-                imageRendering: 'auto'
               }}
             />
           </div>
 
-          <h1 style={{ fontSize: 26, fontWeight: 900, color: '#0b1020', margin: '0 0 6px', letterSpacing: -0.5 }}>
+          <h1
+            style={{
+              fontSize: 28,
+              fontWeight: 900,
+              color: '#0b1020',
+              margin: '0 0 6px',
+              letterSpacing: -0.5,
+            }}
+          >
             PrintBK
           </h1>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#047857', marginBottom: 12 }}>
-            Smart Campus Reprographics & Automated Printing Platform
-          </div>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 16 }}>
-            <span style={{
-              background: '#eff6ff',
-              color: '#1d4ed8',
-              fontSize: 11,
+          <div
+            style={{
+              fontSize: 14,
               fontWeight: 700,
-              padding: '4px 12px',
-              borderRadius: 99,
-              border: '1px solid #bfdbfe'
-            }}>
-              HKBK Student Point · Bengaluru
-            </span>
-            <span style={{
-              background: '#ecfdf5',
               color: '#047857',
-              fontSize: 11,
-              fontWeight: 700,
-              padding: '4px 12px',
-              borderRadius: 99,
-              border: '1px solid #a7f3d0'
-            }}>
-              v1.0 Production Hardened
+              marginBottom: 14,
+            }}
+          >
+            Official Smart Campus Printing &amp; Reprographics Platform
+          </div>
+
+          {/* Badges */}
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              gap: 8,
+              marginBottom: 16,
+            }}
+          >
+            <span
+              style={{
+                background: '#eff6ff',
+                color: '#1d4ed8',
+                fontSize: 11,
+                fontWeight: 700,
+                padding: '4px 12px',
+                borderRadius: 99,
+                border: '1px solid #bfdbfe',
+              }}
+            >
+              Across All HKBK Institutions
+            </span>
+            <span
+              style={{
+                background: '#fef3c7',
+                color: '#92400e',
+                fontSize: 11,
+                fontWeight: 700,
+                padding: '4px 12px',
+                borderRadius: 99,
+                border: '1px solid #fde68a',
+              }}
+            >
+              {shopName} Desk
+            </span>
+            <span
+              style={{
+                background: '#ecfdf5',
+                color: '#047857',
+                fontSize: 11,
+                fontWeight: 700,
+                padding: '4px 12px',
+                borderRadius: 99,
+                border: '1px solid #a7f3d0',
+              }}
+            >
+              v1.0 Production
             </span>
           </div>
 
-          <p style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.65, margin: 0, textAlign: 'left', background: '#f8fafc', padding: '14px 16px', borderRadius: 14, border: '1px solid #f1f5f9' }}>
-            Built exclusively for students, faculty, and campus staff at <b>HKBK College of Engineering</b> to eliminate counter bottlenecks, eradicate malware transmission via shared flash drives, and streamline document printing in seconds.
+          <p
+            style={{
+              fontSize: 13.5,
+              color: '#334155',
+              lineHeight: 1.65,
+              margin: 0,
+              textAlign: 'left',
+              background: '#f8fafc',
+              padding: '16px 18px',
+              borderRadius: 16,
+              border: '1px solid #f1f5f9',
+            }}
+          >
+            Built for all students, faculty, researchers, and campus staff across all{' '}
+            <b>HKBK Institutions</b> — unified under one fast, privacy-focused printing
+            network. Print directly from your mobile device or laptop, skip counter lines,
+            and collect with a secure 4-digit code.
           </p>
         </section>
 
-        {/* ── College & Facility Context ── */}
-        <section style={{
-          background: '#ffffff',
-          borderRadius: 20,
-          border: '1.5px solid #e2e8f0',
-          padding: '22px 20px',
-          boxShadow: '0 2px 14px rgba(0,0,0,0.03)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-            <div style={{ display: 'grid', placeItems: 'center', color: '#0f172a' }}><Icon name="home" size={20} /></div>
+        {/* ── Unified Campus Reprographics Across All HKBK Institutions ── */}
+        <section
+          style={{
+            background: '#ffffff',
+            borderRadius: 22,
+            border: '1.5px solid #e2e8f0',
+            padding: '22px 20px',
+            boxShadow: '0 2px 14px rgba(0,0,0,0.03)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 10,
+                background: '#eff6ff',
+                color: '#1d4ed8',
+                display: 'grid',
+                placeItems: 'center',
+              }}
+            >
+              <Icon name="shop" size={18} />
+            </div>
             <div>
-              <strong style={{ display: 'block', fontSize: 15, color: '#0f172a' }}>HKBK College of Engineering</strong>
-              <small style={{ color: '#64748b', fontSize: 12 }}>Nagawara, Bengaluru - 560045, Karnataka</small>
+              <strong style={{ display: 'block', fontSize: 16, color: '#0f172a' }}>
+                Across All HKBK Institutions
+              </strong>
+              <small style={{ color: '#64748b', fontSize: 12 }}>
+                Unified campus printing and reprographic services
+              </small>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginTop: 14 }}>
-            <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: 12, border: '1px solid #e2e8f0' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Affiliation</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>VTU, Belagavi</div>
-              <div style={{ fontSize: 11, color: '#94a3b8' }}>AICTE Approved · NAAC</div>
-            </div>
-            <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: 12, border: '1px solid #e2e8f0' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Campus Facility</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>HKBK Student Point</div>
-              <div style={{ fontSize: 11, color: '#94a3b8' }}>Reprographics Wing</div>
-            </div>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              marginTop: 14,
+            }}
+          >
+            {campusFeatures.map(feat => (
+              <div
+                key={feat.title}
+                style={{
+                  background: '#f8fafc',
+                  border: '1.5px solid #e2e8f0',
+                  borderRadius: 14,
+                  padding: '14px 16px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 12,
+                }}
+              >
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 10,
+                    background: feat.bg,
+                    color: feat.accent,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: `1px solid ${feat.border}`,
+                    flexShrink: 0,
+                    marginTop: 2,
+                  }}
+                >
+                  <Icon name={feat.icon} size={18} />
+                </div>
+                <div>
+                  <strong style={{ fontSize: 13.5, color: '#0f172a', display: 'block' }}>
+                    {feat.title}
+                  </strong>
+                  <p style={{ fontSize: 12, color: '#64748b', margin: '3px 0 0', lineHeight: 1.5 }}>
+                    {feat.desc}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
-        {/* ── The Problem PrintBK Solves ── */}
-        <section style={{
-          background: '#ffffff',
-          borderRadius: 20,
-          border: '1.5px solid #e2e8f0',
-          padding: '22px 20px',
-          boxShadow: '0 2px 14px rgba(0,0,0,0.03)'
-        }}>
+        {/* ── Problem Solved: Old Way vs PrintBK ── */}
+        <section
+          style={{
+            background: '#ffffff',
+            borderRadius: 22,
+            border: '1.5px solid #e2e8f0',
+            padding: '22px 20px',
+            boxShadow: '0 2px 14px rgba(0,0,0,0.03)',
+          }}
+        >
           <h2 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: '0 0 14px' }}>
-            Why PrintBK was Built
+            Why Campus Needed PrintBK
           </h2>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#fee2e2', color: '#b91c1c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, flexShrink: 0 }}>
-                -
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 10,
+                  background: '#fee2e2',
+                  color: '#b91c1c',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 900,
+                  fontSize: 15,
+                  flexShrink: 0,
+                }}
+              >
+                ✕
               </div>
               <div>
-                <strong style={{ fontSize: 13, color: '#0f172a', display: 'block' }}>The Old Way (Pen Drives & Rush)</strong>
-                <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0', lineHeight: 1.5 }}>
-                  Passing infected pen drives between hostel computers and lab printers, crowding the reprographics counter during short breaks, and manually explaining page numbers to staff.
+                <strong style={{ fontSize: 13.5, color: '#0f172a', display: 'block' }}>
+                  The Old Campus Experience
+                </strong>
+                <p style={{ fontSize: 12.5, color: '#64748b', margin: '3px 0 0', lineHeight: 1.5 }}>
+                  Passing malware-infected flash drives from hostel PCs to counter printers,
+                  swarming the shop during 15-minute breaks, and verbal confusion over page numbers
+                  and pricing.
                 </p>
               </div>
             </div>
 
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#dcfce7', color: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, flexShrink: 0 }}>
-                +
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 10,
+                  background: '#dcfce7',
+                  color: '#15803d',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 900,
+                  fontSize: 15,
+                  flexShrink: 0,
+                }}
+              >
+                ✓
               </div>
               <div>
-                <strong style={{ fontSize: 13, color: '#0f172a', display: 'block' }}>The PrintBK Way (Instant & Contactless)</strong>
-                <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0', lineHeight: 1.5 }}>
-                  Direct PDF & PPTX slide rendering on your device, transparent rates, sequential order numbers, and 4-digit pickup codes. Arrive at the counter, show code, collect prints.
+                <strong style={{ fontSize: 13.5, color: '#0f172a', display: 'block' }}>
+                  The PrintBK Experience
+                </strong>
+                <p style={{ fontSize: 12.5, color: '#64748b', margin: '3px 0 0', lineHeight: 1.5 }}>
+                  Direct in-browser PDF, slide, and photo rendering, clear prices, instant UPI or counter
+                  cash, and automated queueing. Walk up, state your 4-digit code, and pick up clean prints.
                 </p>
               </div>
             </div>
@@ -156,75 +372,93 @@ export function About({ go }: AboutProps) {
         </section>
 
         {/* ── Key Architectural Capabilities ── */}
-        <section style={{
-          background: '#ffffff',
-          borderRadius: 20,
-          border: '1.5px solid #e2e8f0',
-          padding: '20px',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
-          gap: 12
-        }}>
+        <section
+          style={{
+            background: '#ffffff',
+            borderRadius: 22,
+            border: '1.5px solid #e2e8f0',
+            padding: '20px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: 12,
+          }}
+        >
           <div style={{ background: '#f8fafc', padding: 14, borderRadius: 14, border: '1px solid #f1f5f9' }}>
-            <div style={{ marginBottom: 6, color: '#0f172a' }}><Icon name="file" size={20} /></div>
+            <div style={{ marginBottom: 6, color: '#2563eb' }}><Icon name="file" size={22} /></div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Zero-Trace Privacy</div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>128-bit cryptographic capability tokens & 5-min server auto-wipe.</div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
+              Cryptographic capability tokens with automated {cfg.deleteDelayMinutes || 5}-minute privacy wipe.
+            </div>
           </div>
+
           <div style={{ background: '#f8fafc', padding: 14, borderRadius: 14, border: '1px solid #f1f5f9' }}>
-            <div style={{ marginBottom: 6, color: '#0f172a' }}><Icon name="copy" size={20} /></div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Local File Engine</div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>High-accuracy PDF page count & PPTX slide-count parser in browser.</div>
+            <div style={{ marginBottom: 6, color: '#059669' }}><Icon name="copy" size={22} /></div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Multi-Format Parsing</div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
+              In-browser page detection for PDFs, DOCX, and PPTX slide presentations with live previews.
+            </div>
           </div>
+
           <div style={{ background: '#f8fafc', padding: 14, borderRadius: 14, border: '1px solid #f1f5f9' }}>
-            <div style={{ marginBottom: 6, color: '#0f172a' }}><Icon name="check" size={20} /></div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Secure Pickup Codes</div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Collision-free server-generated 4-digit verification pin.</div>
+            <div style={{ marginBottom: 6, color: '#d97706' }}><Icon name="check" size={22} /></div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>4-Digit Secure Codes</div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
+              Collision-free numerical verification tokens for instant release at the counter.
+            </div>
           </div>
+
           <div style={{ background: '#f8fafc', padding: 14, borderRadius: 14, border: '1px solid #f1f5f9' }}>
-            <div style={{ marginBottom: 6, color: '#0f172a' }}><Icon name="settings" size={20} /></div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Multi-Channel Alerts</div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Audio chime, device vibration, browser push, & 1-tap WhatsApp alert.</div>
+            <div style={{ marginBottom: 6, color: '#7c3aed' }}><Icon name="bell" size={22} /></div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Ready Dispatch</div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
+              Audio chime, device vibration, and pickup notifications for students.
+            </div>
           </div>
         </section>
 
-        {/* ── Creator & Developer Spotlight Card ── */}
-        <section style={{
-          background: 'linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%)',
-          borderRadius: 22,
-          border: '1.5px solid #e2e8f0',
-          padding: '24px 20px',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.04)'
-        }}>
+        {/* ── Creator & Engineering Card ── */}
+        <section
+          style={{
+            background: 'linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%)',
+            borderRadius: 22,
+            border: '1.5px solid #e2e8f0',
+            padding: '24px 20px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <span style={{
-              background: '#fef3c7',
-              color: '#b45309',
-              fontSize: 11,
-              fontWeight: 800,
-              textTransform: 'uppercase',
-              letterSpacing: 1.2,
-              padding: '4px 10px',
-              borderRadius: 8,
-              border: '1px solid #fde68a'
-            }}>
-              Creator & Developer
+            <span
+              style={{
+                background: '#fef3c7',
+                color: '#b45309',
+                fontSize: 11,
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                letterSpacing: 1.2,
+                padding: '4px 10px',
+                borderRadius: 8,
+                border: '1px solid #fde68a',
+              }}
+            >
+              Creator &amp; Lead Engineer
             </span>
             <span style={{ fontSize: 12, color: '#64748b', fontWeight: 700 }}>
               Batch 2022–2026
             </span>
           </div>
 
-          <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0b1020', margin: '0 0 4px' }}>
+          <h2 style={{ fontSize: 22, fontWeight: 900, color: '#0b1020', margin: '0 0 4px' }}>
             Abdul Sameer
           </h2>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#2563eb', marginBottom: 10 }}>
-            3rd Year Information Science & Engineering (ISE) Student
+            Lead Engineer &amp; Campus Developer · HKBK Institutions
           </div>
           <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.6, margin: '0 0 20px' }}>
-            Conceptualized, engineered, and hardened PrintBK for the students of HKBKCE. Dedicated to building high-performance, privacy-centric campus utilities with modern web engineering.
+            Designed, architected, and hardened PrintBK across all HKBK Institutions. Passionate
+            about solving everyday campus bottlenecks through elegant, reliable software.
           </p>
 
-          {/* Clickable Social, Portfolio & Company Links */}
+          {/* Social Links */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {/* Portfolio Link */}
             <a
@@ -242,21 +476,22 @@ export function About({ go }: AboutProps) {
                 textDecoration: 'none',
                 color: '#0f172a',
                 boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
-                transition: 'transform 0.1s ease, border-color 0.1s ease'
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 12,
-                  background: '#f0fdf4',
-                  color: '#16a34a',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '1px solid #bbf7d0'
-                }}>
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 12,
+                    background: '#f0fdf4',
+                    color: '#16a34a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1px solid #bbf7d0',
+                  }}
+                >
                   <Icon name="globe" size={20} />
                 </div>
                 <div>
@@ -264,9 +499,7 @@ export function About({ go }: AboutProps) {
                   <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}>asameer.netlify.app</div>
                 </div>
               </div>
-              <div style={{ color: '#94a3b8' }}>
-                <Icon name="external" size={16} />
-              </div>
+              <div style={{ color: '#94a3b8' }}><Icon name="external" size={16} /></div>
             </a>
 
             {/* GitHub Profile */}
@@ -285,20 +518,21 @@ export function About({ go }: AboutProps) {
                 textDecoration: 'none',
                 color: '#0f172a',
                 boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
-                transition: 'transform 0.1s ease, border-color 0.1s ease'
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 12,
-                  background: '#24292f',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 12,
+                    background: '#24292f',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
                   <Icon name="github" size={20} />
                 </div>
                 <div>
@@ -306,9 +540,7 @@ export function About({ go }: AboutProps) {
                   <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>github.com/Sameer8549</div>
                 </div>
               </div>
-              <div style={{ color: '#94a3b8' }}>
-                <Icon name="external" size={16} />
-              </div>
+              <div style={{ color: '#94a3b8' }}><Icon name="external" size={16} /></div>
             </a>
 
             {/* LinkedIn Profile */}
@@ -327,20 +559,21 @@ export function About({ go }: AboutProps) {
                 textDecoration: 'none',
                 color: '#0f172a',
                 boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
-                transition: 'transform 0.1s ease, border-color 0.1s ease'
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 12,
-                  background: '#0a66c2',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 12,
+                    background: '#0a66c2',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
                   <Icon name="linkedin" size={20} />
                 </div>
                 <div>
@@ -348,17 +581,23 @@ export function About({ go }: AboutProps) {
                   <div style={{ fontSize: 12, color: '#0a66c2', fontWeight: 600 }}>linkedin.com/in/abdulsameer9</div>
                 </div>
               </div>
-              <div style={{ color: '#94a3b8' }}>
-                <Icon name="external" size={16} />
-              </div>
+              <div style={{ color: '#94a3b8' }}><Icon name="external" size={16} /></div>
             </a>
           </div>
         </section>
 
-        {/* ── Footer ── */}
-        <div style={{ textAlign: 'center', fontSize: 12, color: '#94a3b8', padding: '12px 0 24px', lineHeight: 1.6 }}>
-          PrintBK Platform · Engineered with care by Abdul Sameer<br />
-          Department of Information Science & Engineering · HKBKCE
+        {/* ── Official Institutional Footer ── */}
+        <div
+          style={{
+            textAlign: 'center',
+            fontSize: 12,
+            color: '#94a3b8',
+            padding: '8px 0 24px',
+            lineHeight: 1.6,
+          }}
+        >
+          <b>HKBK Group of Institutions</b> · {shopAddress}<br />
+          Official Smart Campus Printing &amp; Reprographics Desk · Across All HKBK Institutions
         </div>
       </div>
     </main>

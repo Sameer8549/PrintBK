@@ -3,6 +3,7 @@ import { Icon, Brand, Topbar, Segmented, SheetShell, Button, Toggle, Stepper, Ch
 import { Screen, Sheet } from '../../lib/types';
 import { notify } from '../../lib/store';
 import { useBasket, fileFromRaw, rawFileMap, type PrintFile } from '../../store/basket';
+import { useShopConfig } from '../../store/shopConfig';
 import { api } from '../../services/api';
 import { generateUltraHdPhotoSheet } from '../../lib/photoSheet';
 
@@ -52,6 +53,17 @@ function PhotoTool({
   } | null>(null);
   const isCardLayout = layout === "ID card" || layout === "Aadhaar";
   const customSlots = customRows * customColumns;
+
+  const shopConfig = useShopConfig(s => s.config);
+  const shopRates = (shopConfig?.rates as any) || {};
+
+  const getLayoutBasePrice = (key: string, defaultVal: number) => {
+    if (key === "Passport 8-up" && typeof shopRates.photoPassport === 'number') return shopRates.photoPassport;
+    if (key === "4×6" && typeof shopRates.photo4x6 === 'number') return shopRates.photo4x6;
+    if (shopRates.photoRates && typeof shopRates.photoRates[key] === 'number') return shopRates.photoRates[key];
+    return defaultVal;
+  };
+
   const layouts: Record<string, {
     slots: number;
     className: string;
@@ -63,63 +75,63 @@ function PhotoTool({
       slots: 1,
       className: "layout-one",
       label: "Full-page photo",
-      price: 10,
+      price: getLayoutBasePrice("1", 10),
       ratio: "Auto"
     },
     "2": {
       slots: 2,
       className: "layout-two",
       label: "Two large photos",
-      price: 15,
+      price: getLayoutBasePrice("2", 15),
       ratio: "Auto"
     },
     "4": {
       slots: 4,
       className: "layout-four",
       label: "Four equal photos",
-      price: 20,
+      price: getLayoutBasePrice("4", 20),
       ratio: "Auto"
     },
     "Passport 8-up": {
       slots: 8,
       className: "layout-passport",
       label: "35 × 45 mm passport",
-      price: 40,
+      price: getLayoutBasePrice("Passport 8-up", 40),
       ratio: "3:4"
     },
     "4×6": {
       slots: 2,
       className: "layout-4x6",
       label: "Two 4 × 6 inch prints",
-      price: 30,
+      price: getLayoutBasePrice("4×6", 30),
       ratio: "2:3"
     },
     "ID card": {
       slots: 2,
       className: "layout-id",
       label: "Front and back · 85.6 × 54 mm",
-      price: 20,
+      price: getLayoutBasePrice("ID card", 20),
       ratio: "Card"
     },
     "Aadhaar": {
       slots: 2,
       className: "layout-aadhaar",
       label: "Front and back · exact size",
-      price: 20,
+      price: getLayoutBasePrice("Aadhaar", 20),
       ratio: "Card"
     },
     "Resume": {
       slots: 1,
       className: "layout-resume",
       label: "One full A4 page",
-      price: 10,
+      price: getLayoutBasePrice("Resume", 10),
       ratio: "Auto"
     },
     "Custom": {
       slots: customSlots,
       className: "layout-custom",
       label: `${customColumns} × ${customRows} custom grid`,
-      price: 20 + customSlots * 3,
+      price: getLayoutBasePrice("Custom", 20) + customSlots * 3,
       ratio: ratio
     }
   };
@@ -492,6 +504,7 @@ function PhotoTool({
 
               (pFile as any).isPhotoSheet = true;
               (pFile as any).photoLayout = layout;
+              (pFile as any).photoUnitPrice = finalPrice;
               if (finalPreviewUrl) (pFile as any).previewUrl = finalPreviewUrl;
 
               if (targetFile) {

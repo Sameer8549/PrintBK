@@ -55,12 +55,12 @@ const DEFAULT_EXTENDED_CONFIG: ExtendedShopConfig = {
   shopName: 'HKBK Student Point',
   address: 'HKBK College Campus, Nagawara, Bengaluru',
   hours: '8:30 AM – 6:00 PM (Mon–Sat)',
-  phone: '+91 87068 68815',
+  phone: '',
   shopInfo: {
     name: 'HKBK Student Point',
     address: 'HKBK College Campus, Nagawara, Bengaluru',
     hours: '8:30 AM – 6:00 PM (Mon–Sat)',
-    phone: '+91 87068 68815',
+    phone: '',
     logo: '/printbk-logo.svg'
   },
   services: {
@@ -151,6 +151,14 @@ export const useShopConfig = create<ShopConfigStore>((set, get) => ({
             rates: {
               ...DEFAULT_EXTENDED_CONFIG.rates,
               ...(data.rates || {})
+            },
+            shopInfo: {
+              ...DEFAULT_EXTENDED_CONFIG.shopInfo,
+              ...(data.shopInfo || data.shop_info || {})
+            },
+            upi: {
+              ...DEFAULT_EXTENDED_CONFIG.upi,
+              ...(data.upi || {})
             }
           },
           lastEtag: newEtag || currentEtag,

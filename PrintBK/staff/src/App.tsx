@@ -955,23 +955,28 @@ function PrinterSettingsPanel({
     colour: String(shop.rates?.colour ?? "8.00"),
     duplex: String(shop.rates?.duplex ?? "0.85"),
     bulk: String(shop.rates?.bulk ?? "100"),
-    a3: String(shop.rates?.a3 ?? "2"),
-    legal: String(shop.rates?.legal ?? "1.25"),
+    a3: String(shop.rates?.a3 ?? (shop.rates?.paperMultipliers as any)?.A3 ?? "2"),
+    legal: String(shop.rates?.legal ?? (shop.rates?.paperMultipliers as any)?.Legal ?? "1.25"),
+    glossy: String(shop.rates?.glossy ?? (shop.rates?.paperMultipliers as any)?.Glossy ?? "2.0"),
     photo4x6: String(shop.rates?.photo4x6 ?? "20.00"),
     photo8x10: String(shop.rates?.photo8x10 ?? "50.00"),
     photoPassport: String(shop.rates?.photoPassport ?? "60.00"),
     bindingSpiral: String(shop.rates?.bindingSpiral ?? "35.00"),
+    bindingComb: String(shop.rates?.bindingComb ?? shop.rates?.comb ?? "25.00"),
+    bindingStaple: String(shop.rates?.bindingStaple ?? shop.rates?.staple ?? "5.00"),
     bindingSoft: String(shop.rates?.bindingSoft ?? "60.00"),
     bindingHard: String(shop.rates?.bindingHard ?? "150.00"),
     laminationA4: String(shop.rates?.laminationA4 ?? "25.00"),
     laminationA3: String(shop.rates?.laminationA3 ?? "50.00"),
+    laminationID: String(shop.rates?.laminationID ?? "10.00"),
+    laminationThickExtra: String(shop.rates?.laminationThickExtra ?? "5.00"),
     scanPerPage: String(shop.rates?.scanPerPage ?? "5.00"),
     copyBw: String(shop.rates?.copyBw ?? "1.50"),
     copyColour: String(shop.rates?.copyColour ?? "8.00"),
     typingBase: String(shop.rates?.typingBase ?? "50.00"),
     typingPerPage: String(shop.rates?.typingPerPage ?? "30.00"),
-    upiVpa: String(shop.rates?.upiVpa ?? "studentpoint@okhdfcbank"),
-    upiName: String(shop.rates?.upiName ?? "HKBK Student Point"),
+    upiVpa: String(shop.rates?.upiVpa ?? "Q098686787@ybl"),
+    upiName: String(shop.rates?.upiName ?? "PrintBK HKBK"),
   })
 
   const [services, setServices] = useState<Record<string, { available: boolean; reason?: string }>>({
@@ -996,7 +1001,7 @@ function PrinterSettingsPanel({
   const [shopDetails, setShopDetails] = useState({
     name: shop.name || "HKBK Student Point",
     address: shop.address || "HKBK College Campus, Bengaluru",
-    phone: shop.phone || "080 2544 1722",
+    phone: shop.shop_info?.phone || shop.phone || "",
     hours: "8:30 AM – 6:00 PM (Mon–Sat)",
     announcement: shop.announcement || "",
     delete: String(shop.delete_delay_minutes || 5),
@@ -1015,6 +1020,7 @@ function PrinterSettingsPanel({
               const pm = v as Record<string, any>
               if (pm.A3 !== undefined) next.a3 = String(pm.A3)
               if (pm.Legal !== undefined) next.legal = String(pm.Legal)
+              if (pm.Glossy !== undefined) next.glossy = String(pm.Glossy)
             } else if (typeof v === 'number' || typeof v === 'string') {
               (next as any)[k] = String(v)
             }
@@ -1038,7 +1044,7 @@ function PrinterSettingsPanel({
         setShopDetails({
           name: s.shop_info.name || "HKBK Student Point",
           address: s.shop_info.address || "HKBK College Campus, Bengaluru",
-          phone: s.shop_info.phone || "080 2544 1722",
+          phone: s.shop_info.phone || "",
           hours: s.shop_info.hours || "8:30 AM – 6:00 PM (Mon–Sat)",
           announcement: s.announcement || "",
           delete: String(s.delete_delay_minutes || 5),
@@ -1171,15 +1177,20 @@ function PrinterSettingsPanel({
             A4: 1.0,
             A3: Number(r.a3) || 2.0,
             Legal: Number(r.legal) || 1.25,
+            Glossy: Number(r.glossy) || 2.0,
           },
           photo4x6: Number(r.photo4x6),
           photo8x10: Number(r.photo8x10),
           photoPassport: Number(r.photoPassport),
           bindingSpiral: Number(r.bindingSpiral),
+          bindingComb: Number(r.bindingComb || 25),
+          bindingStaple: Number(r.bindingStaple || 5),
           bindingSoft: Number(r.bindingSoft),
           bindingHard: Number(r.bindingHard),
           laminationA4: Number(r.laminationA4),
           laminationA3: Number(r.laminationA3),
+          laminationID: Number(r.laminationID || 10),
+          laminationThickExtra: Number(r.laminationThickExtra || 5),
           scanPerPage: Number(r.scanPerPage),
           copyBw: Number(r.copyBw),
           copyColour: Number(r.copyColour),
@@ -1187,6 +1198,13 @@ function PrinterSettingsPanel({
           typingPerPage: Number(r.typingPerPage),
           upiVpa: r.upiVpa,
           upiName: r.upiName,
+          // Synonyms for full compatibility
+          comb: Number(r.bindingComb || 25),
+          staple: Number(r.bindingStaple || 5),
+          spiral: Number(r.bindingSpiral || 35),
+          hardCover: Number(r.bindingHard || 150),
+          scan: Number(r.scanPerPage || 5),
+          photocopy: Number(r.copyBw || 1.5),
         },
         services: sv,
         payments: {
@@ -1363,6 +1381,7 @@ function PrinterSettingsPanel({
                   <SettingsField label="Bulk discount after" value={rates.bulk} type="number" suffix="pages" onChange={(v) => { const nr = { ...rates, bulk: v }; setRates(nr); saveSettings(nr) }} />
                   <SettingsField label="A3 multiplier" value={rates.a3} type="number" suffix="×" onChange={(v) => { const nr = { ...rates, a3: v }; setRates(nr); saveSettings(nr) }} />
                   <SettingsField label="Legal multiplier" value={rates.legal} type="number" suffix="×" onChange={(v) => { const nr = { ...rates, legal: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Glossy multiplier" value={rates.glossy} type="number" suffix="×" onChange={(v) => { const nr = { ...rates, glossy: v }; setRates(nr); saveSettings(nr) }} />
                 </div>
               </section>
 
@@ -1376,9 +1395,11 @@ function PrinterSettingsPanel({
               </section>
 
               <section className="setting-card">
-                <div className="setting-card-title"><div><span>3. BINDING DESK</span><strong>Spiral, soft cover, and hard bound</strong></div></div>
+                <div className="setting-card-title"><div><span>3. BINDING DESK</span><strong>Spiral, comb, staple, and hard bound</strong></div></div>
                 <div className="field-grid">
                   <SettingsField label="Spiral binding rate" value={rates.bindingSpiral} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, bindingSpiral: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Comb binding rate" value={rates.bindingComb} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, bindingComb: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Staple / pin rate" value={rates.bindingStaple} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, bindingStaple: v }; setRates(nr); saveSettings(nr) }} />
                   <SettingsField label="Soft cover binding rate" value={rates.bindingSoft} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, bindingSoft: v }; setRates(nr); saveSettings(nr) }} />
                   <SettingsField label="Hard project bound rate" value={rates.bindingHard} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, bindingHard: v }; setRates(nr); saveSettings(nr) }} />
                 </div>
@@ -1387,8 +1408,10 @@ function PrinterSettingsPanel({
               <section className="setting-card">
                 <div className="setting-card-title"><div><span>4. LAMINATION</span><strong>Thermal protection sheets</strong></div></div>
                 <div className="field-grid">
+                  <SettingsField label="ID Card lamination" value={rates.laminationID} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, laminationID: v }; setRates(nr); saveSettings(nr) }} />
                   <SettingsField label="A4 Lamination sheet" value={rates.laminationA4} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, laminationA4: v }; setRates(nr); saveSettings(nr) }} />
                   <SettingsField label="A3 Lamination sheet" value={rates.laminationA3} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, laminationA3: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Thick 250µm extra" value={rates.laminationThickExtra} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, laminationThickExtra: v }; setRates(nr); saveSettings(nr) }} />
                 </div>
               </section>
 

@@ -42,8 +42,8 @@ function OtherServices({
 
   const services = [
     { id: "spiral", category: "Binding", title: "Spiral binding", copy: "Neat, flexible binding for notes and reports", price: `from ₹${spiralRate}`, tag: isSpiralAvail ? "Add to a print" : (svcAvail.binding_spiral?.reason || "Not available today"), icon: "file" as const, sheet: "binding" as Sheet, bindingType: "Spiral", unavailable: !isSpiralAvail },
-    { id: "comb", category: "Binding", title: "Comb binding", copy: "Reusable spine for manuals and projects", price: `from ₹${rates.comb ?? 25}`, tag: isSpiralAvail ? "Add to a print" : (svcAvail.binding_spiral?.reason || "Not available today"), icon: "file" as const, sheet: "binding" as Sheet, bindingType: "Comb", unavailable: !isSpiralAvail },
-    { id: "staple", category: "Binding", title: "Staple / corner pin", copy: "Simple finish for short documents", price: `₹${rates.staple ?? 5}`, tag: "Add to a print", icon: "check" as const, sheet: "binding" as Sheet, bindingType: "Staple", unavailable: false },
+    { id: "comb", category: "Binding", title: "Comb binding", copy: "Reusable spine for manuals and projects", price: `from ₹${rates.comb ?? rates.bindingComb ?? 25}`, tag: isSpiralAvail ? "Add to a print" : (svcAvail.binding_spiral?.reason || "Not available today"), icon: "file" as const, sheet: "binding" as Sheet, bindingType: "Comb", unavailable: !isSpiralAvail },
+    { id: "staple", category: "Binding", title: "Staple / corner pin", copy: "Simple finish for short documents", price: `₹${rates.staple ?? rates.bindingStaple ?? 5}`, tag: "Add to a print", icon: "check" as const, sheet: "binding" as Sheet, bindingType: "Staple", unavailable: false },
     { id: "hard", category: "Binding", title: "Hard cover / thesis binding", copy: "Premium project and thesis finish", price: `from ₹${hardRate}`, tag: isHardAvail ? "Add to a print" : (svcAvail.binding_hard?.reason || "Not available today"), icon: "file" as const, sheet: "binding" as Sheet, bindingType: "Hard cover", unavailable: !isHardAvail },
     { id: "lamination", category: "Lamination", title: "Lamination", copy: `ID ₹${lamID} · A4 ₹${lamA4} · A3 ₹${lamA3}`, price: `from ₹${lamID}`, tag: isLaminationAvail ? "Walk-in" : (svcAvail.lamination?.reason || "Not available today"), icon: "copy" as const, sheet: "lamination" as Sheet, unavailable: !isLaminationAvail },
     { id: "scanning", category: "Scanning", title: "Scanning to PDF", copy: "Upload page photos or bring originals", price: `₹${scanRate}/page`, tag: isScanningAvail ? "Walk-in or upload" : (svcAvail.scanning?.reason || "Not available today"), icon: "camera" as const, sheet: "scanning" as Sheet, unavailable: !isScanningAvail },
@@ -69,7 +69,7 @@ function OtherServices({
         type: 'addon',
         name: "Photocopy at counter",
         detail: "Bring the original · Pay at counter",
-        price: cfg.rates.photocopy,
+        price: copyRate,
         mode: "walkin",
         label: "Pay at counter",
         counterNote: "Bring your original pages for photocopying.",

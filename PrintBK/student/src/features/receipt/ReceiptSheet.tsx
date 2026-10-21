@@ -3,6 +3,7 @@ import { Brand, SheetShell, Icon } from '../../components/ui';
 import { Sheet } from '../../lib/types';
 import { notify } from '../../lib/store';
 import { useHistory, usePricing, useBasket } from '../../store/basket';
+import { useShopConfig } from '../../store/shopConfig';
 import { computePaymentStatus, getPaymentBadgeDetails } from '@printbk/shared';
 
 function ReceiptSheet({
@@ -84,6 +85,12 @@ function ReceiptSheet({
   const badgeColor = payBadge.color;
   const badgeText = payBadge.label;
 
+  const cfg = useShopConfig(s => s.config);
+  const shopName = cfg.shopInfo?.name || 'HKBK Student Point';
+  const shopAddress = cfg.shopInfo?.address || 'Bengaluru';
+  const upiVpa = cfg.upi?.upiId || (cfg.payments as any)?.upiVpa || 'Q098686787@ybl';
+  const upiName = cfg.upi?.payeeName || (cfg.payments as any)?.upiName || 'PrintBK HKBK';
+
   const saveAsPDF = () => {
     const popup = window.open('', '_blank', 'width=460,height=760');
     if (!popup) { notify('Allow pop-ups to save the receipt'); return; }
@@ -93,7 +100,7 @@ function ReceiptSheet({
     const paySectionHtml = isCash ? `
       <div class="pay-card cash-card">
         <div class="pay-badge">PAYMENT: CASH AT COUNTER</div>
-        <div class="pay-row"><span>Collection Counter:</span><b>HKBK Student Point Desk</b></div>
+        <div class="pay-row"><span>Collection Counter:</span><b>${shopName} Desk</b></div>
         <div class="pay-row"><span>Amount Payable:</span><b class="due">₹${total.toFixed(2)} (Cash Due)</b></div>
         <div class="pay-row"><span>Payment Status:</span><b>DUE ON PICKUP</b></div>
         <div class="pay-desc">Please pay exact cash at counter when your pickup code is called.</div>
@@ -101,11 +108,11 @@ function ReceiptSheet({
     ` : `
       <div class="pay-card upi-card">
         <div class="pay-badge">PAYMENT: UPI INSTANT TRANSFER</div>
-        <div class="pay-row"><span>Merchant Payee:</span><b>PrintBK HKBK</b></div>
-        <div class="pay-row"><span>Beneficiary VPA:</span><b>Q098686787@ybl</b></div>
+        <div class="pay-row"><span>Merchant Payee:</span><b>${upiName}</b></div>
+        <div class="pay-row"><span>Beneficiary VPA:</span><b>${upiVpa}</b></div>
         <div class="pay-row"><span>Amount Paid:</span><b class="paid">₹${total.toFixed(2)}</b></div>
         <div class="pay-row"><span>Transaction Status:</span><b>${paymentStatus === 'paid_verified' ? 'VERIFIED' : 'CLAIMED BY STUDENT'}</b></div>
-        <div class="pay-desc">Payment claimed via UPI to Q098686787@ybl. Shop staff will verify UTR and release prints.</div>
+        <div class="pay-desc">Payment claimed via UPI to ${upiVpa}. Shop staff will verify UTR and release prints.</div>
       </div>
     `;
 
@@ -131,7 +138,7 @@ function ReceiptSheet({
   footer{margin-top:20px;text-align:center;color:#94a3b8;font-size:11px;line-height:1.5}
   @media print{body{padding:0;background:#fff}.receipt{box-shadow:none;border:1px solid #cbd5e1;max-width:none}}
 </style></head><body><div class="receipt">
-<header><div><div class="brand">PrintBK</div><small>HKBK Student Point · Bengaluru</small></div><div style="text-align:right"><small>${dateStr}</small></div></header>
+<header><div><div class="brand">PrintBK</div><small>${shopName} · ${shopAddress}</small></div><div style="text-align:right"><small>${dateStr}</small></div></header>
 <div class="row"><span>Order Reference</span><b>${displayId}</b></div>
 <div class="row"><span>Payment Method</span><b>${method}</b></div>
 ${paySectionHtml}
@@ -179,7 +186,7 @@ ${servicesRows}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #f1f5f9', paddingBottom: 16 }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#0b1020' }}>PrintBK</div>
-            <div style={{ fontSize: 12, color: '#718096' }}>HKBK Student Point · Bengaluru</div>
+            <div style={{ fontSize: 12, color: '#718096' }}>{shopName} · {shopAddress}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 12, color: '#718096' }}>Date & Time</div>
@@ -202,14 +209,14 @@ ${servicesRows}
               {isCash ? 'CASH AT COUNTER' : 'UPI INSTANT PAYMENT'}
             </span>
             <span style={{ fontSize: 11, fontWeight: 700, color: isCash ? '#a16207' : '#2563eb' }}>
-              {isCash ? 'Due on Pickup' : 'To: Q098686787@ybl'}
+              {isCash ? 'Due on Pickup' : `To: ${upiVpa}`}
             </span>
           </div>
           <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.4 }}>
             {isCash ? (
-              <span>Please pay <b>₹${total.toFixed(2)} in cash</b> when collecting your prints at HKBK Student Point printing desk.</span>
+              <span>Please pay <b>₹${total.toFixed(2)} in cash</b> when collecting your prints at {shopName} printing desk.</span>
             ) : (
-              <span>Paid to <b>PrintBK HKBK</b> (VPA: <code style={{ background: '#dbeafe', padding: '1px 4px', borderRadius: 3, fontWeight: 700 }}>Q098686787@ybl</code>). Present pickup code at counter for release.</span>
+              <span>Paid to <b>{upiName}</b> (VPA: <code style={{ background: '#dbeafe', padding: '1px 4px', borderRadius: 3, fontWeight: 700 }}>{upiVpa}</code>). Present pickup code at counter for release.</span>
             )}
           </div>
         </div>
@@ -279,7 +286,7 @@ ${servicesRows}
 
         <footer style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', lineHeight: 1.5, marginTop: 4 }}>
           Files auto-delete 10 minutes after printing for privacy.<br />
-          Thank you for choosing HKBK Student Point!
+          Thank you for choosing {shopName}!
         </footer>
       </div>
 

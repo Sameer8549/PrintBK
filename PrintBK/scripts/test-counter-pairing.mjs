@@ -29,11 +29,11 @@ async function runTests() {
     const shortRes = await fetch(`${baseUrl}/server/api/counter/pair`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ setupCode: 'short-code' })
+      body: JSON.stringify({ setupCode: 'short' })
     });
     assert.strictEqual(shortRes.status, 400, 'Expected 400 for short code');
     const shortData = await shortRes.json();
-    assert.ok(shortData.error.includes('24 characters'), 'Expected length validation error');
+    assert.ok(shortData.error.includes('8 characters'), 'Expected length validation error');
     console.log('  -> Rejected short code correctly:', shortData.error);
 
     // 3. Test Rate Limiting / Lockout (simulate 5 bad attempts from a unique IP header)

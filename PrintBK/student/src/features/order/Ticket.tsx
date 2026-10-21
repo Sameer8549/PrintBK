@@ -3,6 +3,7 @@ import { Icon, Topbar } from '../../components/ui';
 import { Screen, Sheet } from '../../lib/types';
 import { notify } from '../../lib/store';
 import { useHistory, useBasket } from '../../store/basket';
+import { useShopConfig } from '../../store/shopConfig';
 import { useParams } from 'react-router-dom';
 import { api } from '../../services/api';
 
@@ -22,6 +23,9 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
   const order = liveOrder
     ? { ...liveOrder, accessToken: localOrder?.accessToken || liveOrder.accessToken }
     : localOrder;
+
+  const cfg = useShopConfig(s => s.config);
+  const shopName = cfg.shopInfo?.name || 'HKBK Student Point';
 
   const handleUtrLast4Change = async (val: string) => {
     const cleaned = val.replace(/\D/g, '').slice(0, 4);
@@ -150,7 +154,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
       playReadyChime();
       if ('Notification' in window && Notification.permission === 'granted') {
         new Notification(`PrintBK: Order ${orderNumber} is Ready!`, {
-          body: `Your documents are printed. Present pickup code ${pickupCode} at HKBK Student Point counter!`,
+          body: `Your documents are printed. Present pickup code ${pickupCode} at ${shopName} counter!`,
           icon: '/favicon.ico'
         });
       }
@@ -218,7 +222,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
   };
 
   const shareWhatsApp = () => {
-    const text = `PrintBK Order ${orderNumber} · Pickup Code: ${pickupCode} · Amount: ₹${total.toFixed(2)} · Location: HKBK Student Point`;
+    const text = `PrintBK Order ${orderNumber} · Pickup Code: ${pickupCode} · Amount: ₹${total.toFixed(2)} · Location: ${shopName}`;
     if (phone) {
       window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(text)}`, '_blank');
     } else {
@@ -320,7 +324,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
               Order Rejected at Counter
             </div>
             <p style={{ margin: '8px 0 12px', fontSize: 13, color: '#7f1d1d', lineHeight: 1.5 }}>
-              The print shop could not process this order (e.g. invalid file format or payment discrepancy). Please contact the counter directly at <b>+91 80 2544 1722</b> or visit HKBK Student Point.
+              The print shop could not process this order (e.g. invalid file format or payment discrepancy). Please visit the counter directly at {shopName} (Ground Floor, Opposite Canteen).
             </p>
             <button
               onClick={handleRestoreBasket}
@@ -425,7 +429,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
               Print Job is Ready for Collection!
             </div>
             <p style={{ margin: '6px 0 10px', fontSize: 13, color: '#065f46', lineHeight: 1.4 }}>
-              Present pickup code <b>{pickupCode}</b> at the HKBK Student Point counter to receive your documents.
+              Present pickup code <b>{pickupCode}</b> at the {shopName} counter to receive your documents.
             </p>
             {phone && (
               <div style={{ fontSize: 12, fontWeight: 600, color: '#047857', marginBottom: 12 }}>

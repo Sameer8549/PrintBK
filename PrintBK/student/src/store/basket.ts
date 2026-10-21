@@ -36,15 +36,42 @@ export const useBasket = create<BasketState>()(
         try { rawFileMap.delete(id); } catch (_) {}
         set((state) => {
           const remaining = state.files.filter(f => f.id !== id);
+          const remainingServices = state.services.filter(s => s.attachTo !== id);
           return {
             files: remaining,
+            services: remainingServices,
             activeFileId: state.activeFileId === id ? (remaining[0]?.id || null) : state.activeFileId
           };
         });
       },
-      updateFile: (id, updates) => set((state) => ({
-        files: state.files.map(f => f.id === id ? { ...f, ...updates } : f)
-      })),
+      updateFile: (id, updates) => set((state) => {
+        const updatedFiles = state.files.map(f => {
+          if (f.id !== id) return f;
+          const merged = { ...f, ...updates };
+          if (updates.settings && f.settings) {
+            merged.settings = { ...f.settings, ...updates.settings };
+          }
+          return merged;
+        });
+
+        // Sync attached services if copies change
+        const target = updatedFiles.find(f => f.id === id);
+        let updatedServices = state.services;
+        if (target && target.settings) {
+          const copies = target.settings.copies ?? 1;
+          updatedServices = state.services.map(s => {
+            if (s.attachTo === id) {
+              return { ...s, qty: copies };
+            }
+            return s;
+          });
+        }
+
+        return {
+          files: updatedFiles,
+          services: updatedServices
+        };
+      }),
       addService: (service) => set((state) => ({ services: [...state.services, service] })),
       removeService: (id) => set((state) => ({ services: state.services.filter(s => s.id !== id) })),
       clear: () => set({ files: [], services: [], activeFileId: null, isProcessing: false }),

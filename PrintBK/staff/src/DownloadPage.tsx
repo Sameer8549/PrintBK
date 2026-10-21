@@ -391,17 +391,9 @@ export function DownloadPage({ onPairSuccess }: DownloadPageProps) {
         <footer className="download-footer-support">
           <div>
             <strong>Need assistance setting up?</strong>
-            <p>Contact store technical support or review the local setup guide.</p>
+            <p>Visit the counter desk directly or pair your phone browser below.</p>
           </div>
           <div className="support-links">
-            <a
-              href="https://wa.me/919999999999?text=PrintBK%20Counter%20setup%20assistance"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="support-link"
-            >
-              WhatsApp Support
-            </a>
             <button
               type="button"
               className="support-link"

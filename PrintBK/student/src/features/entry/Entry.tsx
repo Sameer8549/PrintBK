@@ -24,7 +24,7 @@ function Entry({
   const shopName = cfg.shopInfo?.name || "HKBK Student Point";
   const rates = cfg.rates as any;
   const bwSingle = rates?.bw ?? 1.5;
-  const bwDouble = rates?.duplex ?? (rates?.bw ? Number((rates.bw * 0.85).toFixed(2)) : 0.85);
+  const bwDouble = rates?.duplex ?? (rates?.doubleSideDiscount ? Number((bwSingle * (1 - rates.doubleSideDiscount)).toFixed(2)) : 0.85);
   const colourRate = rates?.colour ?? rates?.color ?? 8.0;
   const deleteMinutes = cfg.deleteDelayMinutes || cfg.autoDeleteDelay || 5;
 

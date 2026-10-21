@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Icon, SheetShell } from '../../components/ui';
 import { notify, printReceipt, shareReceipt } from '../../lib/store';
 import { useHistory } from '../../store/basket';
+import { useShopConfig } from '../../store/shopConfig';
 
 function ReportSheet({
   close,
@@ -13,6 +14,7 @@ function ReportSheet({
   const [problem, setProblem] = useState("");
   const [pages, setPages] = useState("");
   const { orders } = useHistory();
+  const cfg = useShopConfig(s => s.config);
   const order = orderId ? orders.find(o => o.id === orderId) : orders[0];
   const orderNumStr = order?.orderNumber ? `#${order.orderNumber}` : (order?.id ? `#${order.id.slice(-6).toUpperCase()}` : "");
 
@@ -35,7 +37,8 @@ function ReportSheet({
             pickupCode: order.pickupCode,
             total: order.total,
             dateStr: new Date(order.date).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }),
-            paymentMethod: order.paymentMethod
+            paymentMethod: order.paymentMethod,
+            shopName: cfg.shopInfo?.name
           });
         }}>
           <Icon name="download" /> Save PDF receipt

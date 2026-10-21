@@ -62,7 +62,7 @@ const INITIAL_SHOP_CONFIG = {
     name: 'HKBK Student Point',
     address: 'HKBK College Campus, Nagawara, Bengaluru',
     hours: '8:30 AM – 6:00 PM (Mon–Sat)',
-    contact: '+91 87068 68815',
+    contact: '',
     payee: 'PrintBK HKBK',
     upi: 'Q098686787@ybl'
   }

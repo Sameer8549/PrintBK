@@ -41,6 +41,9 @@ function ShopClosedBarrier({
   onViewHistory: () => void;
   checking: boolean;
 }) {
+  const cfg = useShopConfig(s => s.config);
+  const shopName = cfg.shopInfo?.name || "HKBK Student Point";
+
   return (
     <div className="shop-closed-barrier">
       <div className="shop-closed-card">
@@ -50,7 +53,7 @@ function ShopClosedBarrier({
         <div className="shop-closed-brand">
           <img src="./hkbk-logo.jpg" alt="HKBK" className="shop-closed-logo" />
           <div>
-            <strong>HKBK Student Point</strong>
+            <strong>{shopName}</strong>
             <span>PrintBK Counter Service</span>
           </div>
         </div>
@@ -106,11 +109,21 @@ function RouteMapper() {
       history: '/history',
       settings: '/settings',
       about: '/about',
+      privacy: '/privacy',
       uploading: '/uploading',
       preview: '/preview',
     };
     navigate(map[screen] || '/');
   };
+
+  // Scroll to top on every route transition
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    const containers = document.querySelectorAll('.page, main, #root');
+    containers.forEach(el => { el.scrollTop = 0; });
+  }, [location.pathname]);
 
   const [sheet, setSheet] = useState<string | null>(null);
   const [bindingType, setBindingType] = useState<string>("Spiral");

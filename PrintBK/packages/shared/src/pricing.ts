@@ -28,6 +28,18 @@ function roundTo50Paise(val: number): number {
   return Math.round(val * 2) / 2;
 }
 
+const DEFAULT_PHOTO_LAYOUT_RATES: Record<string, number> = {
+  'Passport 8-up': 40,
+  '4×6': 30,
+  '1': 10,
+  '2': 15,
+  '4': 20,
+  'ID card': 20,
+  'Aadhaar': 20,
+  'Resume': 10,
+  'Custom': 25,
+};
+
 export function priceOrder(basket: Basket, config: ShopConfig = defaultShopConfig, now: Date = new Date()): PriceBreakdown {
   const lines: PriceLine[] = [];
   let subtotal = 0;
@@ -38,15 +50,49 @@ export function priceOrder(basket: Basket, config: ShopConfig = defaultShopConfi
 
   for (const file of basket.files) {
     if ((file as any).isPhotoSheet) {
+      const s = file.settings || ({} as any);
+      const copies = s.copies ?? 1;
+      const colorMode = s.colorPlan?.mode ?? s.colorMode ?? 'colour';
+      const paper = s.paper ?? 'A4';
+      const layout = (file as any).photoLayout || 'Passport 8-up';
+
+      // Base layout rate resolution:
+      // 1. file.photoUnitPrice (explicit user edit / preset)
+      // 2. config.rates for layout (photoPassport, photo4x6, photoRates)
+      // 3. DEFAULT_PHOTO_LAYOUT_RATES[layout]
+      let baseRate = (typeof (file as any).photoUnitPrice === 'number' && (file as any).photoUnitPrice > 0)
+        ? (file as any).photoUnitPrice
+        : (layout === 'Passport 8-up' && (config.rates as any).photoPassport)
+          ? (config.rates as any).photoPassport
+          : (layout === '4×6' && (config.rates as any).photo4x6)
+            ? (config.rates as any).photo4x6
+            : ((config.rates as any).photoRates?.[layout] ?? DEFAULT_PHOTO_LAYOUT_RATES[layout] ?? 20);
+
+      // Black & white discount: 50% of color rate (minimum ₹5)
+      const unitPrice = (colorMode === 'bw')
+        ? Math.max(5, Math.round(baseRate * 0.5))
+        : baseRate;
+
+      // Paper multiplier (A4: 1, A3: 2, Glossy/Legal: 2 or from paperMultipliers)
+      const paperMult = (config.rates.paperMultipliers as any)?.[paper] ?? ((paper === 'A3' || paper === 'Glossy' || paper === 'Legal') ? 2 : 1);
+      const totalPerSheet = unitPrice * paperMult;
+      const roundedTotal = roundTo50Paise(totalPerSheet * copies);
+
+      const paperLabel = paper === 'A3' ? ' · A3 Large' : (paper === 'Glossy' || paper === 'Legal') ? ' · Glossy Photo' : '';
+      const formulaStr = (paperMult > 1)
+        ? `${copies} sheet${copies > 1 ? 's' : ''} × ₹${unitPrice.toFixed(2)} × ${paperMult} (${paper}) (${colorMode === 'bw' ? 'B&W' : 'Colour'})`
+        : `${copies} sheet${copies > 1 ? 's' : ''} × ₹${unitPrice.toFixed(2)} (${colorMode === 'bw' ? 'B&W' : 'Colour'})`;
+
       lines.push({
         id: file.id,
         name: file.name,
-        qty: (file.settings?.copies ?? 1),
-        unitPrice: 0,
-        total: 0,
-        detail: `1 A4 photo sheet · Included with photo service`,
-        formula: `Covered by photo service`
+        qty: copies,
+        unitPrice: Math.round((roundedTotal / copies) * 100) / 100,
+        total: roundedTotal,
+        detail: `1 photo sheet${paperLabel} · ${colorMode === 'bw' ? 'Black & White' : 'Colour'} · ${layout}`,
+        formula: formulaStr
       });
+      subtotal += roundedTotal;
       continue;
     }
 
@@ -168,6 +214,11 @@ export function priceOrder(basket: Basket, config: ShopConfig = defaultShopConfi
   for (const svc of (basket.services || [])) {
     if (svc.type === 'request' || (svc as any).category === 'typing_request' || (svc as any).category === 'typing' || (svc.price === 0 && (((svc as any).name || (svc as any).title || '').toLowerCase().includes('typing') || ((svc as any).name || (svc as any).title || '').toLowerCase().includes('resume')))) {
       quotePending = true;
+      continue;
+    }
+
+    // Skip attached photo services if the photo sheet file is already directly priced
+    if (svc.attachTo && basket.files.some(f => f.id === svc.attachTo && (f as any).isPhotoSheet)) {
       continue;
     }
     
