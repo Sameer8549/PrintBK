@@ -41,7 +41,15 @@ Every production release of `PrintBK-Counter` produces:
 4. `latest.yml` (Electron-updater manifest)
 5. `checksums.txt` (Consolidated SHA-256 file)
 
-### Manifest Structure (`latest.yml`)
+### Official Production Release Fingerprints (v1.0.0)
+
+| Artifact | File Size | SHA-256 (Hex) | SHA-512 (Base64) |
+|---|---|---|---|
+| `PrintBK-Counter-Setup-1.0.0.exe` | 384,720,332 bytes (366.9 MB) | `0d047441cc9d1fe2bf945983330af7f548f1b10c9f447438d3bd0eb613235f04` | `oODnuOy5Q+i1OSnHc8B81qijRTlp3v3kII8ARk2HB0nrfqlV99iqeRE5kAE5za3+cA0Lputsq1mWPpE8nSDDFQ==` |
+| `PrintBK-Counter-Setup.exe` | 384,720,332 bytes (366.9 MB) | `0d047441cc9d1fe2bf945983330af7f548f1b10c9f447438d3bd0eb613235f04` | `oODnuOy5Q+i1OSnHc8B81qijRTlp3v3kII8ARk2HB0nrfqlV99iqeRE5kAE5za3+cA0Lputsq1mWPpE8nSDDFQ==` |
+
+> [!NOTE]
+> **Installer Size Architecture:** The self-contained NSIS installer packages the complete Electron desktop runtime, Chromium engine, Node supervisor, background print agent daemon, and bundled SumatraPDF 3.5.2 (`16,065,496 bytes`). When uncompressed, the application footprint is ~725 MB, compressed down to 384.7 MB. LibreOffice conversion is supported via locally installed LibreOffice or optional download (~340 MB) if Microsoft Office COM automation is not present.
 ```yaml
 version: 1.0.0
 files:

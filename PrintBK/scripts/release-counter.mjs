@@ -25,26 +25,32 @@ const distInstallerDir = path.join(counterAppDir, 'dist', 'installer');
 
 console.log('🚀 [release:counter] Initiating Production Counter Release Workflow...\n');
 
+const skipBuild = process.argv.includes('--skip-build');
+
 // Step 1: Pre-flight Integrity & Hygiene
 console.log('🔒 Step 1: Validating binary integrity & scanning mock hygiene...');
 execSync('node scripts/verify-binary-integrity.mjs', { cwd: rootDir, stdio: 'inherit' });
 execSync('node scripts/no-mock-data.mjs', { cwd: rootDir, stdio: 'inherit' });
 
-// Step 2: Build Counter Production Bundle
-console.log('\n📦 Step 2: Compiling Counter Application in Production Mode...');
-execSync('pnpm --filter printbk-counter build', {
-  cwd: rootDir,
-  stdio: 'inherit',
-  env: { ...process.env, NODE_ENV: 'production', COUNTER_ENV: 'prod' }
-});
+if (!skipBuild) {
+  // Step 2: Build Counter Production Bundle
+  console.log('\n📦 Step 2: Compiling Counter Application in Production Mode...');
+  execSync('pnpm --filter printbk-counter build', {
+    cwd: rootDir,
+    stdio: 'inherit',
+    env: { ...process.env, NODE_ENV: 'production', COUNTER_ENV: 'prod' }
+  });
 
-// Step 3: Package NSIS Installer via electron-builder
-console.log('\n🔨 Step 3: Generating Production NSIS Installer...');
-execSync('pnpm --filter printbk-counter dist:prod', {
-  cwd: rootDir,
-  stdio: 'inherit',
-  env: { ...process.env, NODE_ENV: 'production', COUNTER_ENV: 'prod' }
-});
+  // Step 3: Package NSIS Installer via electron-builder
+  console.log('\n🔨 Step 3: Generating Production NSIS Installer...');
+  execSync('pnpm --filter printbk-counter dist:prod', {
+    cwd: rootDir,
+    stdio: 'inherit',
+    env: { ...process.env, NODE_ENV: 'production', COUNTER_ENV: 'prod' }
+  });
+} else {
+  console.log('⚡ [release:counter] Skipping electron rebuild (--skip-build). Re-hashing existing installer...');
+}
 
 if (!fs.existsSync(distInstallerDir)) {
   throw new Error(`Installer output directory not found: ${distInstallerDir}`);

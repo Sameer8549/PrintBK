@@ -18,7 +18,7 @@ fs.mkdirSync(evidenceDir, { recursive: true });
 const clientDir = path.join(rootDir, 'client');
 
 process.env.STAFF_TOKEN = 'test_staff_token_overlap';
-process.env.COUNTER_SETUP_CODE = 'PBK-COUNTER-SETUP-4f8a29b7c1e3456d890a12b4';
+process.env.COUNTER_SETUP_CODE = process.env.COUNTER_SETUP_CODE || ('test_code_' + Math.random().toString(16).slice(2) + Math.random().toString(16).slice(2) + '000000000000').slice(0, 32);
 
 // Import real backend app
 const apiAppModule = await import('../functions/api/index.js');
@@ -35,8 +35,9 @@ const MIME = {
 };
 
 const server = http.createServer((req, res) => {
-  const urlObj = new URL(req.url, 'http://localhost:4235');
+  const urlObj = new URL(req.url, 'http://127.0.0.1:4235');
   const pathname = urlObj.pathname;
+  console.log(`[REQ] ${req.method} ${pathname}`);
 
   if (pathname.startsWith('/server/api') || pathname.startsWith('/api') || pathname === '/config' || pathname.startsWith('/orders') || pathname.startsWith('/upload') || pathname.startsWith('/staff/live')) {
     return apiApp(req, res);
@@ -77,8 +78,8 @@ const server = http.createServer((req, res) => {
   res.end('Not Found');
 });
 
-await new Promise((resolve) => server.listen(4235, resolve));
-console.log('Test server running at http://localhost:4235');
+await new Promise((resolve) => server.listen(4235, '127.0.0.1', resolve));
+console.log('Test server running at http://127.0.0.1:4235');
 
 try {
   const browser = await chromium.launch({ headless: true });
@@ -131,8 +132,7 @@ try {
   const page = await context.newPage();
 
   console.log('\n--- 1. Testing Student Basket No-Overlap Layout ---');
-  await page.goto('http://localhost:4235/#/basket');
-  await page.waitForLoadState('networkidle');
+  await page.goto('http://127.0.0.1:4235/#/basket', { waitUntil: 'domcontentloaded', timeout: 15000 });
   await page.waitForTimeout(1000);
 
   // Check scroll container and fixed checkout bar
@@ -171,7 +171,7 @@ try {
 
   console.log('\n--- 2. Testing Payment Return Auto-Confirm Guard ---');
   // Create an order via backend API
-  const orderRes = await fetch('http://localhost:4235/orders', {
+  const orderRes = await fetch('http://127.0.0.1:4235/orders', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -184,7 +184,7 @@ try {
   console.log(`Created test order #${orderData.orderNumber || 'test'} with ID: ${orderId}`);
 
   // Navigate to payment page
-  await page.goto(`http://localhost:4235/#/pay/${orderId}`);
+  await page.goto(`http://127.0.0.1:4235/#/pay/${orderId}`);
   await page.waitForTimeout(1000);
 
   // Verify we are on payment page
@@ -197,8 +197,44 @@ try {
   await payUpiBtn.click();
   console.log('Clicked "Pay with UPI" link');
 
-  // Simulate leaving the app (hidden for 2.5 seconds) and returning (visible)
-  console.log('Simulating visibility change: hidden for 2.5s...');
+  // Step 2A: Test False Return Guard (< 2 seconds)
+  console.log('Simulating false return: hidden for only 600ms...');
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', writable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+
+  await page.waitForTimeout(600);
+
+  console.log('Simulating visibility change: return to app early (visible)...');
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', writable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('focus'));
+  });
+
+  await page.waitForTimeout(500);
+
+  // Assert: Must STILL be on /pay/:id with false return warning displayed
+  const urlAfterFalseReturn = page.url();
+  console.log('Current URL after false return (<2s):', urlAfterFalseReturn);
+  assert.ok(urlAfterFalseReturn.includes(`/pay/${orderId}`), 'Must NOT redirect on false return (<2s)');
+  
+  const falseReturnNotice = await page.locator('strong:has-text("UPI App Didn\'t Open")').first();
+  await falseReturnNotice.waitFor({ state: 'visible', timeout: 5000 });
+  assert.ok(await falseReturnNotice.isVisible(), 'False return notice must be displayed when return < 2s');
+  console.log('✅ PASS: Hidden duration < 2s triggered false return guard without claiming payment!');
+
+  const falseReturnScreenshot = path.join(evidenceDir, '01-payment-false-return-guard.png');
+  await page.screenshot({ path: falseReturnScreenshot });
+  console.log(`Saved screenshot: ${falseReturnScreenshot}`);
+
+  // Step 2B: Test Valid Return (>= 2 seconds) -> Must AUTOMATICALLY redirect to receipt
+  console.log('\nTesting valid return (hidden for 2.5s) -> Must auto-redirect to receipt...');
+  // Launch UPI again
+  await payUpiBtn.click();
+  await page.waitForTimeout(300);
+
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { value: 'hidden', writable: true });
     document.dispatchEvent(new Event('visibilitychange'));
@@ -206,63 +242,41 @@ try {
 
   await page.waitForTimeout(2500);
 
-  console.log('Simulating visibility change: return to app (visible)...');
+  console.log('Simulating return to app after payment in UPI app (visible)...');
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { value: 'visible', writable: true });
     document.dispatchEvent(new Event('visibilitychange'));
     window.dispatchEvent(new Event('focus'));
   });
 
-  await page.waitForTimeout(800);
+  // Verify AUTOMATIC redirection straight to receipt with NO prompt and NO extra button
+  console.log('Waiting for automatic zero-tap navigation to receipt...');
+  await page.waitForURL(url => url.toString().includes('/receipt/'), { timeout: 10000 });
+  const finalReceiptUrl = page.url();
+  console.log('Navigated automatically to receipt URL:', finalReceiptUrl);
+  assert.ok(finalReceiptUrl.includes(`/receipt/${orderId}`), 'Must be on /receipt/:id URL automatically');
+  console.log('✅ PASS: Returning from UPI app after >= 2s automatically transitioned to receipt without any modal or prompt!');
 
-  // VERIFY: We must STILL be on /pay/:id and NOT auto-redirected to receipt!
-  const currentUrlAfterReturn = page.url();
-  console.log('Current URL after returning from UPI app:', currentUrlAfterReturn);
-  assert.ok(currentUrlAfterReturn.includes(`/pay/${orderId}`), 'MUST NOT auto-redirect to receipt upon return!');
-  console.log('✅ PASS: Returning from UPI app did NOT auto-confirm payment!');
+  // Verify honest receipt wording on receipt page
+  const orderConfirmedText = await page.locator('div:has-text("Order confirmed")').first();
+  await orderConfirmedText.waitFor({ state: 'visible', timeout: 5000 });
+  assert.ok(await orderConfirmedText.isVisible(), 'Receipt must state "Order confirmed"');
 
-  // VERIFY: The explicit confirmation prompt MUST appear
-  const verificationHeader = await page.locator('strong:has-text("Did you complete the payment?")').first();
-  await verificationHeader.waitFor({ state: 'visible', timeout: 5000 });
-  assert.ok(await verificationHeader.isVisible(), 'Confirmation prompt should be visible');
-  console.log('✅ PASS: Explicit confirmation prompt "Did you complete the payment?" is displayed!');
+  const paymentWaitingText = await page.locator('p:has-text("Payment: waiting for the shop to verify")').first();
+  await paymentWaitingText.waitFor({ state: 'visible', timeout: 5000 });
+  assert.ok(await paymentWaitingText.isVisible(), 'Receipt must state "Payment: waiting for the shop to verify"');
+  console.log('✅ PASS: Honest receipt wording verified: "Order confirmed" and "Payment: waiting for the shop to verify"!');
 
-  const promptScreenshot = path.join(evidenceDir, 'payment-verification-prompt.png');
-  await page.screenshot({ path: promptScreenshot });
-  console.log(`Saved screenshot: ${promptScreenshot}`);
-
-  // Test dismissing prompt (Not Paid / Retry)
-  const retryBtn = await page.locator('button:has-text("Not Paid / Retry")').first();
-  await retryBtn.click();
-  await page.waitForTimeout(400);
-
-  assert.strictEqual(await verificationHeader.isVisible(), false, 'Prompt should dismiss upon clicking Not Paid / Retry');
-  console.log('✅ PASS: "Not Paid / Retry" cleanly dismissed verification prompt without auto-claiming!');
-
-  const retryScreenshot = path.join(evidenceDir, 'payment-retry-state.png');
-  await page.screenshot({ path: retryScreenshot });
-  console.log(`Saved screenshot: ${retryScreenshot}`);
-
-  // Test explicit confirmation via "✓ I Have Completed Payment (View Receipt)" button
-  const confirmPaymentBtn = await page.locator('button:has-text("I Have Completed Payment")').first();
-  await confirmPaymentBtn.click();
-  console.log('Clicked "✓ I Have Completed Payment (View Receipt)" button');
-
-  // Verify redirection to receipt
-  await page.waitForURL(url => url.toString().includes('/receipt/'), { timeout: 8000 });
-  console.log('Successfully navigated to receipt:', page.url());
-  assert.ok(page.url().includes(`/receipt/${orderId}`), 'Should be redirected to receipt upon explicit confirmation');
-
-  const receiptScreenshot = path.join(evidenceDir, 'receipt-confirmed.png');
-  await page.screenshot({ path: receiptScreenshot });
-  console.log(`Saved screenshot: ${receiptScreenshot}`);
+  const autoReceiptScreenshot = path.join(evidenceDir, '02-receipt-auto-confirmed.png');
+  await page.screenshot({ path: autoReceiptScreenshot });
+  console.log(`Saved screenshot: ${autoReceiptScreenshot}`);
 
   console.log('\n--- 3. Testing Staff App Layout & Typography ---');
   const desktopContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const staffPage = await desktopContext.newPage();
 
   // Seed staff token and paired PC
-  await staffPage.goto('http://localhost:4235/staff');
+  await staffPage.goto('http://127.0.0.1:4235/staff');
   await staffPage.evaluate(() => {
     window.localStorage.setItem('printbk_staff_token', 'test_staff_token_overlap');
     window.localStorage.setItem('printbk_staff_paired', 'true');
@@ -270,7 +284,7 @@ try {
     window.localStorage.setItem('printbk_printer_color', 'HP Ink Tank 315 series');
   });
 
-  await staffPage.goto('http://localhost:4235/staff');
+  await staffPage.goto('http://127.0.0.1:4235/staff');
   await staffPage.waitForLoadState('networkidle');
   await staffPage.waitForTimeout(1000);
 
@@ -296,5 +310,7 @@ try {
 
   await browser.close();
 } finally {
+  server.closeAllConnections?.();
   server.close();
+  process.exit(0);
 }

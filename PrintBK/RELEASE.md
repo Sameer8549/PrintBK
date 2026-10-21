@@ -66,7 +66,7 @@ gh release create counter-v1.0.0 \
 ```
 
 Or via Web Browser:
-1. Open the public release repository `https://github.com/glittercowboy/PrintBK-releases/releases/new`.
+1. Open the public release repository `https://github.com/Sameer8549/PrintBK-releases/releases/new`.
 2. Tag: `counter-v1.0.0`. Title: `PrintBK Counter v1.0.0`.
 3. Drag & drop the four files from `counter-app/dist/installer/`.
 4. Click **Publish release**.
@@ -78,7 +78,7 @@ Or via Web Browser:
 After publication, download the asset back from the public CDN and verify that the hash matches:
 ```powershell
 # In PowerShell:
-Invoke-WebRequest -Uri "https://github.com/glittercowboy/PrintBK-releases/releases/latest/download/PrintBK-Counter-Setup.exe" -OutFile "$HOME\Downloads\PrintBK-Counter-Setup.exe"
+Invoke-WebRequest -Uri "https://github.com/Sameer8549/PrintBK-releases/releases/latest/download/PrintBK-Counter-Setup.exe" -OutFile "$HOME\Downloads\PrintBK-Counter-Setup.exe"
 Get-FileHash "$HOME\Downloads\PrintBK-Counter-Setup.exe" -Algorithm SHA256
 ```
 Compare the resulting hash with `checksums.txt`. Both must match byte-for-byte.

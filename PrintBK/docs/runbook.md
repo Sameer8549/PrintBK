@@ -86,11 +86,11 @@ Start-ScheduledTask -TaskName "PrintBKAgent"
 The staff counter application (`staff/`) requires zero login credentials. It pairs once on first launch using a one-time setup code.
 
 ### Step-by-Step Pairing
-1. Ensure `STAFF_SETUP_CODE` is set in the Catalyst console environment variables (e.g., `PBK-COUNTER-2026`).
-2. Open the Staff Counter web application in the Chrome/Edge browser on the counter PC:
-   `https://staff.printbk.in` (or local port).
-3. On first load, the **Pair Counter Device** modal appears.
-4. Enter the setup code: `PBK-COUNTER-2026` and give the device a label (e.g., `Counter 1 - Front Desk`).
+1. Ensure `STAFF_SETUP_CODE` / `COUNTER_SETUP_CODE` is set in the Catalyst console environment variables (at least 24 random hex characters).
+2. Open the Staff Counter application:
+   `https://printbk-60074625517.catalystserverless.in/staff/`.
+3. On first load, the **Pair Counter Device** prompt appears.
+4. Enter your secret setup code placeholder: `<YOUR_SECRET_COUNTER_SETUP_CODE>` and give the device a label (e.g., `Counter 1 - Front Desk`).
 5. Tap **Pair Device**.
 6. The backend exchanges the setup code for a high-entropy 256-bit device token (`X-Staff-Device-Token`) stored securely in `localStorage` under `printbk_staff_token`.
 7. The browser immediately loads the real-time live Orders dashboard. The pairing screen will never appear again unless device credentials are explicitly revoked by the owner.

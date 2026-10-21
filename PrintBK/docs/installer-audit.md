@@ -118,7 +118,7 @@ To eliminate hardcoded URLs and ensure strict separation of concerns, the app us
     "environment": "development",
     "apiBase": "https://printbk-60074625517.development.catalystserverless.in",
     "staffAppUrl": "https://printbk-60074625517.development.catalystserverless.in/staff/",
-    "updateFeedUrl": "https://github.com/glittercowboy/printbk-releases/releases/latest/download",
+    "updateFeedUrl": "https://github.com/Sameer8549/PrintBK-releases/releases/latest/download",
     "autoUpdate": false
   }
   ```

@@ -18,8 +18,8 @@ PrintBK is built so that every user-facing, API, and inter-process communication
 | **Student Web App** | `https://printbk-60074625517.catalystserverless.in/` | `https://printbk.tech/` |
 | **Staff Counter App** | `https://printbk-60074625517.catalystserverless.in/staff/` | `https://printbk.tech/staff/` (or `https://counter.printbk.tech`) |
 | **API Base Gateway** | `https://printbk-60074625517.catalystserverless.in/server/api` | `https://printbk.tech/server/api` |
-| **Release Download Base** | `https://github.com/glittercowboy/PrintBK-releases/releases/latest/download` | Same or `https://releases.printbk.tech` |
-| **Update Feed URL** | `https://github.com/glittercowboy/PrintBK-releases/releases/latest/download` | Same or `https://releases.printbk.tech` |
+| **Release Download Base** | `https://github.com/Sameer8549/PrintBK-releases/releases/latest/download` | Same or `https://releases.printbk.tech` |
+| **Update Feed URL** | `https://github.com/Sameer8549/PrintBK-releases/releases/latest/download` | Same or `https://releases.printbk.tech` |
 
 ---
 
@@ -68,7 +68,7 @@ In `PrintBK/counter-app/config/prod.json`:
   "environment": "production",
   "apiBase": "https://printbk.tech",
   "staffAppUrl": "https://printbk.tech/staff/",
-  "updateFeedUrl": "https://github.com/glittercowboy/PrintBK-releases/releases/latest/download",
+  "updateFeedUrl": "https://github.com/Sameer8549/PrintBK-releases/releases/latest/download",
   "autoUpdate": true,
   "heartbeatIntervalMs": 5000,
   "pollIntervalMs": 2000,

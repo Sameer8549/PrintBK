@@ -63,12 +63,12 @@ export function DownloadPage({ onPairSuccess }: DownloadPageProps) {
     }
   }, [])
 
-  const defaultDownloadUrl = "https://github.com/glittercowboy/PrintBK-releases/releases/latest/download/PrintBK-Counter-Setup.exe"
+  const defaultDownloadUrl = "https://github.com/Sameer8549/PrintBK-releases/releases/latest/download/PrintBK-Counter-Setup.exe"
   const downloadUrl = versionInfo?.stableDownloadUrl || versionInfo?.downloadUrl || defaultDownloadUrl
   const version = versionInfo?.latestVersion || "1.0.0"
-  const fileSize = versionInfo?.fileSize || "118 MB"
+  const fileSize = versionInfo?.fileSize || "367 MB"
   const releaseDate = versionInfo?.releaseDate || "October 2026"
-  const sha256 = versionInfo?.sha256 || "63768f5d0505a415a772ebc17fb1ff756e07b5ca31a44e5033fcb16751c6c579"
+  const sha256 = versionInfo?.sha256 || "0d047441cc9d1fe2bf945983330af7f548f1b10c9f447438d3bd0eb613235f04"
 
   const psCommand = `Get-FileHash "$HOME\\Downloads\\PrintBK-Counter-Setup.exe" -Algorithm SHA256`
 

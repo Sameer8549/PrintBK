@@ -1,0 +1,117 @@
+{
+  "critical": [
+    {
+      "name": "STAFF_TOKEN",
+      "description": "Pre-shared fallback authentication token for staff operations.",
+      "sensitive": true,
+      "minLength": 16
+    },
+    {
+      "name": "COUNTER_SETUP_CODE",
+      "description": "One-time workstation setup code for Windows installer first-run pairing.",
+      "sensitive": true,
+      "minLength": 24
+    },
+    {
+      "name": "AGENT_TOKEN",
+      "description": "Pre-shared fallback token for Windows print agent daemon.",
+      "sensitive": true,
+      "minLength": 16
+    },
+    {
+      "name": "CRON_SECRET",
+      "description": "Constant-time secret protecting automated cleanup and health scheduler endpoints.",
+      "sensitive": true,
+      "minLength": 16
+    },
+    {
+      "name": "UPI_ID",
+      "description": "Virtual Payment Address (VPA) for receiving direct student UPI payments.",
+      "sensitive": true,
+      "pattern": "^[a-zA-Z0-9.\\-_]{2,256}@[a-zA-Z]{2,64}$"
+    },
+    {
+      "name": "UPI_PAYEE_NAME",
+      "description": "Business payee name displayed inside student UPI apps (e.g. PrintBK HKBK).",
+      "sensitive": false,
+      "minLength": 2
+    },
+    {
+      "name": "ALLOWED_ORIGINS",
+      "description": "Comma-separated list of trusted web origins permitted for CORS access.",
+      "sensitive": false,
+      "minLength": 8
+    },
+    {
+      "name": "STUDENT_APP_URL",
+      "description": "Base URL serving the student web application.",
+      "sensitive": false,
+      "pattern": "^https?://"
+    },
+    {
+      "name": "STAFF_APP_URL",
+      "description": "Base URL serving the staff counter web application.",
+      "sensitive": false,
+      "pattern": "^https?://"
+    }
+  ],
+  "optional": [
+    {
+      "name": "RAZORPAY_KEY_ID",
+      "description": "Razorpay Key ID (dormant until live keys are provisioned).",
+      "sensitive": false
+    },
+    {
+      "name": "RAZORPAY_KEY_SECRET",
+      "description": "Razorpay Secret (dormant until live keys are provisioned).",
+      "sensitive": true
+    },
+    {
+      "name": "RAZORPAY_WEBHOOK_SECRET",
+      "description": "Razorpay Webhook verification secret (dormant).",
+      "sensitive": true
+    },
+    {
+      "name": "GITHUB_RELEASES_OWNER",
+      "description": "GitHub username or organization owning the public release repository.",
+      "sensitive": false,
+      "default": "Sameer8549"
+    },
+    {
+      "name": "GITHUB_RELEASES_REPO",
+      "description": "GitHub public repository name hosting desktop counter installer releases.",
+      "sensitive": false,
+      "default": "PrintBK-releases"
+    },
+    {
+      "name": "COUNTER_LATEST_VERSION",
+      "description": "Latest published desktop app version string.",
+      "sensitive": false,
+      "default": "1.0.0"
+    },
+    {
+      "name": "COUNTER_MIN_VERSION",
+      "description": "Minimum required desktop app version before mandatory update prompt.",
+      "sensitive": false,
+      "default": "1.0.0"
+    },
+    {
+      "name": "COUNTER_FILE_SIZE",
+      "description": "Human-readable size string of the desktop installer.",
+      "sensitive": false,
+      "default": "367 MB"
+    },
+    {
+      "name": "COUNTER_FILE_SIZE_BYTES",
+      "description": "Exact byte size of the official Windows desktop installer.",
+      "sensitive": false,
+      "default": "384720332"
+    },
+    {
+      "name": "COUNTER_SHA256",
+      "description": "Cryptographic SHA-256 hex digest of the official Windows installer.",
+      "sensitive": false,
+      "default": "0d047441cc9d1fe2bf945983330af7f548f1b10c9f447438d3bd0eb613235f04"
+    }
+  ]
+}

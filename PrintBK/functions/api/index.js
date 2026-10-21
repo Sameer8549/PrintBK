@@ -31,6 +31,35 @@ try {
   }
 } catch (_) {}
 
+/* ─── Cold-Start Environment Validation ───────────────────────────── */
+// Logs missing variable names only (never prints secret values)
+const CRITICAL_ENV_VARS = [
+  'STAFF_TOKEN',
+  'COUNTER_SETUP_CODE',
+  'AGENT_TOKEN',
+  'CRON_SECRET',
+  'UPI_ID',
+  'UPI_PAYEE_NAME',
+  'ALLOWED_ORIGINS',
+  'STUDENT_APP_URL',
+  'STAFF_APP_URL'
+];
+
+const missingColdStartVars = [];
+for (const varName of CRITICAL_ENV_VARS) {
+  if (!process.env[varName] || !String(process.env[varName]).trim()) {
+    missingColdStartVars.push(varName);
+  }
+}
+
+if (missingColdStartVars.length > 0) {
+  if (process.env.NODE_ENV === 'production' && !process.env.TEST_MODE) {
+    console.error(`[CRITICAL] Server cold-start failed: missing required environment variables: ${missingColdStartVars.join(', ')}`);
+  } else {
+    console.warn(`[WARN] Cold-start environment notice: missing variables: ${missingColdStartVars.join(', ')}`);
+  }
+}
+
 const app = express();
 
 /* ─── URL Prefix Normalization ───────────────────────────────────── */
@@ -190,7 +219,7 @@ function isStaff(req) {
 
 function rateLimiter(req, res, next) {
   // 1. Valid staff token, cron scheduler, or test environment is NEVER blocked by general rate limits
-  if (hasValidStaffToken(req) || isCronScheduler(req) || process.env.NODE_ENV === 'test') {
+  if ((hasValidStaffToken(req) || isCronScheduler(req) || process.env.NODE_ENV === 'test') && req.headers['x-test-rate-limit'] !== 'true') {
     return next();
   }
 
@@ -239,9 +268,7 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
 
 const defaultOrigins = [
   'https://printbk-60074625517.catalystserverless.in',
-  'https://printbk.catalystserverless.in',
   'https://printbk-60074625517.development.catalystserverless.in',
-  'https://printbk.development.catalystserverless.in',
   'http://localhost:5173',
   'http://localhost:3000'
 ];
@@ -721,7 +748,12 @@ async function listFolderFiles(folder) {
 
 /* ─── PUBLIC ENDPOINTS ───────────────────────────────────────────── */
 
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/health', (_req, res) => res.json({
+  status: 'ok',
+  service: 'PrintBK Serverless API',
+  uptimeSeconds: Math.floor(process.uptime()),
+  timestamp: Math.floor(Date.now() / 1000)
+}));
 app.get('/config', async (req, res) => {
   const catalystApp = getCatalystApp(req);
   const settings = await getEffectiveShopSettings(catalystApp);
@@ -1946,20 +1978,42 @@ app.get('/orders', async (req, res) => {
     return res.status(401).json({ error: 'Staff authentication required' });
   }
   try {
-    const catalystApp = catalyst.initialize(req);
-    const zcql = catalystApp.zcql();
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
     const statusFilter = req.query.status ? `WHERE status = '${esc(req.query.status)}'` : '';
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
 
-    let rows;
-    try {
-      rows = await zcql.executeZCQLQuery(
-        `SELECT id, order_number, status, payment_status, total, quote_pending, basket, file_names, created_at, updated_at FROM orders ${statusFilter} ORDER BY created_at DESC LIMIT ${limit}`
-      );
-    } catch (_) {
-      rows = await zcql.executeZCQLQuery(
-        `SELECT id, order_number, status, total, quote_pending, basket, file_names, created_at, updated_at FROM orders ${statusFilter} ORDER BY created_at DESC LIMIT ${limit}`
-      ).catch(() => []);
+    let rows = [];
+    if (zcql) {
+      try {
+        rows = await zcql.executeZCQLQuery(
+          `SELECT id, order_number, status, payment_status, total, quote_pending, basket, file_names, created_at, updated_at FROM orders ${statusFilter} ORDER BY created_at DESC LIMIT ${limit}`
+        );
+      } catch (_) {
+        rows = await zcql.executeZCQLQuery(
+          `SELECT id, order_number, status, total, quote_pending, basket, file_names, created_at, updated_at FROM orders ${statusFilter} ORDER BY created_at DESC LIMIT ${limit}`
+        ).catch(() => []);
+      }
+    } else {
+      // In-memory fallback
+      for (const order of memOrders.values()) {
+        if (!req.query.status || order.status === req.query.status) {
+          rows.push({
+            orders: {
+              id: order.id,
+              order_number: order.orderNumber,
+              status: order.status,
+              payment_status: order.payment_status,
+              total: order.total,
+              quote_pending: order.quotePending,
+              basket: JSON.stringify(order.basket || {}),
+              file_names: JSON.stringify(order.fileNames || []),
+              created_at: order.createdAt || order.date,
+              updated_at: order.updatedAt || order.date
+            }
+          });
+        }
+      }
     }
     res.json((rows || []).map(r => {
       let b = {};
@@ -1988,7 +2042,7 @@ app.get('/orders', async (req, res) => {
       };
     }));
   } catch (err) {
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error: ' + err.message });
   }
 });
 

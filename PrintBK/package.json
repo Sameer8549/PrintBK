@@ -8,7 +8,7 @@
     "release:counter": "node scripts/release-counter.mjs",
     "verify:integrity": "node scripts/verify-binary-integrity.mjs",
     "verify:production": "node scripts/verify-production.mjs",
-    "preflight": "node scripts/no-mock-data.mjs && node scripts/verify-binary-integrity.mjs && node scripts/test-counter-pairing.mjs && node scripts/verify-overlap-and-payment.mjs && node scripts/verify-download-page.mjs",
+    "preflight": "node scripts/preflight.mjs",
     "build:installer:dev": "pnpm --filter printbk-counter dist:dev",
     "build:installer:prod": "pnpm --filter printbk-counter dist:prod",
     "test": "echo \"Error: no test specified\" && exit 1"

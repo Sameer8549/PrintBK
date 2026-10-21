@@ -14,6 +14,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import http from 'http';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -42,7 +43,18 @@ try {
   }
 } catch (_) {}
 
-const BASE_URL = (process.argv[2] || process.env.BASE_URL || 'https://printbk-60074625517.development.catalystserverless.in/server/api').replace(/\/+$/, '');
+let localServer = null;
+let targetBaseUrl = (process.argv[2] || process.env.BASE_URL || '').replace(/\/+$/, '');
+
+if (!targetBaseUrl || targetBaseUrl === 'local' || process.env.NODE_ENV === 'test') {
+  const apiModule = await import('../functions/api/index.js');
+  const apiApp = apiModule.default || apiModule;
+  localServer = http.createServer(apiApp);
+  await new Promise((resolve) => localServer.listen(4322, resolve));
+  targetBaseUrl = 'http://localhost:4322/server/api';
+}
+
+const BASE_URL = targetBaseUrl;
 const STAFF_TOKEN = process.argv[3] || process.env.STAFF_TOKEN || '';
 const CRON_SECRET = process.argv[4] || process.env.CRON_SECRET || '';
 
@@ -426,7 +438,7 @@ async function run() {
     for (let i = 0; i < 40; i++) {
       burstPromises.push(
         fetch(`${BASE_URL}/health`, {
-          headers: { 'X-Burst-Test': `burst-${i}` }
+          headers: { 'X-Burst-Test': `burst-${i}`, 'X-Test-Rate-Limit': 'true' }
         })
       );
     }
@@ -470,7 +482,19 @@ async function run() {
   console.log(`Summary: ${passCount} PASSED, ${failCount} FAILED out of ${results.length} checks`);
   console.log('════════════════════════════════════════════════════════════════\n');
 
+  if (localServer) {
+    await new Promise((resolve) => localServer.close(resolve));
+  }
+
+  if (failCount > 0) {
+    process.exit(1);
+  }
+
   return results;
 }
 
-run().catch(console.error);
+run().catch((err) => {
+  console.error(err);
+  if (localServer) localServer.close();
+  process.exit(1);
+});

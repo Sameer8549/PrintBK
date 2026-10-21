@@ -76,8 +76,11 @@ router.post('/pair', async (req, res) => {
     return res.status(400).json({ error: 'Counter setup code must be at least 24 characters' });
   }
 
-  // Retrieve authorized setup code from environment (with dev fallback if not set)
-  const expectedCode = process.env.COUNTER_SETUP_CODE || 'PBK-COUNTER-SETUP-4f8a29b7c1e3456d890a12b4';
+  // Retrieve authorized setup code from environment (must be configured, single-use by default)
+  const expectedCode = process.env.COUNTER_SETUP_CODE;
+  if (!expectedCode) {
+    return res.status(503).json({ error: 'Counter pairing is currently disabled: COUNTER_SETUP_CODE is not configured in server environment' });
+  }
 
   if (!timingSafeCompare(cleanCode, expectedCode)) {
     rl.failedAttempts++;
@@ -237,13 +240,17 @@ router.get('/version', (req, res) => {
 
   const latestVersion = process.env.COUNTER_LATEST_VERSION || '1.0.0';
   const minSupportedVersion = process.env.COUNTER_MIN_VERSION || '1.0.0';
-  const fileSize = process.env.COUNTER_FILE_SIZE || '118 MB';
-  const fileSizeBytes = Number(process.env.COUNTER_FILE_SIZE_BYTES) || 123731968;
-  const releaseDate = process.env.COUNTER_RELEASE_DATE || '2026-10-20';
-  const sha256 = process.env.COUNTER_SHA256 || '63768f5d0505a415a772ebc17fb1ff756e07b5ca31a44e5033fcb16751c6c579';
-  const downloadUrl = process.env.COUNTER_DOWNLOAD_URL || 'https://github.com/glittercowboy/PrintBK-releases/releases/latest/download/PrintBK-Counter-Setup-1.0.0.exe';
-  const stableDownloadUrl = process.env.COUNTER_STABLE_DOWNLOAD_URL || 'https://github.com/glittercowboy/PrintBK-releases/releases/latest/download/PrintBK-Counter-Setup.exe';
-  const updateFeedUrl = process.env.COUNTER_UPDATE_URL || 'https://github.com/glittercowboy/PrintBK-releases/releases/latest/download';
+  const fileSize = process.env.COUNTER_FILE_SIZE || '367 MB';
+  const fileSizeBytes = Number(process.env.COUNTER_FILE_SIZE_BYTES) || 384720332;
+  const releaseDate = process.env.COUNTER_RELEASE_DATE || '2026-10-21';
+  const sha256 = process.env.COUNTER_SHA256 || '0d047441cc9d1fe2bf945983330af7f548f1b10c9f447438d3bd0eb613235f04';
+  const releasesOwner = process.env.GITHUB_RELEASES_OWNER || 'Sameer8549';
+  const releasesRepo = process.env.GITHUB_RELEASES_REPO || 'PrintBK-releases';
+  const defaultReleaseBase = `https://github.com/${releasesOwner}/${releasesRepo}/releases/latest/download`;
+
+  const downloadUrl = process.env.COUNTER_DOWNLOAD_URL || `${defaultReleaseBase}/PrintBK-Counter-Setup-1.0.0.exe`;
+  const stableDownloadUrl = process.env.COUNTER_STABLE_DOWNLOAD_URL || `${defaultReleaseBase}/PrintBK-Counter-Setup.exe`;
+  const updateFeedUrl = process.env.COUNTER_UPDATE_URL || defaultReleaseBase;
   const releaseNotes = process.env.COUNTER_RELEASE_NOTES || 'PrintBK Counter unified desktop application with embedded print agent and automated Windows printer management.';
 
   const data = {

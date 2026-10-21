@@ -2,13 +2,18 @@ import { createRequire } from "node:module";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-const require = createRequire(import.meta.url);
-const staffRequire = createRequire(path.resolve("staff/package.json"));
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, "..");
+
+const staffRequire = createRequire(path.join(rootDir, "staff", "package.json"));
 const { PDFDocument } = staffRequire("pdf-lib");
 const { chromium } = staffRequire("@playwright/test");
 
-const clientDir = path.resolve("client");
-const evidenceDir = path.resolve("docs/fix-evidence/after");
+const clientDir = path.join(rootDir, "client");
+const evidenceDir = path.join(rootDir, "docs", "fix-evidence", "after");
 fs.mkdirSync(evidenceDir, { recursive: true });
 
 const MIME = {
@@ -54,8 +59,8 @@ const server = http.createServer((req, res) => {
 });
 
 async function run() {
-  await new Promise(r => server.listen(4188, r));
-  console.log("Mock static server listening on 4188");
+  await new Promise(r => server.listen(4188, '127.0.0.1', r));
+  console.log("Mock static server listening on http://127.0.0.1:4188");
   
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
@@ -72,14 +77,14 @@ async function run() {
     console.error("PAGE ERROR:", err);
   });
 
-  await page.goto("http://localhost:4188/staff/");
+  await page.goto("http://127.0.0.1:4188/staff/");
   await page.evaluate(() => {
     localStorage.setItem("printbk-paired", "true");
     localStorage.setItem("printbk_staff_paired", "true");
     localStorage.setItem("printbk_staff_device_id", "staff_master_pc");
     localStorage.setItem("printbk_staff_token", "test_token");
   });
-  await page.goto("http://localhost:4188/staff/");
+  await page.goto("http://127.0.0.1:4188/staff/");
   
   await page.waitForSelector("button:has-text('Settings')", { timeout: 10000 });
   await page.click("button:has-text('Settings')");
@@ -139,6 +144,7 @@ async function run() {
   }
 
   await browser.close();
+  server.closeAllConnections?.();
   server.close();
 
   if (pageCount !== 1) {
@@ -152,6 +158,7 @@ async function run() {
   }
 
   console.log("✅ VERIFICATION SUCCESSFUL: Downloaded PDF is valid, exactly 1 page, generated cleanly with 0 CSP errors!");
+  process.exit(0);
 }
 
 run().catch(err => {

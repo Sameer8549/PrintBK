@@ -34,7 +34,6 @@ function PaymentState({
   const [copied, setCopied] = useState(false);
   const [failedLaunch, setFailedLaunch] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
-  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
 
   // Platform detection
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
@@ -148,13 +147,13 @@ function PaymentState({
           const hiddenDuration = now - hiddenStart;
 
           if (hiddenDuration < 2000) {
-            // False return: UPI app did not open or failed to launch
+            // False return: UPI app did not open or failed to launch (< 2 seconds)
             setFailedLaunch(true);
             return;
           }
 
-          // Require explicit student verification before claiming payment
-          setAwaitingConfirmation(true);
+          // Valid return after completing payment in UPI app (>= 2s): automatically claim and redirect to receipt
+          executeAutoClaim();
         }
       }
     };
@@ -323,97 +322,7 @@ function PaymentState({
           </div>
         )}
 
-        {/* ── Payment Return Verification Prompt ── */}
-        {awaitingConfirmation && !redirecting && (
-          <div style={{
-            background: '#ffffff',
-            borderRadius: 18,
-            border: '2px solid #2563eb',
-            padding: '20px 18px',
-            marginBottom: 16,
-            boxShadow: '0 8px 24px rgba(37, 99, 235, 0.15)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-              <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#eff6ff', display: 'grid', placeItems: 'center', color: '#2563eb', fontSize: 20 }}>
-                💳
-              </div>
-              <div>
-                <strong style={{ fontSize: 16, color: '#0f172a', fontWeight: 800, display: 'block' }}>
-                  Did you complete the payment?
-                </strong>
-                <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>
-                  Order #{upiData.orderNumber} · ₹{upiData.amount.toFixed(2)}
-                </span>
-              </div>
-            </div>
 
-            <p style={{ fontSize: 13, color: '#334155', margin: '8px 0 16px', lineHeight: 1.45 }}>
-              Please confirm if the payment was successful in your UPI app. If not completed yet, you can retry or switch to cash.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => executeAutoClaim()}
-                style={{
-                  width: '100%',
-                  padding: '14px',
-                  borderRadius: 12,
-                  border: 'none',
-                  background: '#16a34a',
-                  color: '#ffffff',
-                  fontWeight: 800,
-                  fontSize: 15,
-                  cursor: 'pointer',
-                  boxShadow: '0 3px 10px rgba(22, 163, 74, 0.3)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8
-                }}
-              >
-                <span>✓ Yes, I Have Paid ₹{upiData.amount.toFixed(2)}</span>
-              </button>
-
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => setAwaitingConfirmation(false)}
-                  style={{
-                    flex: 1,
-                    padding: '10px 12px',
-                    borderRadius: 10,
-                    border: '1.5px solid #cbd5e1',
-                    background: '#f8fafc',
-                    color: '#475569',
-                    fontWeight: 700,
-                    fontSize: 13,
-                    cursor: 'pointer'
-                  }}
-                >
-                  ✕ Not Paid / Retry
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSwitchToCash}
-                  style={{
-                    flex: 1,
-                    padding: '10px 12px',
-                    borderRadius: 10,
-                    border: '1.5px solid #cbd5e1',
-                    background: '#ffffff',
-                    color: '#0f172a',
-                    fontWeight: 700,
-                    fontSize: 13,
-                    cursor: 'pointer'
-                  }}
-                >
-                  💵 Pay Cash Instead
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ── False Return Notice (Friendly fallback when app did not open) ── */}
         {failedLaunch && !redirecting && (

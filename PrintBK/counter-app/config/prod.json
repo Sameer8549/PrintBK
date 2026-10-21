@@ -2,7 +2,7 @@
   "environment": "production",
   "apiBase": "https://printbk-60074625517.catalystserverless.in",
   "staffAppUrl": "https://printbk-60074625517.catalystserverless.in/staff/",
-  "updateFeedUrl": "https://github.com/glittercowboy/PrintBK-releases/releases/latest/download",
+  "updateFeedUrl": "https://github.com/Sameer8549/PrintBK-releases/releases/latest/download",
   "autoUpdate": true,
   "heartbeatIntervalMs": 5000,
   "pollIntervalMs": 2000,

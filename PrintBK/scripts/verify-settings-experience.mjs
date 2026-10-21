@@ -3,17 +3,22 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 
-const staffRequire = createRequire(path.resolve('PrintBK/staff/package.json'));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, '..');
+
+const staffRequire = createRequire(path.join(rootDir, 'staff', 'package.json'));
 const { chromium } = staffRequire('@playwright/test');
 
-const evidenceDir = path.resolve('PrintBK/docs/final-evidence/settings');
+const evidenceDir = path.join(rootDir, 'docs', 'final-evidence', 'settings');
 fs.mkdirSync(evidenceDir, { recursive: true });
 
-const clientDir = path.resolve('PrintBK/client');
+const clientDir = path.join(rootDir, 'client');
 
 process.env.STAFF_TOKEN = 'test_staff_token_settings';
-process.env.COUNTER_SETUP_CODE = 'PBK-COUNTER-SETUP-4f8a29b7c1e3456d890a12b4';
+process.env.COUNTER_SETUP_CODE = process.env.COUNTER_SETUP_CODE || ('test_code_' + Math.random().toString(16).slice(2) + Math.random().toString(16).slice(2) + '000000000000').slice(0, 32);
 
 // Import real backend app
 const apiAppModule = await import('../functions/api/index.js');
@@ -62,6 +67,14 @@ try {
     viewport: { width: 412, height: 915 },
     deviceScaleFactor: 2
   });
+
+  await context.addInitScript(() => {
+    window.localStorage.setItem('printbk_shop_config', JSON.stringify({
+      state: { config: { open: true } },
+      version: 0
+    }));
+  });
+
   const page = await context.newPage();
 
   console.log('\n--- 1. Testing Image / Photo Upload & Adaptive Settings ---');
@@ -70,7 +83,7 @@ try {
   await page.waitForTimeout(500);
 
   // Upload an image via drop-zone filechooser
-  const photoPath = path.resolve('PrintBK/client/hkbk-logo.jpg');
+  const photoPath = path.join(rootDir, 'client', 'hkbk-logo.jpg');
   const fileChooserPromise = page.waitForEvent('filechooser');
   await page.locator('button.drop-zone').click();
   const fileChooser = await fileChooserPromise;
@@ -148,7 +161,7 @@ try {
   console.log('\n--- 2. Testing Multi-Page Document Upload & Adaptive Settings ---');
   const addMoreBtn = page.locator('button:has-text("+ Add more files")');
   if (await addMoreBtn.isVisible()) {
-    const docPath = path.resolve('PrintBK/test-fixtures/sample-10page.pdf');
+    const docPath = path.join(rootDir, 'test-fixtures', 'sample-10page.pdf');
     const docChooserPromise = page.waitForEvent('filechooser');
     await addMoreBtn.click();
     const docChooser = await docChooserPromise;
@@ -208,5 +221,7 @@ try {
   console.log('\n✅ ALL SETTINGS EXPERIENCE TESTS PASSED EMPIRICALLY!');
 } finally {
   await browser.close();
+  server.closeAllConnections?.();
   server.close();
+  process.exit(0);
 }

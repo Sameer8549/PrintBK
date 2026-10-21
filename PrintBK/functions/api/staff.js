@@ -1861,6 +1861,30 @@ router.post('/counters/:id/revoke', async (req, res) => {
   }
 });
 
+/* ─── K3. GET /diagnostics — System & Environment Health (Booleans Only) ─── */
+router.get('/diagnostics', authenticateStaff, staffRateLimiter, (req, res) => {
+  const diagnostics = {
+    ok: true,
+    env: {
+      staffTokenConfigured: Boolean(process.env.STAFF_TOKEN),
+      counterSetupCodeConfigured: Boolean(process.env.COUNTER_SETUP_CODE),
+      agentTokenConfigured: Boolean(process.env.AGENT_TOKEN),
+      cronSecretConfigured: Boolean(process.env.CRON_SECRET),
+      upiConfigured: Boolean(process.env.UPI_ID && process.env.UPI_PAYEE_NAME),
+      razorpayConfigured: Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
+      allowedOriginsConfigured: Boolean(process.env.ALLOWED_ORIGINS)
+    },
+    system: {
+      memOrdersLoaded: Boolean(global.__printbk_orders),
+      memPrintersLoaded: Boolean(global.__printbk_printers),
+      memStaffDevicesLoaded: Boolean(global.__printbk_staff_devices),
+      countersPaired: Boolean(global.__printbk_paired_counters && global.__printbk_paired_counters.size > 0)
+    },
+    serverTime: nowSec()
+  };
+  res.json(diagnostics);
+});
+
 // L. Purge Stale Test Orders (Clear old queue items > 12 hours)
 router.post('/orders/purge-stale', async (req, res) => {
   try {

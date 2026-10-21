@@ -1,6 +1,11 @@
 import http from 'http';
 import assert from 'assert';
+import crypto from 'crypto';
 import app from '../functions/api/index.js';
+
+// Setup runtime dynamic setup code if not provided via environment
+const validCode = process.env.COUNTER_SETUP_CODE || crypto.randomBytes(16).toString('hex');
+process.env.COUNTER_SETUP_CODE = validCode;
 
 async function runTests() {
   console.log('--- Running Counter Pairing & Dual Revocation Tests ---');
@@ -55,7 +60,6 @@ async function runTests() {
 
     // 4. Successful Pairing with valid COUNTER_SETUP_CODE
     console.log('[Test 4] Successful pairing with valid setup code');
-    const validCode = process.env.COUNTER_SETUP_CODE || 'PBK-COUNTER-SETUP-4f8a29b7c1e3456d890a12b4';
     const pairRes = await fetch(`${baseUrl}/server/api/counter/pair`, {
       method: 'POST',
       headers: {

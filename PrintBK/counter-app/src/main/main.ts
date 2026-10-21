@@ -29,11 +29,15 @@ const configCandidates = [
   path.resolve(process.resourcesPath || '', `config/${envName}.json`)
 ];
 
+const releasesOwner = process.env.GITHUB_RELEASES_OWNER || 'Sameer8549';
+const releasesRepo = process.env.GITHUB_RELEASES_REPO || 'PrintBK-releases';
+const defaultUpdateFeedUrl = `https://github.com/${releasesOwner}/${releasesRepo}/releases/latest/download`;
+
 let appConfig: any = envName === 'prod' ? {
   environment: 'production',
   apiBase: 'https://printbk-60074625517.catalystserverless.in',
   staffAppUrl: 'https://printbk-60074625517.catalystserverless.in/staff/',
-  updateFeedUrl: 'https://github.com/glittercowboy/PrintBK-releases/releases/latest/download',
+  updateFeedUrl: defaultUpdateFeedUrl,
   autoUpdate: true,
   heartbeatIntervalMs: 5000,
   pollIntervalMs: 2000,
@@ -42,7 +46,7 @@ let appConfig: any = envName === 'prod' ? {
   environment: 'development',
   apiBase: 'https://printbk-60074625517.development.catalystserverless.in',
   staffAppUrl: 'https://printbk-60074625517.development.catalystserverless.in/staff/',
-  updateFeedUrl: 'https://github.com/glittercowboy/PrintBK-releases/releases/latest/download',
+  updateFeedUrl: defaultUpdateFeedUrl,
   autoUpdate: false,
   heartbeatIntervalMs: 5000,
   pollIntervalMs: 2500,
@@ -313,7 +317,6 @@ function showMainWindow() {
   mainWindow.webContents.on('will-navigate', (event, url) => {
     const isAllowed =
       url.startsWith('https://printbk-60074625517.catalystserverless.in') ||
-      url.startsWith('https://printbk.catalystserverless.in') ||
       url.startsWith(appConfig.staffAppUrl) ||
       url.startsWith(appConfig.apiBase) ||
       url.startsWith('file://') ||

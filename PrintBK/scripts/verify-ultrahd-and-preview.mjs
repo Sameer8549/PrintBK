@@ -3,17 +3,22 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 
-const staffRequire = createRequire(path.resolve('PrintBK/staff/package.json'));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, '..');
+
+const staffRequire = createRequire(path.join(rootDir, 'staff', 'package.json'));
 const { chromium } = staffRequire('@playwright/test');
 
-const evidenceDir = path.resolve('PrintBK/docs/final-evidence/ultrahd');
+const evidenceDir = path.join(rootDir, 'docs', 'final-evidence', 'ultrahd');
 fs.mkdirSync(evidenceDir, { recursive: true });
 
-const clientDir = path.resolve('PrintBK/client');
+const clientDir = path.join(rootDir, 'client');
 
 process.env.STAFF_TOKEN = 'test_staff_token_ultrahd';
-process.env.COUNTER_SETUP_CODE = 'PBK-COUNTER-SETUP-4f8a29b7c1e3456d890a12b4';
+process.env.COUNTER_SETUP_CODE = process.env.COUNTER_SETUP_CODE || ('test_code_' + Math.random().toString(16).slice(2) + Math.random().toString(16).slice(2) + '000000000000').slice(0, 32);
 
 // Import real backend app
 const apiAppModule = await import('../functions/api/index.js');
@@ -30,7 +35,7 @@ const MIME = {
 };
 
 const server = http.createServer((req, res) => {
-  const urlObj = new URL(req.url, 'http://localhost:4220');
+  const urlObj = new URL(req.url, 'http://127.0.0.1:4220');
   const pathname = urlObj.pathname;
 
   if (pathname.startsWith('/server/api') || pathname.startsWith('/api') || pathname === '/config' || pathname.startsWith('/orders') || pathname.startsWith('/upload') || pathname.startsWith('/staff/live')) {
@@ -67,8 +72,8 @@ const server = http.createServer((req, res) => {
   res.end(fs.readFileSync(fallback));
 });
 
-await new Promise((resolve) => server.listen(4220, resolve));
-console.log('Test Server running on http://localhost:4220');
+await new Promise((resolve) => server.listen(4220, '127.0.0.1', resolve));
+console.log('Test Server running on http://127.0.0.1:4220');
 
 const browser = await chromium.launch({ headless: true });
 
@@ -79,10 +84,18 @@ try {
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 2
   });
+
+  await studentContext.addInitScript(() => {
+    window.localStorage.setItem('printbk_shop_config', JSON.stringify({
+      state: { config: { open: true } },
+      version: 0
+    }));
+  });
+
   const studentPage = await studentContext.newPage();
 
   console.log('Navigating to Student Web App...');
-  await studentPage.goto('http://localhost:4220/#/', { waitUntil: 'domcontentloaded' });
+  await studentPage.goto('http://127.0.0.1:4220/#/', { waitUntil: 'domcontentloaded' });
 
   // Switch to Photos tab on Entry
   const photosTab = studentPage.locator('button:has-text("Photos")');
@@ -95,7 +108,7 @@ try {
   assert.ok(await passportBtn.evaluate(el => el.classList.contains('active')), 'Passport 8-up should be active');
 
   // Upload test photo
-  const testPhotoPath = path.resolve('PrintBK/client/hkbk-logo.jpg');
+  const testPhotoPath = path.join(rootDir, 'client', 'hkbk-logo.jpg');
   const fileInput = studentPage.locator('input[type="file"].visually-hidden');
   await fileInput.setInputFiles(testPhotoPath);
 
@@ -193,7 +206,7 @@ try {
   const staffPage = await staffContext.newPage();
 
   console.log('Loading Staff Counter App...');
-  await staffPage.goto('http://localhost:4220/staff/#/', { waitUntil: 'domcontentloaded' });
+  await staffPage.goto('http://127.0.0.1:4220/staff/#/', { waitUntil: 'domcontentloaded' });
   await staffPage.waitForTimeout(2000);
   console.log('✓ Staff App loaded with paired token');
 
@@ -242,5 +255,7 @@ try {
   console.log('\n🎉 ALL ULTRA HD & FULL PREVIEW TESTS PASSED SUCCESSFULLY!');
 } finally {
   await browser.close();
+  server.closeAllConnections?.();
   server.close();
+  process.exit(0);
 }

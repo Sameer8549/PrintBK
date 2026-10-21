@@ -68,6 +68,9 @@ const server = http.createServer((req, res) => {
   apiApp(req, res);
 });
 
+const testCounterCode = process.env.COUNTER_SETUP_CODE || ('test_code_' + Math.random().toString(16).slice(2) + Math.random().toString(16).slice(2) + '000000000000').slice(0, 32);
+process.env.COUNTER_SETUP_CODE = testCounterCode;
+
 await new Promise((resolve) => server.listen(4321, resolve));
 console.log('[Server] Local test server running on http://localhost:4321');
 
@@ -95,7 +98,7 @@ try {
       COUNTER_API_BASE: 'http://localhost:4321',
       COUNTER_STAFF_URL: 'http://localhost:4321/staff/',
       DRY_RUN: 'true',
-      COUNTER_SETUP_CODE: 'PBK-COUNTER-SETUP-4f8a29b7c1e3456d890a12b4'
+      COUNTER_SETUP_CODE: testCounterCode
     }
   });
 
@@ -116,7 +119,7 @@ try {
 
   console.log('\n--- TC2: Pairing with Setup Code ---');
   // Fill setup code
-  await wizardWindow.fill('#setupCodeInput', 'PBK-COUNTER-SETUP-4f8a29b7c1e3456d890a12b4');
+  await wizardWindow.fill('#setupCodeInput', testCounterCode);
   console.log('[TC2] Typed valid 24+ char setup code');
 
   // Click Connect Workstation

@@ -36,13 +36,13 @@ const server = http.createServer((req, res) => {
       ok: true,
       latestVersion: '1.0.0',
       minSupportedVersion: '1.0.0',
-      fileSize: '118 MB',
-      fileSizeBytes: 123731968,
+      fileSize: '367 MB',
+      fileSizeBytes: 384720332,
       releaseDate: 'October 2026',
-      sha256: '63768f5d0505a415a772ebc17fb1ff756e07b5ca31a44e5033fcb16751c6c579',
-      downloadUrl: 'https://github.com/glittercowboy/PrintBK-releases/releases/latest/download/PrintBK-Counter-Setup-1.0.0.exe',
-      stableDownloadUrl: 'https://github.com/glittercowboy/PrintBK-releases/releases/latest/download/PrintBK-Counter-Setup.exe',
-      updateFeedUrl: 'https://github.com/glittercowboy/PrintBK-releases/releases/latest/download',
+      sha256: '0d047441cc9d1fe2bf945983330af7f548f1b10c9f447438d3bd0eb613235f04',
+      downloadUrl: 'https://github.com/Sameer8549/PrintBK-releases/releases/latest/download/PrintBK-Counter-Setup-1.0.0.exe',
+      stableDownloadUrl: 'https://github.com/Sameer8549/PrintBK-releases/releases/latest/download/PrintBK-Counter-Setup.exe',
+      updateFeedUrl: 'https://github.com/Sameer8549/PrintBK-releases/releases/latest/download',
       releaseNotes: 'PrintBK Counter unified desktop application with embedded print agent and automated Windows printer management.',
       serverTime: Math.floor(Date.now() / 1000)
     }));
@@ -108,14 +108,14 @@ async function main() {
   if (!downloadBtn) throw new Error('Missing #download-windows-btn');
   const btnText = await downloadBtn.textContent();
   console.log(`Download button text: "${btnText?.trim()}"`);
-  if (!btnText?.includes('DOWNLOAD FOR WINDOWS') || !btnText?.includes('118 MB')) {
+  if (!btnText?.includes('DOWNLOAD FOR WINDOWS') || !btnText?.includes('367 MB')) {
     throw new Error(`Expected download button to display version and size, got "${btnText}"`);
   }
 
   // 3. Verify SHA-256 displayed
   const hashText = await page.textContent('.integrity-hash');
   console.log(`Displayed SHA-256: "${hashText}"`);
-  if (!hashText?.includes('63768f5d0505a415a772ebc17fb1ff756e07b5ca31a44e5033fcb16751c6c579')) {
+  if (!hashText?.includes('0d047441cc9d1fe2bf945983330af7f548f1b10c9f447438d3bd0eb613235f04')) {
     throw new Error(`Expected exact SHA-256 match, got "${hashText}"`);
   }
 
@@ -148,10 +148,12 @@ async function main() {
   console.log(`✅ Saved mobile download page screenshot to: ${mobileScreenshotPath}`);
 
   await browser.close();
+  server.closeAllConnections?.();
   server.close();
   console.log('\n========================================');
   console.log('🎉 ALL DOWNLOAD PAGE CHECKS PASSED!');
   console.log('========================================\n');
+  process.exit(0);
 }
 
 main().catch(err => {
