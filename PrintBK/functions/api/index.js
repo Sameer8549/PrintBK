@@ -47,6 +47,10 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  // Disallow search engine indexing on staff and counter API routes
+  if (req.url.startsWith('/staff') || req.url.startsWith('/server/api/staff') || req.url.startsWith('/counter') || req.url.startsWith('/server/api/counter')) {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  }
   next();
 });
 
@@ -234,11 +238,25 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
   .filter(Boolean);
 
 const defaultOrigins = [
+  'https://printbk-60074625517.catalystserverless.in',
+  'https://printbk.catalystserverless.in',
   'https://printbk-60074625517.development.catalystserverless.in',
   'https://printbk.development.catalystserverless.in',
   'http://localhost:5173',
   'http://localhost:3000'
 ];
+
+// Add configured external app URLs if set
+for (const envKey of ['STUDENT_APP_URL', 'STAFF_APP_URL']) {
+  if (process.env[envKey]) {
+    try {
+      const parsedOrigin = new URL(process.env[envKey]).origin;
+      if (!defaultOrigins.includes(parsedOrigin)) {
+        defaultOrigins.push(parsedOrigin);
+      }
+    } catch (_) {}
+  }
+}
 
 const allAllowedOrigins = [...new Set([...defaultOrigins, ...allowedOrigins])];
 

@@ -1,10 +1,11 @@
 {
   "environment": "production",
-  "apiBase": "https://api.printbk.com",
-  "staffAppUrl": "https://counter.printbk.com",
-  "updateFeedUrl": "https://releases.printbk.com/counter/win32",
+  "apiBase": "https://printbk-60074625517.catalystserverless.in",
+  "staffAppUrl": "https://printbk-60074625517.catalystserverless.in/staff/",
+  "updateFeedUrl": "https://github.com/glittercowboy/PrintBK-releases/releases/latest/download",
   "autoUpdate": true,
   "heartbeatIntervalMs": 5000,
   "pollIntervalMs": 2000,
   "openAtLogin": true
 }
+

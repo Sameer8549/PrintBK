@@ -226,20 +226,44 @@ router.post('/pair', async (req, res) => {
 });
 
 /* ─── 2. GET /version — Counter Desktop Version Check ─────────────── */
+let versionCache = { data: null, timestamp: 0 };
+
 router.get('/version', (req, res) => {
+  const now = Date.now();
+  if (versionCache.data && (now - versionCache.timestamp < 60 * 1000)) {
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    return res.json(versionCache.data);
+  }
+
   const latestVersion = process.env.COUNTER_LATEST_VERSION || '1.0.0';
   const minSupportedVersion = process.env.COUNTER_MIN_VERSION || '1.0.0';
-  const updateUrl = process.env.COUNTER_UPDATE_URL || 'https://github.com/glittercowboy/printbk-releases/releases/latest/download';
-  const releaseNotes = process.env.COUNTER_RELEASE_NOTES || 'PrintBK Counter unified desktop application with embedded supervisor.';
+  const fileSize = process.env.COUNTER_FILE_SIZE || '118 MB';
+  const fileSizeBytes = Number(process.env.COUNTER_FILE_SIZE_BYTES) || 123731968;
+  const releaseDate = process.env.COUNTER_RELEASE_DATE || '2026-10-20';
+  const sha256 = process.env.COUNTER_SHA256 || '63768f5d0505a415a772ebc17fb1ff756e07b5ca31a44e5033fcb16751c6c579';
+  const downloadUrl = process.env.COUNTER_DOWNLOAD_URL || 'https://github.com/glittercowboy/PrintBK-releases/releases/latest/download/PrintBK-Counter-Setup-1.0.0.exe';
+  const stableDownloadUrl = process.env.COUNTER_STABLE_DOWNLOAD_URL || 'https://github.com/glittercowboy/PrintBK-releases/releases/latest/download/PrintBK-Counter-Setup.exe';
+  const updateFeedUrl = process.env.COUNTER_UPDATE_URL || 'https://github.com/glittercowboy/PrintBK-releases/releases/latest/download';
+  const releaseNotes = process.env.COUNTER_RELEASE_NOTES || 'PrintBK Counter unified desktop application with embedded print agent and automated Windows printer management.';
 
-  res.json({
+  const data = {
     ok: true,
     latestVersion,
     minSupportedVersion,
-    updateUrl,
+    fileSize,
+    fileSizeBytes,
+    releaseDate,
+    sha256,
+    downloadUrl,
+    stableDownloadUrl,
+    updateFeedUrl,
     releaseNotes,
     serverTime: nowSec()
-  });
+  };
+
+  versionCache = { data, timestamp: now };
+  res.setHeader('Cache-Control', 'public, max-age=60');
+  res.json(data);
 });
 
 module.exports = router;
