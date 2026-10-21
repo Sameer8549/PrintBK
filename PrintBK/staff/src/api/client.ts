@@ -44,12 +44,22 @@ export function clearStaffCredentials(): void {
   }
 }
 
+export function isDesktopCounterApp(): boolean {
+  try {
+    if (typeof window === "undefined") return false
+    const hasPreload = Boolean((window as any).printbkCounter)
+    const hasUserAgent = typeof navigator !== "undefined" && navigator.userAgent.includes("PrintBKCounter")
+    return hasPreload || hasUserAgent
+  } catch {
+    return false
+  }
+}
+
 export function isStaffPaired(): boolean {
   try {
-    if (typeof window !== "undefined" && (window as any).printbkCounter) {
-      return true
-    }
-    return !!getStaffToken() || localStorage.getItem("printbk-paired") === "true"
+    const token = getStaffToken()
+    if (token) return true
+    return localStorage.getItem("printbk-paired") === "true"
   } catch {
     return false
   }

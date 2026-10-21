@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react"
 import QRCode from "qrcode"
 import {
   isStaffPaired,
+  isDesktopCounterApp,
   getStaffToken,
   pairStaffDevice,
   collectCash,
@@ -24,6 +25,7 @@ import {
 } from "./api/client"
 import { useStaffLive, LiveItem, LivePrinter, LiveShop, LiveRecentlyPrinted } from "./api/useStaffLive"
 import { downloadQrPdf, previewQrPdf } from "./qrPosterPdf"
+import { DownloadPage } from "./DownloadPage"
 
 export type Payment = "paid" | "upi" | "cash_due" | "cash_collected"
 export type Service =
@@ -2495,13 +2497,17 @@ export default function App() {
   const [view, setView] = useState<"orders" | "today" | "history" | "components">(() => new URLSearchParams(window.location.search).get("view") === "components" && import.meta.env.DEV ? "components" : "orders")
   const [historyJob, setHistoryJob] = useState<Job | null>(null)
   const [phoneOwnerView, setPhoneOwnerView] = useState(() => window.matchMedia("(max-width: 520px)").matches)
-  const [showSetup, setShowSetup] = useState(() => !isStaffPaired())
+  const [isCounterApp] = useState(() => isDesktopCounterApp())
+  const [isPaired, setIsPaired] = useState(() => isStaffPaired())
 
   const studentUrl = typeof window !== "undefined"
-    ? (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-        ? "https://printbk-60074625517.development.catalystserverless.in/app/index.html"
-        : `${window.location.origin}/app/index.html`)
-    : "https://printbk-60074625517.development.catalystserverless.in/app/index.html"
+    ? ((import.meta as any).env?.VITE_STUDENT_APP_URL ||
+       (window.location.hostname.includes("development.catalystserverless.in")
+         ? "https://printbk-60074625517.development.catalystserverless.in/app/index.html"
+         : (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+             ? "https://printbk-60074625517.catalystserverless.in/app/index.html"
+             : `${window.location.origin}/app/index.html`)))
+    : "https://printbk-60074625517.catalystserverless.in/app/index.html"
 
   // Live polling feed
   const {
@@ -2556,7 +2562,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const handleUnauthorized = () => setShowSetup(true)
+    const handleUnauthorized = () => setIsPaired(false)
     window.addEventListener("printbk-unauthorized", handleUnauthorized)
     return () => window.removeEventListener("printbk-unauthorized", handleUnauthorized)
   }, [])
@@ -2797,8 +2803,11 @@ export default function App() {
     setExpanded((current) => current === key ? "" : key)
   }
 
-  if (showSetup) {
-    return <SetupFlow onFinish={() => setShowSetup(false)} />
+  if (!isPaired) {
+    if (isCounterApp) {
+      return <SetupFlow onFinish={() => setIsPaired(true)} />
+    }
+    return <DownloadPage onPairSuccess={() => setIsPaired(true)} />
   }
 
   if (phoneOwnerView) {

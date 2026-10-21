@@ -1385,3 +1385,525 @@ kbd { min-width: 32px; height: 32px; display: inline-grid; place-items: center; 
   .closed-overlay { inset-top: 70px; padding: 20px; }
   .closed-overlay > div { min-width: 0; width: 100%; }
 }
+
+/* ─── Download Page & Counter Detection ────────────────────────── */
+.download-page-root {
+  min-height: 100vh;
+  background: var(--paper);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+}
+
+.download-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 32px;
+  background: rgba(247, 244, 238, 0.98);
+  border-bottom: 1px solid var(--line);
+}
+
+.download-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.download-brand-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+}
+
+.download-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.download-brand-text strong {
+  font: 800 20px/1.2 "Space Grotesk", sans-serif;
+  letter-spacing: -0.03em;
+}
+
+.download-brand-text span {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.12em;
+}
+
+.download-alt-link {
+  background: none;
+  border: none;
+  color: var(--ink-2);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 8px 12px;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.download-alt-link:hover {
+  color: var(--ink);
+}
+
+.download-container {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+  width: 100%;
+}
+
+.download-banner {
+  padding: 16px 20px;
+  border-radius: var(--radius-card);
+  margin-bottom: 24px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.download-banner--info {
+  background: var(--info-tint);
+  border: 2px solid var(--info);
+  color: #1e3a8a;
+}
+
+.download-banner--warning {
+  background: var(--warning-tint);
+  border: 2px solid var(--warning);
+  color: #78350f;
+}
+
+.download-hero {
+  text-align: center;
+  padding: 56px 24px;
+  background: var(--sand);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-panel);
+  box-shadow: 6px 6px 0 var(--ink);
+  margin-bottom: 40px;
+}
+
+.download-headline {
+  font: 800 48px/1.1 "Space Grotesk", sans-serif;
+  letter-spacing: -0.04em;
+  margin: 12px 0 16px;
+}
+
+.download-subline {
+  font-size: 20px;
+  line-height: 1.4;
+  color: var(--ink-2);
+  max-width: 620px;
+  margin: 0 auto 36px;
+  font-weight: 500;
+}
+
+.download-action-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.download-primary-button {
+  min-height: 64px;
+  padding: 14px 40px;
+  background: var(--lime);
+  color: var(--lime-text);
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  box-shadow: 4px 4px 0 var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.download-primary-button:hover {
+  background: var(--lime);
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 var(--ink);
+}
+
+.download-primary-button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.download-primary-button span {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.download-primary-button strong {
+  font: 800 20px/1.2 "Space Grotesk", sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.download-primary-button small {
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.download-secondary-button {
+  min-height: 48px;
+  padding: 0 20px;
+  background: transparent;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  font: 700 15px "Space Grotesk", sans-serif;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.download-secondary-button:hover {
+  background: var(--sand-deep);
+}
+
+.protocol-fallback-notice {
+  margin-top: 18px;
+  font-size: 14px;
+  color: var(--ink-2);
+  background: white;
+  padding: 12px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  display: inline-block;
+  max-width: 580px;
+}
+
+.owner-pairing-panel {
+  margin-bottom: 40px;
+  padding: 32px;
+  background: white;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-card);
+  box-shadow: 5px 5px 0 var(--ink);
+}
+
+.owner-pairing-header h2 {
+  font: 800 28px "Space Grotesk", sans-serif;
+  margin: 6px 0 10px;
+}
+
+.owner-pairing-header p {
+  font-size: 16px;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.owner-pairing-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 480px;
+  margin-top: 24px;
+}
+
+.owner-pairing-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--muted);
+  letter-spacing: 0.12em;
+}
+
+.owner-pairing-input {
+  height: 54px;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  padding: 0 16px;
+  font-size: 18px;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 600;
+  background: var(--paper);
+}
+
+.owner-pairing-error {
+  padding: 12px 16px;
+  background: var(--error-tint);
+  border: 1px solid var(--error);
+  border-radius: 8px;
+  color: var(--error);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.owner-pairing-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.owner-pairing-submit {
+  min-height: 52px;
+  padding: 0 24px;
+  background: var(--ink);
+  color: white;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  font: 800 16px "Space Grotesk", sans-serif;
+  cursor: pointer;
+}
+
+.owner-pairing-cancel {
+  min-height: 52px;
+  padding: 0 20px;
+  background: transparent;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  font: 700 15px "Space Grotesk", sans-serif;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.download-features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  margin-bottom: 40px;
+}
+
+.download-feature-card {
+  padding: 24px;
+  background: white;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.download-feature-card h3 {
+  font: 800 19px "Space Grotesk", sans-serif;
+  margin: 0 0 8px;
+}
+
+.download-feature-card p {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.download-feature-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: var(--sand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  color: var(--ink);
+}
+
+.download-steps-section {
+  margin-bottom: 40px;
+  padding: 32px;
+  background: var(--sand);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-panel);
+}
+
+.download-steps-header h2 {
+  font: 800 28px "Space Grotesk", sans-serif;
+  margin: 6px 0 0;
+}
+
+.download-steps-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  margin-top: 24px;
+}
+
+.download-step-card {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.download-step-number {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--lime);
+  color: var(--lime-text);
+  font: 800 18px "Space Grotesk", sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--ink);
+}
+
+.download-step-content h3 {
+  font: 800 17px "Space Grotesk", sans-serif;
+  margin: 0 0 6px;
+}
+
+.download-step-content p {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.download-integrity-section {
+  margin-bottom: 40px;
+  padding: 32px;
+  background: white;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-card);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.download-integrity-header h2 {
+  font: 800 28px "Space Grotesk", sans-serif;
+  margin: 6px 0 8px;
+}
+
+.download-integrity-header p {
+  font-size: 15px;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.integrity-box {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.integrity-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.integrity-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+
+.integrity-val-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--sand);
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+.integrity-hash {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 14px;
+  color: var(--ink);
+  word-break: break-all;
+}
+
+.integrity-cmd {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  color: var(--ink-2);
+  word-break: break-all;
+}
+
+.integrity-copy-btn {
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 16px;
+  background: white;
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+  font: 800 12px "Space Grotesk", sans-serif;
+  cursor: pointer;
+}
+
+.integrity-copy-btn:hover {
+  background: var(--lime);
+}
+
+.download-footer-support {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 24px;
+  background: var(--sand);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+}
+
+.download-footer-support strong {
+  display: block;
+  font-size: 16px;
+  margin-bottom: 40px;
+  margin-bottom: 4px;
+}
+
+.download-footer-support p {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.support-links {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.support-link {
+  min-height: 48px;
+  padding: 0 18px;
+  background: white;
+  border: 1.5px solid var(--ink);
+  border-radius: 8px;
+  font: 700 14px "Space Grotesk", sans-serif;
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.support-link:hover {
+  background: var(--sand-deep);
+}
+
+@media (max-width: 640px) {
+  .download-header { padding: 12px 16px; }
+  .download-container { padding: 24px 14px 60px; }
+  .download-hero { padding: 36px 16px; }
+  .download-headline { font-size: 34px; }
+  .download-subline { font-size: 17px; }
+  .download-primary-button { width: 100%; justify-content: center; padding: 14px 20px; }
+  .download-secondary-button { width: 100%; }
+  .download-steps-section, .download-integrity-section { padding: 20px 16px; }
+  .download-features-grid { grid-template-columns: 1fr; }
+  .download-steps-list { grid-template-columns: 1fr; }
+  .integrity-val-wrap { flex-direction: column; align-items: flex-start; }
+  .integrity-copy-btn { width: 100%; }
+}
+

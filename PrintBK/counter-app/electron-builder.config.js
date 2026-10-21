@@ -47,6 +47,12 @@ module.exports = {
     legalTrademarks: 'PrintBK',
     verifyUpdateCodeSignature: false
   },
+  protocols: [
+    {
+      name: 'PrintBK Counter',
+      schemes: ['printbk-counter']
+    }
+  ],
   nsis: {
     oneClick: false,
     perMachine: false,

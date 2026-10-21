@@ -14,6 +14,8 @@ try {
 
 // Minimal, whitelisted IPC interface exposed to the renderer
 contextBridge.exposeInMainWorld('printbkCounter', {
+  isCounterApp: true,
+  version: '1.0.0',
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('counter:get-version'),
   getAgentStatus: (): Promise<string> => ipcRenderer.invoke('counter:get-agent-status'),
   getDiscoveredPrinters: (): Promise<any[]> => ipcRenderer.invoke('counter:get-printers'),

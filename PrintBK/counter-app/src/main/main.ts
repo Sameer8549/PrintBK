@@ -17,22 +17,45 @@ if (!gotTheLock) {
   process.exit(0);
 }
 
+// Register default protocol handler for printbk-counter://
+app.setAsDefaultProtocolClient('printbk-counter');
+
 // 2. Load Environment Configuration
-const envName = process.env.COUNTER_ENV || 'dev';
-const configPath = path.resolve(__dirname, `../../config/${envName}.json`);
-let appConfig: any = {
+const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+const envName = process.env.COUNTER_ENV || (app.isPackaged ? 'prod' : 'dev');
+const configCandidates = [
+  path.resolve(__dirname, `../../config/${envName}.json`),
+  path.resolve(__dirname, `../config/${envName}.json`),
+  path.resolve(process.resourcesPath || '', `config/${envName}.json`)
+];
+
+let appConfig: any = envName === 'prod' ? {
+  environment: 'production',
+  apiBase: 'https://printbk-60074625517.catalystserverless.in',
+  staffAppUrl: 'https://printbk-60074625517.catalystserverless.in/staff/',
+  updateFeedUrl: 'https://github.com/glittercowboy/PrintBK-releases/releases/latest/download',
+  autoUpdate: true,
+  heartbeatIntervalMs: 5000,
+  pollIntervalMs: 2000,
+  openAtLogin: true
+} : {
   environment: 'development',
   apiBase: 'https://printbk-60074625517.development.catalystserverless.in',
   staffAppUrl: 'https://printbk-60074625517.development.catalystserverless.in/staff/',
-  updateFeedUrl: 'https://github.com/glittercowboy/printbk-releases/releases/latest/download',
+  updateFeedUrl: 'https://github.com/glittercowboy/PrintBK-releases/releases/latest/download',
   autoUpdate: false,
+  heartbeatIntervalMs: 5000,
+  pollIntervalMs: 2500,
   openAtLogin: true
 };
 
-if (fs.existsSync(configPath)) {
-  try {
-    appConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  } catch (_) {}
+for (const p of configCandidates) {
+  if (fs.existsSync(p)) {
+    try {
+      appConfig = JSON.parse(fs.readFileSync(p, 'utf8'));
+      break;
+    } catch (_) {}
+  }
 }
 
 if (process.env.COUNTER_API_BASE) {
@@ -253,6 +276,10 @@ function showMainWindow() {
     }
   });
 
+  // Identify desktop Counter app via User-Agent token
+  const currentUserAgent = mainWindow.webContents.userAgent;
+  mainWindow.webContents.setUserAgent(`${currentUserAgent} PrintBKCounter/${app.getVersion()}`);
+
   if (bounds?.isMaximized !== false) {
     mainWindow.maximize();
   }
@@ -282,12 +309,19 @@ function showMainWindow() {
     }
   });
 
-  // Security: restrict navigation
+  // Security: restrict navigation to allowed production / development origins
   mainWindow.webContents.on('will-navigate', (event, url) => {
     const isAllowed =
+      url.startsWith('https://printbk-60074625517.catalystserverless.in') ||
+      url.startsWith('https://printbk.catalystserverless.in') ||
       url.startsWith(appConfig.staffAppUrl) ||
       url.startsWith(appConfig.apiBase) ||
-      url.startsWith('file://');
+      url.startsWith('file://') ||
+      (isDev && (
+        url.startsWith('https://printbk-60074625517.development.catalystserverless.in') ||
+        url.startsWith('http://localhost:') ||
+        url.startsWith('http://127.0.0.1:')
+      ));
 
     if (!isAllowed) {
       event.preventDefault();
@@ -631,6 +665,11 @@ app.whenReady().then(async () => {
 });
 
 app.on('second-instance', () => {
+  showMainWindow();
+});
+
+app.on('open-url', (event) => {
+  event.preventDefault();
   showMainWindow();
 });
 
