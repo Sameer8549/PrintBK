@@ -212,7 +212,7 @@ export function DownloadPage({ onPairSuccess }: DownloadPageProps) {
                 type="text"
                 autoComplete="off"
                 spellCheck={false}
-                placeholder="PBK-SETUP-XXXX or 24-character code"
+                placeholder="Enter 24-character setup code"
                 value={setupCode}
                 onChange={(e) => setSetupCode(e.target.value)}
                 className="owner-pairing-input"
