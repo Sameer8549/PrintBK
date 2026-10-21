@@ -36,6 +36,10 @@ if (fs.existsSync(localEnvPath)) {
   }
 }
 
+if (!process.env.COUNTER_SETUP_CODE && process.env.STAFF_SETUP_CODE) {
+  process.env.COUNTER_SETUP_CODE = process.env.STAFF_SETUP_CODE;
+}
+
 console.log('📋 [check-env-manifest] Validating environment configuration against manifest...');
 let errors = 0;
 let missingCritical = [];

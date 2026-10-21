@@ -10,7 +10,7 @@
       "name": "COUNTER_SETUP_CODE",
       "description": "One-time workstation setup code for Windows installer first-run pairing.",
       "sensitive": true,
-      "minLength": 24
+      "minLength": 8
     },
     {
       "name": "AGENT_TOKEN",

@@ -32,6 +32,10 @@ try {
 } catch (_) {}
 
 /* ─── Cold-Start Environment Validation ───────────────────────────── */
+if (!process.env.COUNTER_SETUP_CODE && process.env.STAFF_SETUP_CODE) {
+  process.env.COUNTER_SETUP_CODE = process.env.STAFF_SETUP_CODE;
+}
+
 // Logs missing variable names only (never prints secret values)
 const CRITICAL_ENV_VARS = [
   'STAFF_TOKEN',
