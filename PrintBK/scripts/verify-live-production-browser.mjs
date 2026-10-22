@@ -28,7 +28,8 @@ async function verifyLiveProduction() {
   try {
     // 1. Student App Home / Landing
     console.log('1. Loading Live Production Student Web App...');
-    await page.goto(`${PROD_URL}/`, { waitUntil: 'load' });
+    const studentUrl = PROD_URL.endsWith('/app/index.html') ? PROD_URL : `${PROD_URL}/app/index.html`;
+    await page.goto(studentUrl, { waitUntil: 'load' });
     await page.waitForTimeout(1000);
     const title = await page.title();
     console.log(`  -> Page title: "${title}"`);
@@ -99,6 +100,15 @@ async function verifyLiveProduction() {
     const downloadHref = await staffPage.getAttribute('#download-windows-btn, a.download-primary-button', 'href');
     assert(downloadHref?.includes('Sameer8549') && downloadHref?.includes('PrintBK-releases'), `Download button must point to Sameer8549 repo (got ${downloadHref})`);
     assert(!staffText.includes('wa.me/919999999999'), 'Must NOT contain fake WhatsApp support link');
+
+    // Verify Favicon and Branding
+    const faviconHref = await staffPage.getAttribute('link[rel~="icon"]', 'href');
+    assert(faviconHref?.includes('favicon.svg') || faviconHref?.includes('printbk-logo'), `Must link PrintBK logo favicon (got ${faviconHref})`);
+    const pageTitle = await staffPage.title();
+    assert(pageTitle === 'PrintBK Counter', `Title must be "PrintBK Counter" (got "${pageTitle}")`);
+    const ogTitle = await staffPage.getAttribute('meta[property="og:title"]', 'content');
+    assert(ogTitle === 'PrintBK Counter', `og:title must be "PrintBK Counter" (got "${ogTitle}")`);
+    console.log(`  ✅ Staff App Favicon & Branding verified: title="${pageTitle}", icon="${faviconHref}"`);
 
     const staffScreenshot = path.join(evidenceDir, '05-prod-staff-download-page.png');
     await staffPage.screenshot({ path: staffScreenshot, fullPage: true });

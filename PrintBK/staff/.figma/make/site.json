@@ -1,7 +1,14 @@
 {
-  "description": "PrintBK counter app for HKBK Student Point: collect cash, approve and print, with live orders from the student app.",
+  "title": "PrintBK Counter",
+  "description": "PrintBK counter app for HKBK Campus: collect cash, approve and print live orders.",
   "robots": {
     "index": false
+  },
+  "icons": {
+    "icon": "./favicon.svg"
+  },
+  "openGraph": {
+    "image": "./printbk-logo.png"
   },
   "accessibility": {
     "addBypassLinks": false,

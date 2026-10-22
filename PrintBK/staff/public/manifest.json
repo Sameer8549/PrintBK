@@ -8,14 +8,14 @@
   "theme_color": "#0b1020",
   "icons": [
     {
-      "src": "hkbk-logo.jpg",
+      "src": "printbk-logo.png",
       "sizes": "192x192",
-      "type": "image/jpeg"
+      "type": "image/png"
     },
     {
-      "src": "hkbk-logo.jpg",
+      "src": "printbk-logo.png",
       "sizes": "512x512",
-      "type": "image/jpeg"
+      "type": "image/png"
     }
   ]
 }
