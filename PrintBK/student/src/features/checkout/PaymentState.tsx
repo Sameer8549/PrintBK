@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Topbar, Icon } from '../../components/ui';
+import { Topbar, Icon, UpiLogo, GPayLogo, PhonePeLogo, PaytmLogo, BhimLogo } from '../../components/ui';
 import { Screen } from '../../lib/types';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
@@ -304,20 +304,27 @@ function PaymentState({
         {/* ── Auto-Redirecting Banner ── */}
         {redirecting && (
           <div style={{
-            background: '#ecfdf5',
+            background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
             borderRadius: 16,
-            border: '1.5px solid #10b981',
-            padding: '16px 20px',
+            border: '2px solid #059669',
+            padding: '18px 20px',
             textAlign: 'center',
             marginBottom: 16,
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 12
+            gap: 8,
+            boxShadow: '0 4px 16px rgba(5, 150, 105, 0.15)'
           }}>
-            <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #a7f3d0', borderTopColor: '#059669', animation: 'spin 0.8s linear infinite' }} />
-            <span style={{ fontSize: 14, fontWeight: 800, color: '#065f46' }}>
-              Confirming payment & opening confirmed receipt…
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #a7f3d0', borderTopColor: '#059669', animation: 'spin 0.8s linear infinite' }} />
+              <strong style={{ fontSize: 15, fontWeight: 900, color: '#065f46' }}>
+                Payment Recorded Successfully!
+              </strong>
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#047857' }}>
+              Claiming order &amp; opening your digital receipt ticket…
             </span>
           </div>
         )}
@@ -390,48 +397,156 @@ function PaymentState({
           marginBottom: 16,
           boxShadow: '0 4px 16px rgba(0,0,0,0.03)'
         }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Section Heading */}
+          <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 }}>
+            SELECT YOUR UPI PAYMENT APP
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* 1. Universal "Pay via Any UPI App" Primary Button */}
             <a
               href={upiData.intentUrl}
               onClick={handleLaunchUpi}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: 10,
-                padding: '16px 20px',
+                justifyContent: 'space-between',
+                padding: '14px 18px',
                 borderRadius: 14,
-                background: '#2563eb',
+                background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
                 color: '#ffffff',
                 fontWeight: 800,
-                fontSize: 16,
+                fontSize: 15,
                 textDecoration: 'none',
-                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
-                textAlign: 'center'
+                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.25)',
               }}
             >
-              <span>Pay with UPI</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <UpiLogo size={24} />
+                <span>Pay via Any UPI App</span>
+              </div>
+              <span style={{ fontSize: 18 }}>➔</span>
             </a>
+
+            {/* 2. Direct App Buttons Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginTop: 4 }}>
+              {/* Google Pay */}
+              <a
+                href={upiData.gpayUrl || upiData.intentUrl}
+                onClick={handleLaunchUpi}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '12px 14px',
+                  borderRadius: 12,
+                  background: '#ffffff',
+                  border: '1.5px solid #e2e8f0',
+                  color: '#0f172a',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  textDecoration: 'none',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <GPayLogo size={28} />
+                <span>Google Pay</span>
+              </a>
+
+              {/* PhonePe */}
+              <a
+                href={upiData.phonepeUrl || upiData.intentUrl}
+                onClick={handleLaunchUpi}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '12px 14px',
+                  borderRadius: 12,
+                  background: '#ffffff',
+                  border: '1.5px solid #e2e8f0',
+                  color: '#0f172a',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  textDecoration: 'none',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <PhonePeLogo size={28} />
+                <span>PhonePe</span>
+              </a>
+
+              {/* Paytm */}
+              <a
+                href={upiData.paytmUrl || upiData.intentUrl}
+                onClick={handleLaunchUpi}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '12px 14px',
+                  borderRadius: 12,
+                  background: '#ffffff',
+                  border: '1.5px solid #e2e8f0',
+                  color: '#0f172a',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  textDecoration: 'none',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <PaytmLogo size={28} />
+                <span>Paytm</span>
+              </a>
+
+              {/* BHIM UPI */}
+              <a
+                href={upiData.intentUrl}
+                onClick={handleLaunchUpi}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '12px 14px',
+                  borderRadius: 12,
+                  background: '#ffffff',
+                  border: '1.5px solid #e2e8f0',
+                  color: '#0f172a',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  textDecoration: 'none',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <BhimLogo size={28} />
+                <span>BHIM UPI</span>
+              </a>
+            </div>
 
             {/* QR Toggle Button */}
             <button
               onClick={() => setShowQR(!showQR)}
               style={{
-                padding: '11px',
+                marginTop: 6,
+                padding: '12px',
                 borderRadius: 12,
                 border: '1.5px solid #cbd5e1',
-                background: showQR ? '#f1f5f9' : '#ffffff',
-                color: '#475569',
+                background: showQR ? '#f8fafc' : '#ffffff',
+                color: '#334155',
                 fontSize: 13,
                 fontWeight: 700,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 6
+                gap: 8
               }}
             >
-              <span>{showQR ? 'Hide UPI QR Code' : 'Show QR Code to Scan on Another Phone'}</span>
+              <span>{showQR ? '▲ Hide QR Code' : '📷 Show QR Code to Scan with Another Phone'}</span>
             </button>
 
             {/* Direct Confirmation Button */}
@@ -439,7 +554,7 @@ function PaymentState({
               type="button"
               onClick={() => executeAutoClaim()}
               style={{
-                padding: '12px 16px',
+                padding: '13px 16px',
                 borderRadius: 12,
                 border: '1.5px solid #16a34a',
                 background: '#f0fdf4',
@@ -451,16 +566,20 @@ function PaymentState({
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 8,
-                marginTop: 2
+                marginTop: 4
               }}
             >
-              <span>✓ I Have Completed Payment (View Receipt)</span>
+              <span>✓ I Have Paid (Open My Receipt)</span>
             </button>
           </div>
 
           {/* Desktop or QR toggle display */}
           {(isDesktop || showQR) && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 0 6px', borderTop: '1px solid #f1f5f9', marginTop: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0 6px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                <UpiLogo size={24} />
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>Scan &amp; Pay Instant</span>
+              </div>
               <div style={{ background: '#fff', padding: 12, borderRadius: 16, border: '2px solid #0f172a', display: 'inline-block', boxShadow: '4px 4px 0 #cbd5e1' }}>
                 <img
                   src={qrImageUrl}
@@ -468,8 +587,8 @@ function PaymentState({
                   style={{ width: 200, height: 200, display: 'block', borderRadius: 8 }}
                 />
               </div>
-              <p style={{ fontSize: 12, color: '#475569', margin: '10px 0 0', textAlign: 'center', fontWeight: 600 }}>
-                Scan with Google Pay, PhonePe, Paytm, or BHIM
+              <p style={{ fontSize: 12, color: '#475569', margin: '12px 0 0', textAlign: 'center', fontWeight: 600 }}>
+                Scan using Google Pay, PhonePe, Paytm, BHIM, or any banking app
               </p>
             </div>
           )}

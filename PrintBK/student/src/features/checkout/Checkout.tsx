@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Topbar } from '../../components/ui';
+import { Topbar, UpiLogo, GPayLogo, PhonePeLogo, PaytmLogo, BhimLogo, CashIcon } from '../../components/ui';
 import { Screen, Sheet } from '../../lib/types';
 import { notify } from '../../lib/store';
 import { usePricing, useBasket, useHistory } from '../../store/basket';
@@ -190,28 +190,36 @@ function Checkout({ go, setSheet, services }: {
               transition: 'all 0.2s ease'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
               <div style={{
-                width: 40,
-                height: 40,
                 borderRadius: 10,
-                background: payment === 'UPI' ? '#dbeafe' : '#f1f5f9',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: 20
+                flexShrink: 0,
+                marginTop: 2
               }}>
-                
+                <UpiLogo size={32} />
               </div>
               <div>
-                <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   Pay with UPI
-                  <span style={{ fontSize: 10, background: '#dbeafe', color: '#1d4ed8', padding: '1px 6px', borderRadius: 4, fontWeight: 800 }}>
-                    Instant & Zero Fee
+                  <span style={{ fontSize: 10, background: '#dbeafe', color: '#1d4ed8', padding: '2px 7px', borderRadius: 6, fontWeight: 800 }}>
+                    Instant &amp; Zero Fee
                   </span>
                 </div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                  Google Pay, PhonePe, Paytm, or QR scan
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>
+                  Direct app intent or QR code scan
+                </div>
+                {/* Real UPI App Logos Strip */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                  <GPayLogo size={24} />
+                  <PhonePeLogo size={24} />
+                  <PaytmLogo size={24} />
+                  <BhimLogo size={24} />
+                  <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700, marginLeft: 2 }}>
+                    + all UPI apps
+                  </span>
                 </div>
               </div>
             </div>
@@ -223,7 +231,8 @@ function Checkout({ go, setSheet, services }: {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: payment === 'UPI' ? '#2563eb' : '#fff'
+              background: payment === 'UPI' ? '#2563eb' : '#fff',
+              flexShrink: 0
             }}>
               {payment === 'UPI' && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
             </div>
@@ -247,23 +256,20 @@ function Checkout({ go, setSheet, services }: {
                 transition: 'all 0.2s ease'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <div style={{
-                  width: 40,
-                  height: 40,
                   borderRadius: 10,
-                  background: payment === 'Cash' ? '#dcfce7' : '#f1f5f9',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: 20
+                  flexShrink: 0
                 }}>
-                  
+                  <CashIcon size={34} />
                 </div>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     Cash at Counter
-                    <span style={{ fontSize: 10, background: '#dcfce7', color: '#15803d', padding: '1px 6px', borderRadius: 4, fontWeight: 800 }}>
+                    <span style={{ fontSize: 10, background: '#dcfce7', color: '#15803d', padding: '2px 7px', borderRadius: 6, fontWeight: 800 }}>
                       Pay at Desk
                     </span>
                   </div>

@@ -424,36 +424,115 @@ export function About({ go }: AboutProps) {
             border: '1.5px solid #e2e8f0',
             padding: '24px 20px',
             boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
+            overflow: 'hidden',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          {/* Header Badges Bar */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '8px 12px',
+              marginBottom: 16,
+            }}
+          >
             <span
               style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
                 background: '#fef3c7',
                 color: '#b45309',
                 fontSize: 11,
                 fontWeight: 800,
                 textTransform: 'uppercase',
-                letterSpacing: 1.2,
-                padding: '4px 10px',
-                borderRadius: 8,
+                letterSpacing: 0.8,
+                padding: '5px 12px',
+                borderRadius: 999,
                 border: '1px solid #fde68a',
               }}
             >
-              Creator &amp; Lead Engineer
+              <span style={{ fontSize: 13 }}>👑</span> Creator &amp; Lead Engineer
             </span>
-            <span style={{ fontSize: 12, color: '#64748b', fontWeight: 700 }}>
+            <span
+              style={{
+                display: 'inline-block',
+                fontSize: 12,
+                color: '#475569',
+                fontWeight: 700,
+                background: '#f1f5f9',
+                padding: '4px 10px',
+                borderRadius: 8,
+                border: '1px solid #e2e8f0',
+              }}
+            >
               Batch 2022–2026
             </span>
           </div>
 
-          <h2 style={{ fontSize: 22, fontWeight: 900, color: '#0b1020', margin: '0 0 4px' }}>
-            Abdul Sameer
-          </h2>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#2563eb', marginBottom: 10 }}>
-            Lead Engineer &amp; Campus Developer · HKBK Institutions
+          {/* Profile Identity */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
+            <div
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 16,
+                background: 'linear-gradient(135deg, #0b1020 0%, #1e293b 100%)',
+                color: '#d4af37',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 20,
+                fontWeight: 900,
+                border: '2px solid #d4af37',
+                boxShadow: '0 4px 12px rgba(11, 16, 32, 0.15)',
+                flexShrink: 0,
+              }}
+            >
+              AS
+            </div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <h2
+                style={{
+                  fontSize: 22,
+                  fontWeight: 900,
+                  color: '#0b1020',
+                  margin: 0,
+                  lineHeight: 1.2,
+                  wordBreak: 'break-word',
+                }}
+              >
+                Abdul Sameer
+              </h2>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: '#2563eb',
+                  marginTop: 4,
+                  lineHeight: 1.4,
+                  wordBreak: 'break-word',
+                }}
+              >
+                Lead Engineer &amp; Campus Developer
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#64748b',
+                  marginTop: 2,
+                  lineHeight: 1.3,
+                }}
+              >
+                Across All HKBK Institutions
+              </div>
+            </div>
           </div>
-          <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.6, margin: '0 0 20px' }}>
+
+          <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, margin: '0 0 20px', wordBreak: 'break-word' }}>
             Designed, architected, and hardened PrintBK across all HKBK Institutions. Passionate
             about solving everyday campus bottlenecks through elegant, reliable software.
           </p>

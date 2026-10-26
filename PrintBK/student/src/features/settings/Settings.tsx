@@ -36,15 +36,6 @@ export function Settings({ go }: { go: (screen: Screen) => void }) {
   const [editingPhone, setEditingPhone] = useState(false);
   const [tempPhone, setTempPhone] = useState(phone);
 
-  // Theme state (working feature)
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    try {
-      return (localStorage.getItem('printbk-theme') as 'light' | 'dark') || 'light';
-    } catch {
-      return 'light';
-    }
-  });
-
   // Push notifications state (working feature)
   const [pushStatus, setPushStatus] = useState<NotificationPermission | 'unsupported'>(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -55,16 +46,6 @@ export function Settings({ go }: { go: (screen: Screen) => void }) {
 
   const basket = useBasket();
   const history = useHistory();
-
-  const toggleTheme = () => {
-    const next = theme === 'light' ? 'dark' : 'light';
-    setTheme(next);
-    try {
-      localStorage.setItem('printbk-theme', next);
-      document.documentElement.setAttribute('data-theme', next);
-    } catch (_) {}
-    notify(`Switched to ${next} mode`);
-  };
 
   const requestPushPermission = async () => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -403,45 +384,6 @@ export function Settings({ go }: { go: (screen: Screen) => void }) {
               }}
             >
               {pushStatus === 'granted' ? 'Active ✓' : 'Enable'}
-            </button>
-          </div>
-
-          {/* Row: Theme Toggle */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '16px 18px',
-              borderTop: '1px solid #f1f5f9',
-              gap: 14,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <GoldBadge name="theme" size={44} ariaLabel="Theme" />
-              <div>
-                <strong style={{ display: 'block', fontSize: 15, color: '#0f172a' }}>
-                  Theme &amp; Contrast
-                </strong>
-                <small style={{ color: '#64748b', fontSize: 13, marginTop: 2, display: 'block' }}>
-                  {theme === 'light' ? 'Light Mode (Standard Paper View)' : 'Dark Mode (OLED High Contrast)'}
-                </small>
-              </div>
-            </div>
-            <button
-              onClick={toggleTheme}
-              style={{
-                background: '#f8fafc',
-                border: '1.5px solid #cbd5e1',
-                borderRadius: 10,
-                padding: '8px 14px',
-                fontSize: 13,
-                fontWeight: 700,
-                color: '#0f172a',
-                cursor: 'pointer',
-              }}
-            >
-              {theme === 'light' ? 'Switch Dark' : 'Switch Light'}
             </button>
           </div>
         </section>
@@ -845,13 +787,13 @@ export function Settings({ go }: { go: (screen: Screen) => void }) {
               gap: 14,
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 0 }}>
               <GoldBadge name="about" size={44} ariaLabel="About PrintBK" />
-              <div>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <strong style={{ display: 'block', fontSize: 15, color: '#0f172a' }}>
                   About PrintBK
                 </strong>
-                <small style={{ color: '#64748b', fontSize: 13, marginTop: 2, display: 'block' }}>
+                <small style={{ color: '#64748b', fontSize: 13, marginTop: 2, display: 'block', wordBreak: 'break-word' }}>
                   Across all HKBK Institutions · Engineered by Abdul Sameer
                 </small>
               </div>

@@ -1712,44 +1712,6 @@ function FileCard({
                   <button type="button" onClick={() => upd({ copies: s.copies + 1 })} style={{ width: 44, height: 44, background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', fontWeight: 800 }}>+</button>
                 </div>
               </div>
-
-              {/* Photo Rate Editor */}
-              {isPhotoSheet && (
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>PHOTO BASE RATE</span>
-                    <span style={{ color: '#0f172a', fontWeight: 800 }}>₹{basePhotoRate.toFixed(2)} / sheet</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f8fafc', padding: '10px 14px', borderRadius: 10, border: '1px solid #cbd5e1', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', background: '#fff', borderRadius: 8, border: '1px solid #cbd5e1' }}>
-                      <button type="button" onClick={() => onUpdate({ ...file, photoUnitPrice: Math.max(5, basePhotoRate - 5) } as any)} style={{ width: 36, height: 36, background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', fontWeight: 800 }}>−</button>
-                      <span style={{ minWidth: 54, textAlign: 'center', fontWeight: 800, fontSize: 14 }}>₹{basePhotoRate}</span>
-                      <button type="button" onClick={() => onUpdate({ ...file, photoUnitPrice: basePhotoRate + 5 } as any)} style={{ width: 36, height: 36, background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', fontWeight: 800 }}>+</button>
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {[15, 20, 30, 40, 50].map(preset => (
-                        <button
-                          key={preset}
-                          type="button"
-                          onClick={() => onUpdate({ ...file, photoUnitPrice: preset } as any)}
-                          style={{
-                            padding: '6px 10px',
-                            borderRadius: 6,
-                            border: basePhotoRate === preset ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
-                            background: basePhotoRate === preset ? '#eff6ff' : '#fff',
-                            color: basePhotoRate === preset ? '#1d4ed8' : '#334155',
-                            fontWeight: 700,
-                            fontSize: 12,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          ₹{preset}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
             </>
           )}
 

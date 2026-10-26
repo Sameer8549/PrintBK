@@ -80,7 +80,9 @@ let currentAgentStatus: AgentStatus = 'offline';
 let lastDiscoveredPrinters: any[] = [];
 
 // 3. Resolve Bundled SumatraPDF and LibreOffice
-const bundledSumatra = path.resolve(__dirname, '../../bin/SumatraPDF.exe');
+const bundledSumatra = (process as any).resourcesPath
+  ? path.join((process as any).resourcesPath, 'bin', 'SumatraPDF.exe')
+  : path.resolve(__dirname, '../../bin/SumatraPDF.exe');
 const resolvedSumatra = findSumatraBinary(fs.existsSync(bundledSumatra) ? bundledSumatra : undefined);
 const resolvedConverter = findLibreOfficeBinary();
 

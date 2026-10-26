@@ -58,8 +58,17 @@ export function findSumatraBinary(explicitPath?: string): string | null {
     return explicitPath;
   }
 
+  const resourcesDir = (process as any).resourcesPath;
+  const execDir = path.dirname(process.execPath || '');
+
   const candidates = [
+    resourcesDir ? path.join(resourcesDir, 'bin', 'SumatraPDF.exe') : '',
+    resourcesDir ? path.join(resourcesDir, 'SumatraPDF.exe') : '',
+    execDir ? path.join(execDir, 'resources', 'bin', 'SumatraPDF.exe') : '',
     path.join(process.cwd(), 'bin', 'SumatraPDF.exe'),
+    path.resolve(__dirname, '../../bin/SumatraPDF.exe'),
+    path.resolve(__dirname, '../../../bin/SumatraPDF.exe'),
+    path.resolve(__dirname, '../bin/SumatraPDF.exe'),
     'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe',
     'C:\\Program Files (x86)\\SumatraPDF\\SumatraPDF.exe',
     path.join(process.env.LOCALAPPDATA || '', 'SumatraPDF', 'SumatraPDF.exe')

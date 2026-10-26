@@ -17,3 +17,4 @@ export * from './ProgressPaperFeed';
 export * from './StatusChip';
 export * from './PriceBar';
 export * from './InlineWarning';
+export * from './UpiLogos';
