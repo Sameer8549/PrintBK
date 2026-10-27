@@ -6,7 +6,7 @@ export class AgentLogger {
   private logDir: string;
 
   constructor(baseDir?: string) {
-    const root = baseDir || process.cwd();
+    const root = baseDir || (process.env.APPDATA ? path.join(process.env.APPDATA, 'PrintBK') : process.cwd());
     this.logDir = path.resolve(root, 'logs');
     this.logFilePath = path.join(this.logDir, 'agent.log');
     this.ensureDir();

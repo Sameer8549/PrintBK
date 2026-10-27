@@ -140,8 +140,14 @@ export class AgentSupervisor extends EventEmitter {
     if (this.options.libreOfficePath) env.LIBREOFFICE_PATH = this.options.libreOfficePath;
     if (this.options.dryRun) env.DRY_RUN = 'true';
 
+    const appDataDir = process.env.APPDATA ? path.join(process.env.APPDATA, 'PrintBK') : path.join(os.homedir(), 'AppData', 'Roaming', 'PrintBK');
+    if (!fs.existsSync(appDataDir)) {
+      try { fs.mkdirSync(appDataDir, { recursive: true }); } catch (_) {}
+    }
+
     try {
       this.child = fork(this.options.workerScript, [], {
+        cwd: appDataDir,
         env,
         silent: true,
         stdio: ['pipe', 'pipe', 'pipe', 'ipc']

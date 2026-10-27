@@ -445,32 +445,53 @@ router.post('/jobs/:id/progress', async (req, res) => {
     const catalystApp = getCatalystApp(req);
     const zcql = catalystApp ? catalystApp.zcql() : null;
 
-    if (zcql) {
-      await zcql.executeZCQLQuery(
-        `UPDATE print_jobs SET pages_done = ${Number(pages_done || 0)}, pages_total = ${Number(pages_total || 1)}, status = 'printing', updated_at = ${now} WHERE id = '${esc(jobId)}'`
-      );
+    let itemId = null;
+    let orderId = null;
 
-      // Also update linked item and order status
+    const j = memPrintJobs.get(jobId);
+    if (j) {
+      j.pages_done = Number(pages_done || 0);
+      j.pages_total = Number(pages_total || 1);
+      j.status = 'printing';
+      itemId = j.item_id || j.itemId;
+    }
+
+    if (itemId) {
+      const it = memOrderItems.get(itemId);
+      if (it) {
+        it.status = 'printing';
+        orderId = it.order_id;
+      }
+    }
+
+    if (orderId) {
+      const o = memOrders.get(orderId);
+      if (o) o.status = 'printing';
+    }
+
+    if (zcql) {
       try {
-        const jobRows = await zcql.executeZCQLQuery(`SELECT item_id FROM print_jobs WHERE id = '${esc(jobId)}'`);
-        if (jobRows && jobRows.length > 0) {
-          const itemId = jobRows[0].print_jobs.item_id;
-          await zcql.executeZCQLQuery(`UPDATE order_items SET status = 'printing' WHERE id = '${esc(itemId)}'`);
-          
-          const itemRows = await zcql.executeZCQLQuery(`SELECT order_id FROM order_items WHERE id = '${esc(itemId)}'`);
-          if (itemRows && itemRows.length > 0) {
-            const orderId = itemRows[0].order_items.order_id;
-            await zcql.executeZCQLQuery(`UPDATE orders SET status = 'printing', updated_at = ${now} WHERE id = '${esc(orderId)}'`);
+        await zcql.executeZCQLQuery(
+          `UPDATE print_jobs SET pages_done = ${Number(pages_done || 0)}, pages_total = ${Number(pages_total || 1)}, status = 'printing', updated_at = ${now} WHERE id = '${esc(jobId)}'`
+        );
+      } catch (_) {}
+
+      try {
+        if (!itemId) {
+          const jobRows = await zcql.executeZCQLQuery(`SELECT item_id FROM print_jobs WHERE id = '${esc(jobId)}'`).catch(() => []);
+          if (jobRows && jobRows.length > 0) itemId = jobRows[0].print_jobs.item_id;
+        }
+        if (itemId) {
+          await zcql.executeZCQLQuery(`UPDATE order_items SET status = 'printing' WHERE id = '${esc(itemId)}'`).catch(() => {});
+          if (!orderId) {
+            const itemRows = await zcql.executeZCQLQuery(`SELECT order_id FROM order_items WHERE id = '${esc(itemId)}'`).catch(() => []);
+            if (itemRows && itemRows.length > 0) orderId = itemRows[0].order_items.order_id;
+          }
+          if (orderId) {
+            await zcql.executeZCQLQuery(`UPDATE orders SET status = 'printing', updated_at = ${now} WHERE id = '${esc(orderId)}'`).catch(() => {});
           }
         }
       } catch (_) {}
-    } else {
-      const j = memPrintJobs.get(jobId);
-      if (j) {
-        j.pages_done = Number(pages_done || 0);
-        j.pages_total = Number(pages_total || 1);
-        j.status = 'printing';
-      }
     }
 
     res.json({ ok: true });
@@ -491,44 +512,82 @@ router.post('/jobs/:id/complete', async (req, res) => {
     let itemId = null;
     let orderId = null;
 
-    if (zcql) {
-      try {
-        const jobRows = await zcql.executeZCQLQuery(`SELECT item_id, pages_total FROM print_jobs WHERE id = '${esc(jobId)}'`);
-        if (jobRows && jobRows.length > 0) {
-          itemId = jobRows[0].print_jobs.item_id;
-          const total = Number(pages_printed || jobRows[0].print_jobs.pages_total || 1);
-          await zcql.executeZCQLQuery(
-            `UPDATE print_jobs SET status = 'completed', pages_done = ${total}, updated_at = ${now} WHERE id = '${esc(jobId)}'`
-          );
-        }
-      } catch (_) {}
+    const j = memPrintJobs.get(jobId);
+    if (j) {
+      j.status = 'completed';
+      j.pages_done = Number(pages_printed || j.pages_total || 1);
+      itemId = j.item_id || j.itemId;
+    }
 
-      // Fetch delete delay from settings
-      let deleteDelayMinutes = 5;
+    // Fetch delete delay from settings
+    let deleteDelayMinutes = 5;
+    if (zcql) {
       try {
         const sRows = await zcql.executeZCQLQuery(`SELECT delete_delay_minutes FROM shop_settings LIMIT 1`);
         if (sRows && sRows.length > 0) {
           deleteDelayMinutes = Number(sRows[0].shop_settings.delete_delay_minutes || 5);
         }
       } catch (_) {}
+    }
+    const deleteAfter = now + (deleteDelayMinutes * 60);
 
-      const deleteAfter = now + (deleteDelayMinutes * 60);
+    // Update in-memory structures
+    if (itemId) {
+      const it = memOrderItems.get(itemId);
+      if (it) {
+        it.status = 'printed';
+        it.printed_at = now;
+        it.delete_after = deleteAfter;
+        orderId = it.order_id;
+      }
+    }
+
+    if (orderId) {
+      const o = memOrders.get(orderId);
+      if (o) {
+        // Check if all items in order are finished
+        let allDone = true;
+        for (const item of memOrderItems.values()) {
+          if (item.order_id === orderId && !['printed', 'done', 'failed', 'cancelled'].includes(item.status)) {
+            allDone = false;
+            break;
+          }
+        }
+        if (allDone) o.status = 'ready';
+      }
+    }
+
+    if (zcql) {
+      try {
+        if (!itemId) {
+          const jobRows = await zcql.executeZCQLQuery(`SELECT item_id, pages_total FROM print_jobs WHERE id = '${esc(jobId)}'`);
+          if (jobRows && jobRows.length > 0) {
+            itemId = jobRows[0].print_jobs.item_id;
+            const total = Number(pages_printed || jobRows[0].print_jobs.pages_total || 1);
+            await zcql.executeZCQLQuery(
+              `UPDATE print_jobs SET status = 'completed', pages_done = ${total}, updated_at = ${now} WHERE id = '${esc(jobId)}'`
+            ).catch(() => {});
+          }
+        }
+      } catch (_) {}
 
       if (itemId) {
-        await zcql.executeZCQLQuery(
-          `UPDATE order_items SET status = 'printed', printed_at = ${now}, delete_after = ${deleteAfter} WHERE id = '${esc(itemId)}'`
-        );
-
-        // Fetch order ID
         try {
-          const itemRows = await zcql.executeZCQLQuery(`SELECT order_id FROM order_items WHERE id = '${esc(itemId)}'`);
-          if (itemRows && itemRows.length > 0) {
-            orderId = itemRows[0].order_items.order_id;
-          }
+          await zcql.executeZCQLQuery(
+            `UPDATE order_items SET status = 'printed', printed_at = ${now}, delete_after = ${deleteAfter} WHERE id = '${esc(itemId)}'`
+          );
         } catch (_) {}
+
+        if (!orderId) {
+          try {
+            const itemRows = await zcql.executeZCQLQuery(`SELECT order_id FROM order_items WHERE id = '${esc(itemId)}'`);
+            if (itemRows && itemRows.length > 0) {
+              orderId = itemRows[0].order_items.order_id;
+            }
+          } catch (_) {}
+        }
       }
 
-      // Check if all items in order are finished
       if (orderId) {
         try {
           const remainingRows = await zcql.executeZCQLQuery(
@@ -541,24 +600,16 @@ router.post('/jobs/:id/complete', async (req, res) => {
           }
         } catch (_) {}
 
-        // Audit log
         try {
           const auditId = crypto.randomUUID();
           await zcql.executeZCQLQuery(
-            `INSERT INTO order_events (id, order_id, item_id, actor_type, actor_label, action, from_status, to_status, timestamp) VALUES ('${auditId}', '${esc(orderId)}', '${esc(itemId || '')}', 'agent', '${esc(req.agentDevice.label)}', 'printed', 'printing', 'printed', ${now})`
+            `INSERT INTO order_events (id, order_id, item_id, actor_type, actor_label, action, from_status, to_status, timestamp) VALUES ('${auditId}', '${esc(orderId)}', '${esc(itemId || '')}', 'agent', '${esc(req.agentDevice?.label || 'Print Agent')}', 'printed', 'printing', 'printed', ${now})`
           );
         } catch (_) {}
       }
-
-      return res.json({ ok: true, jobId, itemId, delete_after: deleteAfter });
-    } else {
-      const j = memPrintJobs.get(jobId);
-      if (j) {
-        j.status = 'completed';
-        j.pages_done = j.pages_total;
-      }
-      return res.json({ ok: true, jobId, delete_after: now + 300 });
     }
+
+    return res.json({ ok: true, jobId, itemId, delete_after: deleteAfter });
   } catch (err) {
     res.status(500).json({ error: 'Failed to complete job: ' + err.message });
   }

@@ -242,10 +242,10 @@ router.get('/version', (req, res) => {
 
   const latestVersion = process.env.COUNTER_LATEST_VERSION || '1.0.0';
   const minSupportedVersion = process.env.COUNTER_MIN_VERSION || '1.0.0';
-  const fileSize = process.env.COUNTER_FILE_SIZE || '367 MB';
-  const fileSizeBytes = Number(process.env.COUNTER_FILE_SIZE_BYTES) || 384720332;
-  const releaseDate = process.env.COUNTER_RELEASE_DATE || '2026-10-21';
-  const sha256 = process.env.COUNTER_SHA256 || '0d047441cc9d1fe2bf945983330af7f548f1b10c9f447438d3bd0eb613235f04';
+  const fileSize = process.env.COUNTER_FILE_SIZE || '2.0 GB';
+  const fileSizeBytes = Number(process.env.COUNTER_FILE_SIZE_BYTES) || 2120115642;
+  const releaseDate = process.env.COUNTER_RELEASE_DATE || '2026-10-27';
+  const sha256 = process.env.COUNTER_SHA256 || '8ba7d79c76c63c1b5587a67cf8a09bcf205ad16aaef5fd1097b33a3ccf3f19ec';
   const releasesOwner = process.env.GITHUB_RELEASES_OWNER || 'Sameer8549';
   const releasesRepo = process.env.GITHUB_RELEASES_REPO || 'PrintBK-releases';
   const defaultReleaseBase = `https://github.com/${releasesOwner}/${releasesRepo}/releases/latest/download`;

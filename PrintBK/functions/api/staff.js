@@ -759,6 +759,7 @@ router.post('/items/:id/approve-print', async (req, res) => {
     }
 
     let orderId = req.body?.orderId || itemRecord?.order_id;
+    let order = null;
     let itemStatus = itemRecord?.status || 'ready_to_print';
     let kind = itemRecord?.kind || 'document_bw';
 

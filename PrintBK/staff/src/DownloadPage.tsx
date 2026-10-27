@@ -66,9 +66,9 @@ export function DownloadPage({ onPairSuccess }: DownloadPageProps) {
   const defaultDownloadUrl = "https://github.com/Sameer8549/PrintBK-releases/releases/latest/download/PrintBK-Counter-Setup.exe"
   const downloadUrl = versionInfo?.stableDownloadUrl || versionInfo?.downloadUrl || defaultDownloadUrl
   const version = versionInfo?.latestVersion || "1.0.0"
-  const fileSize = versionInfo?.fileSize || "367 MB"
+  const fileSize = versionInfo?.fileSize || "2.0 GB"
   const releaseDate = versionInfo?.releaseDate || "October 2026"
-  const sha256 = versionInfo?.sha256 || "0d047441cc9d1fe2bf945983330af7f548f1b10c9f447438d3bd0eb613235f04"
+  const sha256 = versionInfo?.sha256 || "8ba7d79c76c63c1b5587a67cf8a09bcf205ad16aaef5fd1097b33a3ccf3f19ec"
 
   const psCommand = `Get-FileHash "$HOME\\Downloads\\PrintBK-Counter-Setup.exe" -Algorithm SHA256`
 
