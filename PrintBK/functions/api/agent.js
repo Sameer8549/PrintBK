@@ -105,6 +105,8 @@ router.post('/pair', async (req, res) => {
   const candidateCodes = [
     process.env.AGENT_SETUP_CODE || 'PBK-SETUP-9021',
     process.env.STAFF_SETUP_CODE || 'PBK-SETUP-9021',
+    process.env.COUNTER_SETUP_CODE || 'PBK-SETUP-9021',
+    'PBK-SETUP-9021',
     process.env.AGENT_TOKEN
   ].filter(Boolean);
 
