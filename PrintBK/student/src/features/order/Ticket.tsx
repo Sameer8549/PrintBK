@@ -211,8 +211,14 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
     if (!order?.id) return;
     setDeleting(true);
     try {
-      await api.deleteFiles(order.id, order.accessToken);
-      updateOrder(order.id, { filesDeletedAt: Math.floor(Date.now() / 1000) });
+      const token = order.accessToken || localOrder?.accessToken;
+      const res = await api.deleteFiles(order.id, token);
+      const deletedAt = res?.deletedAt || Math.floor(Date.now() / 1000);
+      updateOrder(order.id, { filesDeletedAt: deletedAt });
+      setLiveOrder((prev: any) => ({
+        ...(prev || order),
+        filesDeletedAt: deletedAt
+      }));
       notify('Files permanently deleted from server');
     } catch (err: any) {
       notify(err?.message || 'Deletion failed');
@@ -222,11 +228,33 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
   };
 
   const shareWhatsApp = () => {
-    const text = `PrintBK Order ${orderNumber} · Pickup Code: ${pickupCode} · Amount: ₹${total.toFixed(2)} · Location: ${shopName}`;
-    if (phone) {
-      window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(text)}`, '_blank');
+    const trackingUrl = `${window.location.origin}/app/#/order/${order?.id || ''}`;
+    const text = `PrintBK Order ${orderNumber} · Pickup Code: ${pickupCode} · Amount: ₹${total.toFixed(2)} · Location: ${shopName}\nTrack: ${trackingUrl}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const handleShare = async () => {
+    if (status === 'pending_payment') {
+      notify('Complete payment selection first');
+      return;
+    }
+    const trackingUrl = `${window.location.origin}/app/#/order/${order?.id || ''}`;
+    const shareText = `PrintBK Order ${orderNumber} — Pickup Code: ${pickupCode} — Location: ${shopName}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `PrintBK Order ${orderNumber}`,
+          text: shareText,
+          url: trackingUrl
+        });
+      } catch (_) {}
     } else {
-      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(`${shareText}\n${trackingUrl}`);
+        notify('Order details copied to clipboard');
+      } else {
+        notify('Sharing not supported on this browser');
+      }
     }
   };
 
@@ -781,62 +809,78 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
           </div>
         )}
 
-        {/* ── Actions: Receipt, Share & Done Return Home ── */}
-        <div style={{ display: 'flex', gap: 10, padding: '0 16px 12px' }}>
+        {/* ── Actions: WhatsApp Share, Secondary Share & Receipt ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '0 16px 12px' }}>
           <button
             style={{
-              flex: 1,
+              width: '100%',
               padding: '14px',
               borderRadius: 12,
-              border: '1.5px solid #cbd5e1',
-              background: '#fff',
+              border: 'none',
+              background: '#25d366',
+              color: '#ffffff',
               cursor: 'pointer',
               fontSize: 14,
-              fontWeight: 700,
+              fontWeight: 800,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
-              color: '#0f172a'
+              boxShadow: '0 2px 8px rgba(37,211,102,0.25)'
             }}
-            onClick={() => {
-              if (status === 'pending_payment') {
-                notify('Choose a payment method first to view receipt');
-                return;
-              }
-              setSheet('receipt');
-            }}
+            onClick={shareWhatsApp}
           >
-            <Icon name="download" size={16} /> View Receipt
+            <Icon name="share" size={16} /> Share Pickup Code via WhatsApp
           </button>
-          <button
-            style={{
-              flex: 1,
-              padding: '14px',
-              borderRadius: 12,
-              border: '1.5px solid #cbd5e1',
-              background: '#fff',
-              cursor: 'pointer',
-              fontSize: 14,
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              color: '#0f172a'
-            }}
-            onClick={() => {
-              if (status === 'pending_payment') {
-                notify('Complete payment selection first');
-                return;
-              }
-              const text = `PrintBK order ${orderNumber} — Pickup code ${pickupCode}`;
-              if (navigator.share) navigator.share({ title: 'PrintBK', text }).catch(() => {});
-              else { navigator.clipboard?.writeText(text); notify('Copied to clipboard'); }
-            }}
-          >
-            <Icon name="share" size={16} /> Share
-          </button>
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              style={{
+                flex: 1,
+                padding: '12px',
+                borderRadius: 12,
+                border: '1.5px solid #cbd5e1',
+                background: '#fff',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                color: '#0f172a'
+              }}
+              onClick={() => {
+                if (status === 'pending_payment') {
+                  notify('Choose a payment method first to view receipt');
+                  return;
+                }
+                setSheet('receipt');
+              }}
+            >
+              <Icon name="download" size={16} /> View Receipt
+            </button>
+            <button
+              style={{
+                flex: 1,
+                padding: '12px',
+                borderRadius: 12,
+                border: '1.5px solid #cbd5e1',
+                background: '#fff',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                color: '#0f172a'
+              }}
+              onClick={handleShare}
+            >
+              <Icon name="share" size={16} /> Share / Copy
+            </button>
+          </div>
         </div>
 
         {/* ── Primary Return to Home Button (Never Stuck) ── */}

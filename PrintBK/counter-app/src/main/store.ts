@@ -13,6 +13,7 @@ export interface CounterStoreData {
   agentDeviceId?: string;
   bwPrinter?: string;
   colourPrinter?: string;
+  photoPrinter?: string;
   openAtLogin?: boolean;
   windowBounds?: {
     width: number;

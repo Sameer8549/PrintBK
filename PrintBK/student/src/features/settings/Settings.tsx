@@ -386,6 +386,57 @@ export function Settings({ go }: { go: (screen: Screen) => void }) {
               {pushStatus === 'granted' ? 'Active ✓' : 'Enable'}
             </button>
           </div>
+
+          {/* Row: Share App with Classmates */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px 18px',
+              borderTop: '1px solid #f1f5f9',
+              gap: 14,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <GoldBadge name="share" size={44} ariaLabel="Share App" />
+              <div>
+                <strong style={{ display: 'block', fontSize: 15, color: '#0f172a' }}>
+                  Share PrintBK with Friends
+                </strong>
+                <small style={{ color: '#64748b', fontSize: 13, marginTop: 2, display: 'block' }}>
+                  Help classmates skip the counter queue &amp; print instantly
+                </small>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const appUrl = `${window.location.origin}/app/student`;
+                const text = `Print documents on campus without waiting in line with PrintBK!\nOpen here: ${appUrl}`;
+                if (navigator.share) {
+                  navigator.share({ title: 'PrintBK Student App', text, url: appUrl }).catch(() => {});
+                } else {
+                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                }
+              }}
+              style={{
+                background: '#25d366',
+                border: 'none',
+                borderRadius: 10,
+                padding: '8px 14px',
+                fontSize: 13,
+                fontWeight: 700,
+                color: '#ffffff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                boxShadow: '0 2px 6px rgba(37,211,102,0.25)',
+              }}
+            >
+              <Icon name="share" size={14} /> Share
+            </button>
+          </div>
         </section>
 
         {/* ── SECTION 2: MERGED CAMPUS HUB (Hours, How It Works, Contact & Support in ONE Page) ── */}

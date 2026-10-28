@@ -497,12 +497,15 @@ const DEFAULT_SHOP_SETTINGS = {
     document_colour: { available: true },
     photos: { available: true },
     binding_spiral: { available: true },
+    binding_comb: { available: true },
+    binding_staple: { available: true },
     binding_soft: { available: true },
     binding_hard: { available: true },
     lamination: { available: true },
     scanning: { available: true },
     photocopy: { available: true },
-    typing: { available: true }
+    typing: { available: true },
+    rush: { available: true }
   },
   payments: {
     cash: true,
@@ -773,7 +776,7 @@ app.get('/health', (_req, res) => res.json({
   uptimeSeconds: Math.floor(process.uptime()),
   timestamp: Math.floor(Date.now() / 1000)
 }));
-app.get('/config', async (req, res) => {
+app.get(['/config', '/shop/config'], async (req, res) => {
   const catalystApp = getCatalystApp(req);
   const settings = await getEffectiveShopSettings(catalystApp);
 
@@ -833,12 +836,15 @@ app.get('/config', async (req, res) => {
       document_colour: { available: true },
       photos: { available: true },
       binding_spiral: { available: true },
+      binding_comb: { available: true },
+      binding_staple: { available: true },
       binding_soft: { available: true },
       binding_hard: { available: true },
       lamination: { available: true },
       scanning: { available: true },
       photocopy: { available: true },
-      typing: { available: true }
+      typing: { available: true },
+      rush: { available: true }
     },
     paymentMethods: {
       cash: settings.payments?.cash !== false,
@@ -1352,7 +1358,7 @@ app.get('/orders/:id', async (req, res) => {
       items: typedItems,
       fileNames: JSON.parse(o.file_names || '[]'),
       deleteAfter: o.delete_after || null,
-      filesDeletedAt: o.files_deleted_at || null,
+      filesDeletedAt: o.files_deleted_at || basketData.filesDeletedAt || null,
       createdAt: o.created_at
     });
   } catch (err) {
@@ -2650,7 +2656,12 @@ app.post('/orders/:id/delete-files', async (req, res) => {
       }
     }
 
-    // Delete files from Catalyst File Store
+    // Delete files from Catalyst File Store & In-Memory cache
+    for (const f of (b.files || [])) {
+      if (f.cloudId) {
+        memFiles.delete(String(f.cloudId));
+      }
+    }
     if (catalystApp) {
       try {
         const filestore = catalystApp.filestore();
@@ -2664,11 +2675,16 @@ app.post('/orders/:id/delete-files', async (req, res) => {
     }
 
     const now = nowSec();
+    b.filesDeletedAt = now;
+    o.basket = JSON.stringify(b);
     o.files_deleted_at = now;
     o.updated_at = now;
     memOrders.set(o.id, o);
 
     if (zcql) {
+      await zcql.executeZCQLQuery(
+        `UPDATE orders SET basket = '${esc(JSON.stringify(b))}', updated_at = ${now} WHERE id = '${esc(req.params.id)}'`
+      ).catch(() => {});
       await zcql.executeZCQLQuery(
         `UPDATE orders SET files_deleted_at = ${now}, updated_at = ${now} WHERE id = '${esc(req.params.id)}'`
       ).catch(() => {});

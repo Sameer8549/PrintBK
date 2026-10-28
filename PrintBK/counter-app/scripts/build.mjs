@@ -24,6 +24,15 @@ const configDist = path.join(distDir, 'config');
 const publicDist = path.join(distDir, 'public');
 const binDist = path.join(distDir, 'bin');
 
+// Clean temporary win-unpacked folder inside installer if it exists
+const installerDist = path.join(distDir, 'installer');
+if (fs.existsSync(installerDist)) {
+  const winUnpacked = path.join(installerDist, 'win-unpacked');
+  if (fs.existsSync(winUnpacked)) {
+    try { fs.rmSync(winUnpacked, { recursive: true, force: true }); } catch (_) {}
+  }
+}
+
 [uiDist, configDist, publicDist, binDist].forEach(d => {
   if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
 });

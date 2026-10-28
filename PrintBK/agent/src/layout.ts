@@ -18,7 +18,7 @@ export interface LayoutOptions {
 }
 
 export interface PrintPart {
-  role: 'bw' | 'colour' | 'both';
+  role: 'bw' | 'colour' | 'both' | 'photo';
   pdfBytes: Uint8Array;
   pageCount: number;
   pagesList: number[];

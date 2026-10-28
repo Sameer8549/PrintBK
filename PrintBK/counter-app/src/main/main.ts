@@ -533,7 +533,7 @@ ipcMain.handle('counter:get-printers', async () => {
   return lastDiscoveredPrinters;
 });
 
-ipcMain.handle('counter:test-print', async (_event, role: 'bw' | 'colour') => {
+ipcMain.handle('counter:test-print', async (_event, role: 'bw' | 'colour' | 'photo') => {
   if (supervisor) {
     const ok = await supervisor.sendTestPrint(role || 'bw');
     return { success: ok, message: ok ? 'Sent to printer queue' : 'Agent offline' };
@@ -641,6 +641,7 @@ ipcMain.handle('counter:finish-wizard', async (_event, config) => {
     store.set({
       bwPrinter: config.bwPrinter,
       colourPrinter: config.colourPrinter,
+      photoPrinter: config.photoPrinter || config.colourPrinter,
       openAtLogin: config.openAtLogin !== false
     });
     configureAutoStart(config.openAtLogin !== false);

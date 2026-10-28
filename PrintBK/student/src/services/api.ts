@@ -84,9 +84,24 @@ export const api = {
   },
 
   async deleteFiles(orderId: string, token?: string): Promise<{ ok: boolean; deletedAt: number }> {
-    const headers: Record<string, string> = {};
-    if (token) {
-      headers['X-Order-Token'] = token;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Device-Id': getDeviceId()
+    };
+    let effectiveToken = token;
+    if (!effectiveToken) {
+      try {
+        const stored = localStorage.getItem('printbk_history') || localStorage.getItem('printbk-basket-v4');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          const orders = parsed?.state?.orders || parsed?.orders || (Array.isArray(parsed) ? parsed : []);
+          const match = orders.find((o: any) => o.id === orderId);
+          if (match?.accessToken) effectiveToken = match.accessToken;
+        }
+      } catch (_) {}
+    }
+    if (effectiveToken) {
+      headers['X-Order-Token'] = effectiveToken;
     }
     const res = await fetch(`${API_BASE}/orders/${orderId}/delete-files`, {
       method: 'POST',

@@ -409,9 +409,11 @@ class PrintAgentDaemon {
         // Physical Print via SumatraPDF
         let pagesDoneAcc = 0;
         for (const part of allParts) {
-          const targetPrinter = part.role === 'colour'
-            ? (this.config.printerProfiles.colour || job.printer)
-            : (this.config.printerProfiles.bw || job.printer);
+          const targetPrinter = part.role === 'photo'
+            ? (this.config.printerProfiles.photo || this.config.printerProfiles.colour || job.printer)
+            : (part.role === 'colour'
+                ? (this.config.printerProfiles.colour || job.printer)
+                : (this.config.printerProfiles.bw || job.printer));
 
           const partFile = path.join(this.config.workDir, `print_${job.id}_${part.role}.pdf`);
           fs.writeFileSync(partFile, part.pdfBytes);

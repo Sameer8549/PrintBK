@@ -273,6 +273,7 @@
           <select id="bwPrinterSelect"></select>
           <button type="button" class="btn btn-secondary" id="testBwBtn">Test Print</button>
         </div>
+        <input type="text" id="bwCustomInput" placeholder="Enter custom Windows printer name (e.g. HP LaserJet Pro M404)" style="display: none; margin-top: 6px; font-size: 13px;" />
         <div id="bwTestBadge" class="test-badge">Printed</div>
       </div>
       <div class="form-group" id="colourGroup">
@@ -281,7 +282,21 @@
           <select id="colourPrinterSelect"></select>
           <button type="button" class="btn btn-secondary" id="testColourBtn">Test Print</button>
         </div>
+        <input type="text" id="colourCustomInput" placeholder="Enter custom Windows printer name (e.g. EPSON L3250 Series)" style="display: none; margin-top: 6px; font-size: 13px;" />
         <div id="colourTestBadge" class="test-badge">Printed</div>
+      </div>
+      <div class="toggle-row">
+        <span>Dedicated Photo / High-Res Printer</span>
+        <input type="checkbox" id="photoPrinterCheck" />
+      </div>
+      <div class="form-group" id="photoGroup" style="display: none;">
+        <label>Photo Printer (Glossy / Photo Studio)</label>
+        <div class="printer-row">
+          <select id="photoPrinterSelect"></select>
+          <button type="button" class="btn btn-secondary" id="testPhotoBtn">Test Print</button>
+        </div>
+        <input type="text" id="photoCustomInput" placeholder="Enter custom Windows photo printer name (e.g. EPSON L805)" style="display: none; margin-top: 6px; font-size: 13px;" />
+        <div id="photoTestBadge" class="test-badge">Printed</div>
       </div>
       <div style="margin-top: 16px;">
         <button type="button" class="btn btn-secondary" id="openWinPrintersBtn" style="font-size: 13px;">
@@ -337,15 +352,60 @@
     const colourPrinterSelect = document.getElementById('colourPrinterSelect');
     const samePrinterCheck = document.getElementById('samePrinterCheck');
     const colourGroup = document.getElementById('colourGroup');
+    const photoPrinterCheck = document.getElementById('photoPrinterCheck');
+    const photoGroup = document.getElementById('photoGroup');
+    const photoPrinterSelect = document.getElementById('photoPrinterSelect');
+    const bwCustomInput = document.getElementById('bwCustomInput');
+    const colourCustomInput = document.getElementById('colourCustomInput');
+    const photoCustomInput = document.getElementById('photoCustomInput');
     const testBwBtn = document.getElementById('testBwBtn');
     const testColourBtn = document.getElementById('testColourBtn');
+    const testPhotoBtn = document.getElementById('testPhotoBtn');
     const bwTestBadge = document.getElementById('bwTestBadge');
     const colourTestBadge = document.getElementById('colourTestBadge');
+    const photoTestBadge = document.getElementById('photoTestBadge');
     const openWinPrintersBtn = document.getElementById('openWinPrintersBtn');
     const refreshPrintersBtn = document.getElementById('refreshPrintersBtn');
     const autoStartCheck = document.getElementById('autoStartCheck');
     const summaryLabel = document.getElementById('summaryLabel');
     const summaryPrinters = document.getElementById('summaryPrinters');
+
+    function getSelectedPrinter(role) {
+      if (role === 'bw') {
+        if (bwPrinterSelect.value === '__custom__') return bwCustomInput.value.trim() || 'Default Printer';
+        return bwPrinterSelect.value || 'Default Printer';
+      }
+      if (role === 'colour') {
+        if (samePrinterCheck.checked) return getSelectedPrinter('bw');
+        if (colourPrinterSelect.value === '__custom__') return colourCustomInput.value.trim() || getSelectedPrinter('bw');
+        return colourPrinterSelect.value || getSelectedPrinter('bw');
+      }
+      if (role === 'photo') {
+        if (!photoPrinterCheck.checked) return null;
+        if (photoPrinterSelect.value === '__custom__') return photoCustomInput.value.trim() || getSelectedPrinter('colour');
+        return photoPrinterSelect.value || getSelectedPrinter('colour');
+      }
+      return 'Default Printer';
+    }
+
+    function setupCustomToggle(selectEl, inputEl) {
+      selectEl.addEventListener('change', () => {
+        if (selectEl.value === '__custom__') {
+          inputEl.style.display = 'block';
+          inputEl.focus();
+        } else {
+          inputEl.style.display = 'none';
+        }
+      });
+    }
+
+    setupCustomToggle(bwPrinterSelect, bwCustomInput);
+    setupCustomToggle(colourPrinterSelect, colourCustomInput);
+    setupCustomToggle(photoPrinterSelect, photoCustomInput);
+
+    photoPrinterCheck.addEventListener('change', () => {
+      photoGroup.style.display = photoPrinterCheck.checked ? 'block' : 'none';
+    });
 
     function showError(msg) {
       errorBox.textContent = msg;
@@ -361,6 +421,7 @@
         printersList = await window.printbkCounter.getDiscoveredPrinters();
         bwPrinterSelect.innerHTML = '';
         colourPrinterSelect.innerHTML = '';
+        photoPrinterSelect.innerHTML = '';
 
         if (!printersList || printersList.length === 0) {
           const opt = document.createElement('option');
@@ -368,6 +429,7 @@
           opt.textContent = 'No printers detected (Click Open Windows Printers)';
           bwPrinterSelect.appendChild(opt);
           colourPrinterSelect.appendChild(opt.cloneNode(true));
+          photoPrinterSelect.appendChild(opt.cloneNode(true));
           return;
         }
 
@@ -377,13 +439,25 @@
           opt.textContent = p.name + (p.online ? ' (Ready)' : ' (Offline)');
           bwPrinterSelect.appendChild(opt);
           colourPrinterSelect.appendChild(opt.cloneNode(true));
+          photoPrinterSelect.appendChild(opt.cloneNode(true));
         });
+
+        // Add custom entry option to all
+        const customOpt = document.createElement('option');
+        customOpt.value = '__custom__';
+        customOpt.textContent = '+ Add Custom / Network Printer...';
+        bwPrinterSelect.appendChild(customOpt);
+        colourPrinterSelect.appendChild(customOpt.cloneNode(true));
+        photoPrinterSelect.appendChild(customOpt.cloneNode(true));
 
         // Set sensible defaults
         const bwMatch = printersList.find(p => p.role === 'bw') || printersList[0];
         const colourMatch = printersList.find(p => p.role === 'colour') || printersList[1] || bwMatch;
+        const photoMatch = printersList.find(p => p.role === 'photo') || colourMatch;
+
         if (bwMatch) bwPrinterSelect.value = bwMatch.name;
         if (colourMatch) colourPrinterSelect.value = colourMatch.name;
+        if (photoMatch) photoPrinterSelect.value = photoMatch.name;
       } catch (err) {
         showError('Could not query Windows printers: ' + err.message);
       }
@@ -431,6 +505,21 @@
       } finally {
         testColourBtn.disabled = false;
         testColourBtn.textContent = 'Test Print';
+      }
+    });
+
+    testPhotoBtn.addEventListener('click', async () => {
+      testPhotoBtn.disabled = true;
+      testPhotoBtn.textContent = 'Printing…';
+      try {
+        await window.printbkCounter.triggerTestPrint('photo');
+        photoTestBadge.classList.add('success');
+        photoTestBadge.textContent = '✓ Sent to printer';
+      } catch (e) {
+        alert('Test print error: ' + e.message);
+      } finally {
+        testPhotoBtn.disabled = false;
+        testPhotoBtn.textContent = 'Test Print';
       }
     });
 
@@ -487,7 +576,12 @@
         step2.style.display = 'none';
         step3.style.display = 'block';
         summaryLabel.textContent = deviceLabelInput.value.trim();
-        summaryPrinters.textContent = `B&W: ${bwPrinterSelect.value || 'None'} · Colour: ${samePrinterCheck.checked ? bwPrinterSelect.value : colourPrinterSelect.value}`;
+        const bwP = getSelectedPrinter('bw');
+        const colP = getSelectedPrinter('colour');
+        const photoP = getSelectedPrinter('photo');
+        let text = `B&W: ${bwP} · Colour: ${colP}`;
+        if (photoP) text += ` · Photo: ${photoP}`;
+        summaryPrinters.textContent = text;
         nextBtn.textContent = 'Open Counter Window';
       } else if (currentStep === 3) {
         // Finish wizard
@@ -496,8 +590,9 @@
         const bridge = window.printbkCounter || window.electronAPI;
         if (bridge?.finishWizard) {
           bridge.finishWizard({
-            bwPrinter: bwPrinterSelect.value,
-            colourPrinter: samePrinterCheck.checked ? bwPrinterSelect.value : colourPrinterSelect.value,
+            bwPrinter: getSelectedPrinter('bw'),
+            colourPrinter: getSelectedPrinter('colour'),
+            photoPrinter: getSelectedPrinter('photo'),
             openAtLogin: autoStartCheck.checked
           });
         }

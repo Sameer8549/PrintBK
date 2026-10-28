@@ -215,7 +215,7 @@ export class AgentSupervisor extends EventEmitter {
     }
   }
 
-  public sendTestPrint(role: 'bw' | 'colour'): Promise<boolean> {
+  public sendTestPrint(role: 'bw' | 'colour' | 'photo'): Promise<boolean> {
     return new Promise((resolve) => {
       if (!this.child || !this.child.connected) {
         return resolve(false);

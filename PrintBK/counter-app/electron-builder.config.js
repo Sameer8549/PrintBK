@@ -12,6 +12,7 @@ module.exports = {
   },
   files: [
     'dist/**/*',
+    '!dist/installer/**/*',
     'config/**/*',
     'public/**/*',
     'bin/**/*',

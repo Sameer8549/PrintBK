@@ -35,7 +35,9 @@ export async function discoverPrinters(dryRun = false, fallbackProfiles?: Record
           // Role heuristics from name
           const lower = name.toLowerCase();
           let role: 'bw' | 'colour' | 'photo' | 'both' = 'both';
-          if (lower.includes('color') || lower.includes('colour') || lower.includes('l31') || lower.includes('l805')) {
+          if (lower.includes('photo') || lower.includes('l805') || lower.includes('g570') || lower.includes('pixma')) {
+            role = 'photo';
+          } else if (lower.includes('color') || lower.includes('colour') || lower.includes('l31') || lower.includes('ecotank')) {
             role = 'colour';
           } else if (lower.includes('laserjet') || lower.includes('m1005') || lower.includes('1020') || lower.includes('mono')) {
             role = 'bw';

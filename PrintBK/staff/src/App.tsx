@@ -1058,26 +1058,32 @@ function PrinterSettingsPanel({
 
   const configuredBw = (shop as any)?.printer_mapping?.bw || (shop as any)?.shop_info?.printer_mapping?.bw || ""
   const configuredColour = (shop as any)?.printer_mapping?.colour || (shop as any)?.shop_info?.printer_mapping?.colour || ""
+  const configuredPhoto = (shop as any)?.printer_mapping?.photo || (shop as any)?.shop_info?.printer_mapping?.photo || ""
 
   const [selectedBw, setSelectedBw] = useState<string>(configuredBw)
   const [selectedColour, setSelectedColour] = useState<string>(configuredColour)
+  const [selectedPhoto, setSelectedPhoto] = useState<string>(configuredPhoto)
 
   useEffect(() => {
     if (configuredBw && !selectedBw) setSelectedBw(configuredBw)
     if (configuredColour && !selectedColour) setSelectedColour(configuredColour)
-  }, [configuredBw, configuredColour])
+    if (configuredPhoto && !selectedPhoto) setSelectedPhoto(configuredPhoto)
+  }, [configuredBw, configuredColour, configuredPhoto])
 
   const bwPrinter = printers.find((p) => p.name === selectedBw) || printers.find((p) => p.role === "bw") || printers[0]
   const colourPrinter = printers.find((p) => p.name === selectedColour) || printers.find((p) => p.role === "colour") || printers[1] || bwPrinter
+  const photoPrinter = printers.find((p) => p.name === selectedPhoto) || printers.find((p) => p.role === "photo") || colourPrinter
 
-  const handleAssignPrinter = async (role: "bw" | "colour", name: string) => {
+  const handleAssignPrinter = async (role: "bw" | "colour" | "photo", name: string) => {
     if (role === "bw") setSelectedBw(name)
     if (role === "colour") setSelectedColour(name)
+    if (role === "photo") setSelectedPhoto(name)
     try {
       await updateShopSettings({
         printer_mapping: {
           bw: role === "bw" ? name : (selectedBw || bwPrinter?.name || "B&W Printer"),
           colour: role === "colour" ? name : (selectedColour || colourPrinter?.name || "Colour Printer"),
+          photo: role === "photo" ? name : (selectedPhoto || photoPrinter?.name || colourPrinter?.name || "Photo Printer"),
         }
       })
       await addStaffPrinter(name, role)
@@ -1318,6 +1324,19 @@ function PrinterSettingsPanel({
                 )}
               </section>
 
+              <section className="setting-card printer-choice">
+                <div className="setting-card-title"><div><span>Photo printer</span><strong><i className="status-dot" /> {photoPrinter ? (photoPrinter.online ? "Online" : "Offline") : selectedPhoto ? "Configured" : "None"}</strong></div><Icon name="photo" size={28} /></div>
+                <PrinterDropdownRow
+                  value={selectedPhoto || photoPrinter?.name || "No photo printer"}
+                  printers={printers}
+                  onSelect={(name) => handleAssignPrinter("photo", name)}
+                  onTest={() => handleTestPrint(photoPrinter?.id || selectedPhoto || photoPrinter?.name)}
+                />
+                {(photoPrinter || selectedPhoto) && testStatus[photoPrinter?.id || selectedPhoto || ""] && (
+                  <div className="test-result success"><Icon name="check" />{testStatus[photoPrinter?.id || selectedPhoto || ""]}</div>
+                )}
+              </section>
+
               <section className="setting-card qr-print-card">
                 <div><span>SHOP QR POSTER</span><strong>Print your QR</strong><p>Students scan this to start an order.</p><Button onClick={onOpenQrModal}>PRINT YOUR QR</Button></div>
                 <div className="mini-poster" onClick={onOpenQrModal} style={{ cursor: "pointer" }}><img src="./hkbk-logo.jpg" alt="" /><RealQRCode text={studentUrl} size={64} /><b>SCAN TO PRINT</b></div>
@@ -1446,18 +1465,21 @@ function PrinterSettingsPanel({
                   Disabling a service instantly hides or marks it as "Not available today" in the student app with your custom explanation.
                 </p>
                 {[
-                  { key: "bw", label: "Black & White Printing", desc: "A4 / A3 standard document printing" },
-                  { key: "colour", label: "Colour Printing", desc: "Full colour document printing" },
+                  { key: "bw", altKey: "document_bw", label: "Black & White Printing", desc: "A4 / A3 standard document printing" },
+                  { key: "colour", altKey: "document_colour", label: "Colour Printing", desc: "Full colour document printing" },
                   { key: "photos", label: "Photo Printing", desc: "4×6, 8×10, and passport prints" },
                   { key: "binding_spiral", label: "Spiral Binding", desc: "Standard spiral binding with plastic sheet" },
+                  { key: "binding_comb", label: "Comb Binding", desc: "Plastic comb spine for manuals and reports" },
+                  { key: "binding_staple", label: "Corner Staple / Pin", desc: "Simple stapled finish for short documents" },
                   { key: "binding_soft", label: "Soft Cover Binding", desc: "Thermal and soft card book binding" },
                   { key: "binding_hard", label: "Hard Bound Project", desc: "Golden embossed project hard binding" },
-                  { key: "lamination", label: "Thermal Lamination", desc: "A4 & A3 sheet pouch lamination" },
+                  { key: "lamination", label: "Thermal Lamination", desc: "A4, A3 & ID sheet pouch lamination" },
                   { key: "scanning", label: "Document Scanning", desc: "Walk-in scan to email/drive" },
                   { key: "photocopy", label: "Photocopy Counter", desc: "Walk-in manual page copy" },
                   { key: "typing", label: "Typing & Formatting", desc: "Custom typing and thesis project editing" },
+                  { key: "rush", label: "Express / Rush Priority", desc: "Priority queue processing for urgent deadlines" },
                 ].map((s) => {
-                  const sInfo = (services as any)[s.key] || { available: true }
+                  const sInfo = (services as any)[s.key] || (services as any)[s.altKey || ''] || { available: true }
                   const isAvailable = sInfo.available !== false
                   return (
                     <div key={s.key} style={{ borderBottom: "1px dotted var(--line)", paddingBottom: "12px", marginBottom: "12px" }}>
@@ -1466,12 +1488,24 @@ function PrinterSettingsPanel({
                         subtitle={s.desc}
                         checked={isAvailable}
                         onChange={(checked) => {
+                          const stateObj = {
+                            available: checked,
+                            reason: checked ? "" : (sInfo.reason || "Temporarily unavailable today")
+                          }
                           const updated = {
                             ...services,
-                            [s.key]: {
-                              available: checked,
-                              reason: checked ? "" : (sInfo.reason || "Temporarily unavailable today")
-                            }
+                            [s.key]: stateObj
+                          }
+                          if (s.altKey) {
+                            (updated as any)[s.altKey] = stateObj
+                          }
+                          if (s.key === "bw" || s.key === "document_bw") {
+                            (updated as any).bw = stateObj
+                            (updated as any).document_bw = stateObj
+                          }
+                          if (s.key === "colour" || s.key === "document_colour") {
+                            (updated as any).colour = stateObj
+                            (updated as any).document_colour = stateObj
                           }
                           setServices(updated)
                           saveSettings(rates, updated)
@@ -1484,9 +1518,21 @@ function PrinterSettingsPanel({
                             value={sInfo.reason || ""}
                             placeholder="e.g. Machine under maintenance, resumes 2 PM"
                             onChange={(reason) => {
+                              const stateObj = { available: false, reason }
                               const updated = {
                                 ...services,
-                                [s.key]: { available: false, reason }
+                                [s.key]: stateObj
+                              }
+                              if (s.altKey) {
+                                (updated as any)[s.altKey] = stateObj
+                              }
+                              if (s.key === "bw" || s.key === "document_bw") {
+                                (updated as any).bw = stateObj
+                                (updated as any).document_bw = stateObj
+                              }
+                              if (s.key === "colour" || s.key === "document_colour") {
+                                (updated as any).colour = stateObj
+                                (updated as any).document_colour = stateObj
                               }
                               setServices(updated)
                               saveSettings(rates, updated)
