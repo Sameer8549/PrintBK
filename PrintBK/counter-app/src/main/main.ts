@@ -36,7 +36,7 @@ const defaultUpdateFeedUrl = `https://github.com/${releasesOwner}/${releasesRepo
 let appConfig: any = envName === 'prod' ? {
   environment: 'production',
   apiBase: 'https://printbk-60074625517.catalystserverless.in',
-  staffAppUrl: 'https://printbk-60074625517.catalystserverless.in/staff/',
+  staffAppUrl: 'https://printbk-60074625517.catalystserverless.in/app/staff/index.html',
   updateFeedUrl: defaultUpdateFeedUrl,
   autoUpdate: true,
   heartbeatIntervalMs: 5000,
@@ -45,7 +45,7 @@ let appConfig: any = envName === 'prod' ? {
 } : {
   environment: 'development',
   apiBase: 'https://printbk-60074625517.development.catalystserverless.in',
-  staffAppUrl: 'https://printbk-60074625517.development.catalystserverless.in/staff/',
+  staffAppUrl: 'https://printbk-60074625517.development.catalystserverless.in/app/staff/index.html',
   updateFeedUrl: defaultUpdateFeedUrl,
   autoUpdate: false,
   heartbeatIntervalMs: 5000,
@@ -575,7 +575,9 @@ ipcMain.handle('counter:pair', async (_event, { setupCode, label }) => {
             // If development base was used, update appConfig apiBase to match
             if (base !== appConfig.apiBase) {
               appConfig.apiBase = base;
-              appConfig.staffAppUrl = `${base}/staff/`;
+              appConfig.staffAppUrl = `${base}/app/staff/index.html`;
+            } else {
+              appConfig.staffAppUrl = `${base}/app/staff/index.html`;
             }
 
             // Save tokens in encrypted store

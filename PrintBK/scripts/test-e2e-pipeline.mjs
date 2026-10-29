@@ -14,10 +14,21 @@ function assert(condition, message) {
   console.log(`✅ [PASS] ${message}`);
 }
 
+async function fetchWithRetry(url, options = {}, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fetch(url, options);
+    } catch (err) {
+      if (i === retries - 1) throw err;
+      await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+    }
+  }
+}
+
 async function run() {
   // Step 1: Pair or verify credentials
   console.log('--- Step 1: Counter Pairing & Token Acquisition ---');
-  let pairRes = await fetch(`${TARGET_URL}/server/api/counter/pair`, {
+  let pairRes = await fetchWithRetry(`${TARGET_URL}/server/api/counter/pair`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -29,7 +40,7 @@ async function run() {
   let pairData = await pairRes.json();
   if (!pairRes.ok && pairData.error?.includes('Invalid counter setup code')) {
     console.log('  ⚠️ Production currently has hex setup code in console env, trying hex code...');
-    pairRes = await fetch(`${TARGET_URL}/server/api/counter/pair`, {
+    pairRes = await fetchWithRetry(`${TARGET_URL}/server/api/counter/pair`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -48,7 +59,7 @@ async function run() {
 
   // Step 2: Agent Heartbeat & Printer Discovery Reporting
   console.log('\n--- Step 2: Print Agent Heartbeat & Printer Sync ---');
-  const heartbeatRes = await fetch(`${TARGET_URL}/server/api/agent/heartbeat`, {
+  const heartbeatRes = await fetchWithRetry(`${TARGET_URL}/server/api/agent/heartbeat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -112,7 +123,7 @@ async function run() {
     ]
   };
 
-  const createOrderRes = await fetch(`${TARGET_URL}/server/api/orders`, {
+  const createOrderRes = await fetchWithRetry(`${TARGET_URL}/server/api/orders`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -129,7 +140,7 @@ async function run() {
 
   // Step 4: Staff Live Feed Verification
   console.log('\n--- Step 4: Staff Counter Live Feed Receipt ---');
-  const liveRes = await fetch(`${TARGET_URL}/server/api/staff/live`, {
+  const liveRes = await fetchWithRetry(`${TARGET_URL}/server/api/staff/live`, {
     headers: {
       'X-Staff-Device-Token': staffToken,
       'X-Include-Test': 'true'
@@ -146,13 +157,13 @@ async function run() {
 
   // Step 5: Cash Collection & Approval
   console.log('\n--- Step 5: Counter Collects Cash & Approves Print ---');
-  const cashRes = await fetch(`${TARGET_URL}/server/api/staff/orders/${orderId}/collect-cash`, {
+  const cashRes = await fetchWithRetry(`${TARGET_URL}/server/api/staff/orders/${orderId}/collect-cash`, {
     method: 'POST',
     headers: { 'X-Staff-Device-Token': staffToken }
   });
   console.log(`  Cash collection status: HTTP ${cashRes.status}`);
 
-  const approveRes = await fetch(`${TARGET_URL}/server/api/staff/items/${foundItem.id}/approve-print`, {
+  const approveRes = await fetchWithRetry(`${TARGET_URL}/server/api/staff/items/${foundItem.id}/approve-print`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -168,7 +179,7 @@ async function run() {
 
   // Step 6: Print Agent Polls and Leases the Job
   console.log('\n--- Step 6: Print Agent Acquires and Leases Job ---');
-  const nextJobRes = await fetch(`${TARGET_URL}/server/api/agent/jobs/next`, {
+  const nextJobRes = await fetchWithRetry(`${TARGET_URL}/server/api/agent/jobs/next`, {
     headers: { 'X-Agent-Token': agentToken }
   });
   assert(nextJobRes.ok, `Agent polled /jobs/next (HTTP ${nextJobRes.status})`);
@@ -181,7 +192,7 @@ async function run() {
 
   // Step 7: Agent Reports Print Completion
   console.log('\n--- Step 7: Print Agent Reports Progress & Completion ---');
-  const progressRes = await fetch(`${TARGET_URL}/server/api/agent/jobs/${leasedJob.id}/progress`, {
+  const progressRes = await fetchWithRetry(`${TARGET_URL}/server/api/agent/jobs/${leasedJob.id}/progress`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -191,7 +202,7 @@ async function run() {
   });
   assert(progressRes.ok, `Progress reported (HTTP ${progressRes.status})`);
 
-  const completeRes = await fetch(`${TARGET_URL}/server/api/agent/jobs/${leasedJob.id}/complete`, {
+  const completeRes = await fetchWithRetry(`${TARGET_URL}/server/api/agent/jobs/${leasedJob.id}/complete`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -203,7 +214,7 @@ async function run() {
 
   // Step 8: Verify Live Feed Updates to PRINTED
   console.log('\n--- Step 8: Final Status Verification in Staff Queue ---');
-  const finalLiveRes = await fetch(`${TARGET_URL}/server/api/staff/live`, {
+  const finalLiveRes = await fetchWithRetry(`${TARGET_URL}/server/api/staff/live`, {
     headers: {
       'X-Staff-Device-Token': staffToken,
       'X-Include-Test': 'true'
