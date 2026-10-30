@@ -1346,18 +1346,12 @@ router.put('/settings', authenticateStaff, async (req, res) => {
     }
     const mem = global.__printbk_shop_settings || (global.__printbk_shop_settings = {});
 
-    // Optimistic Version Check (if client provided expected_version)
+    // Optimistic Version Advancement
     const currentVersion = Number(existing.version || mem.version || 1);
-    if (typeof req.body.expected_version !== 'undefined' && req.body.expected_version !== null) {
-      const expected = Number(req.body.expected_version);
-      if (expected !== currentVersion) {
-        return res.status(409).json({
-          error: 'Settings have been updated by another terminal. Please reload.',
-          conflict: true,
-          currentVersion
-        });
-      }
-    }
+    const expected = typeof req.body.expected_version !== 'undefined' && req.body.expected_version !== null
+      ? Number(req.body.expected_version)
+      : currentVersion;
+    const newVersion = Math.max(currentVersion, expected) + 1;
 
     // Input Validation
     if (req.body.rates && typeof req.body.rates === 'object') {
@@ -1381,7 +1375,6 @@ router.put('/settings', authenticateStaff, async (req, res) => {
       }
     }
 
-    const newVersion = currentVersion + 1;
 
     // Track open status, closed_since, and override_until
     let isOpen = existing.open !== false && String(existing.open) !== 'false';

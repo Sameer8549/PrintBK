@@ -25,14 +25,20 @@ function OtherServices({
   const svcAvail = cfg.services || {};
   const rates = cfg.rates as any;
 
-  const isSpiralAvail = svcAvail.binding_spiral?.available !== false;
-  const isHardAvail = svcAvail.binding_hard?.available !== false;
+  const isSpiralAvail = (svcAvail.binding_spiral?.available !== false) && (svcAvail.spiral?.available !== false);
+  const isCombAvail = (svcAvail.binding_comb?.available !== false) && (svcAvail.comb?.available !== false);
+  const isStapleAvail = (svcAvail.binding_staple?.available !== false) && (svcAvail.staple?.available !== false);
+  const isSoftAvail = (svcAvail.binding_soft?.available !== false) && (svcAvail.soft?.available !== false);
+  const isHardAvail = (svcAvail.binding_hard?.available !== false) && (svcAvail.hard?.available !== false);
   const isLaminationAvail = svcAvail.lamination?.available !== false;
   const isScanningAvail = svcAvail.scanning?.available !== false;
   const isPhotocopyAvail = svcAvail.photocopy?.available !== false;
   const isTypingAvail = svcAvail.typing?.available !== false;
 
   const spiralRate = rates.bindingSpiral ?? rates.spiral ?? 35;
+  const combRate = rates.bindingComb ?? rates.comb ?? 25;
+  const stapleRate = rates.bindingStaple ?? rates.staple ?? 5;
+  const softRate = rates.bindingSoft ?? 60;
   const hardRate = rates.bindingHard ?? rates.hardCover ?? 150;
   const scanRate = rates.scanPerPage ?? rates.scan ?? 5;
   const copyRate = rates.copyBw ?? rates.photocopy ?? 1.5;
@@ -42,8 +48,9 @@ function OtherServices({
 
   const services = [
     { id: "spiral", category: "Binding", title: "Spiral binding", copy: "Neat, flexible binding for notes and reports", price: `from ₹${spiralRate}`, tag: isSpiralAvail ? "Add to a print" : (svcAvail.binding_spiral?.reason || "Not available today"), icon: "file" as const, sheet: "binding" as Sheet, bindingType: "Spiral", unavailable: !isSpiralAvail },
-    { id: "comb", category: "Binding", title: "Comb binding", copy: "Reusable spine for manuals and projects", price: `from ₹${rates.comb ?? rates.bindingComb ?? 25}`, tag: isSpiralAvail ? "Add to a print" : (svcAvail.binding_spiral?.reason || "Not available today"), icon: "file" as const, sheet: "binding" as Sheet, bindingType: "Comb", unavailable: !isSpiralAvail },
-    { id: "staple", category: "Binding", title: "Staple / corner pin", copy: "Simple finish for short documents", price: `₹${rates.staple ?? rates.bindingStaple ?? 5}`, tag: "Add to a print", icon: "check" as const, sheet: "binding" as Sheet, bindingType: "Staple", unavailable: false },
+    { id: "comb", category: "Binding", title: "Comb binding", copy: "Reusable spine for manuals and projects", price: `from ₹${combRate}`, tag: isCombAvail ? "Add to a print" : (svcAvail.binding_comb?.reason || "Not available today"), icon: "file" as const, sheet: "binding" as Sheet, bindingType: "Comb", unavailable: !isCombAvail },
+    { id: "staple", category: "Binding", title: "Staple / corner pin", copy: "Simple finish for short documents", price: `₹${stapleRate}`, tag: isStapleAvail ? "Add to a print" : (svcAvail.binding_staple?.reason || "Not available today"), icon: "check" as const, sheet: "binding" as Sheet, bindingType: "Staple", unavailable: !isStapleAvail },
+    { id: "soft", category: "Binding", title: "Soft cover binding", copy: "Glued thermal soft book cover finish", price: `from ₹${softRate}`, tag: isSoftAvail ? "Add to a print" : (svcAvail.binding_soft?.reason || "Not available today"), icon: "file" as const, sheet: "binding" as Sheet, bindingType: "Soft cover", unavailable: !isSoftAvail },
     { id: "hard", category: "Binding", title: "Hard cover / thesis binding", copy: "Premium project and thesis finish", price: `from ₹${hardRate}`, tag: isHardAvail ? "Add to a print" : (svcAvail.binding_hard?.reason || "Not available today"), icon: "file" as const, sheet: "binding" as Sheet, bindingType: "Hard cover", unavailable: !isHardAvail },
     { id: "lamination", category: "Lamination", title: "Lamination", copy: `ID ₹${lamID} · A4 ₹${lamA4} · A3 ₹${lamA3}`, price: `from ₹${lamID}`, tag: isLaminationAvail ? "Walk-in" : (svcAvail.lamination?.reason || "Not available today"), icon: "copy" as const, sheet: "lamination" as Sheet, unavailable: !isLaminationAvail },
     { id: "scanning", category: "Scanning", title: "Scanning to PDF", copy: "Upload page photos or bring originals", price: `₹${scanRate}/page`, tag: isScanningAvail ? "Walk-in or upload" : (svcAvail.scanning?.reason || "Not available today"), icon: "camera" as const, sheet: "scanning" as Sheet, unavailable: !isScanningAvail },

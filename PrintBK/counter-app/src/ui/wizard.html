@@ -613,6 +613,16 @@
         nextBtn.textContent = 'Continue to Ready →';
       }
     });
+
+    // Auto-advance if workstation is already paired
+    window.addEventListener('DOMContentLoaded', () => {
+      const bridge = window.printbkCounter || window.electronAPI;
+      if (bridge?.getStaffTokenSync && bridge.getStaffTokenSync()) {
+        if (bridge.finishWizard) {
+          bridge.finishWizard();
+        }
+      }
+    });
   </script>
 </body>
 </html>

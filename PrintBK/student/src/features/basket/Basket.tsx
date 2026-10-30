@@ -11,12 +11,12 @@ import { DocumentPageSlot, getPdfJsLib } from '../preview/DocumentPageSlot';
 
 
 /* ─── Option helper functions ─────────────────────── */
-function getColorOptions(bwRate: number, colourRate: number) {
+function getColorOptions(bwRate: number, colourRate: number, isBwAvail = true, isColourAvail = true) {
   return [
-    { value: 'bw' as const,     label: 'B&W',        sub: `₹${bwRate.toFixed(2)}/p` },
-    { value: 'color' as const,  label: 'Colour',     sub: `₹${colourRate.toFixed(2)}/p` },
-    { value: 'auto' as const,   label: 'Auto',       sub: 'detect'  },
-    { value: 'custom' as const, label: 'Custom',     sub: 'pick pgs' },
+    { value: 'bw' as const,     label: 'B&W',        sub: isBwAvail ? `₹${bwRate.toFixed(2)}/p` : 'Paused', disabled: !isBwAvail },
+    { value: 'color' as const,  label: 'Colour',     sub: isColourAvail ? `₹${colourRate.toFixed(2)}/p` : 'Paused', disabled: !isColourAvail },
+    { value: 'auto' as const,   label: 'Auto',       sub: isColourAvail ? 'detect' : 'Paused', disabled: !isColourAvail },
+    { value: 'custom' as const, label: 'Custom',     sub: isColourAvail ? 'pick pgs' : 'Paused', disabled: !isColourAvail },
   ];
 }
 function getSidedOptions(bwRate: number, duplexRate: number) {
@@ -1380,6 +1380,17 @@ function FileCard({
   const isMultiPageDoc = !isImage && (file.pages > 1);
 
   const cfg = useShopConfig(st => st.config);
+  const isBwAvail = (cfg.services?.document_bw?.available !== false) && (cfg.services?.bw?.available !== false);
+  const isColourAvail = (cfg.services?.document_colour?.available !== false) && (cfg.services?.colour?.available !== false);
+
+  useEffect(() => {
+    if (!isColourAvail && (s.colorMode === 'color' || s.colorMode === 'colour' || s.colorMode === 'custom' || s.colorMode === 'auto')) {
+      if (isBwAvail) upd({ colorMode: 'bw' });
+    } else if (!isBwAvail && s.colorMode === 'bw') {
+      if (isColourAvail) upd({ colorMode: 'color' });
+    }
+  }, [isColourAvail, isBwAvail, s.colorMode]);
+
   const cfgRates = (cfg?.rates as any) || {};
   const bwRate = cfgRates.bw ?? 1.50;
   const duplexRate = cfgRates.duplex ?? (cfgRates.doubleSideDiscount ? Number((bwRate * (1 - cfgRates.doubleSideDiscount)).toFixed(2)) : 0.85);
@@ -1565,7 +1576,8 @@ function FileCard({
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   <button
                     type="button"
-                    onClick={() => upd({ colorMode: 'color' })}
+                    disabled={!isColourAvail}
+                    onClick={() => isColourAvail && upd({ colorMode: 'color' })}
                     style={{
                       ...btn,
                       padding: '10px 8px',
@@ -1573,17 +1585,20 @@ function FileCard({
                       flexDirection: 'column',
                       alignItems: 'center',
                       gap: 3,
+                      opacity: isColourAvail ? 1 : 0.45,
+                      cursor: isColourAvail ? 'pointer' : 'not-allowed',
                       ...sel(s.colorMode === 'color' || s.colorMode === 'colour')
                     }}
                   >
                     <span style={{ fontSize: 13, fontWeight: 800 }}>🎨 Full Colour</span>
                     <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>
-                      {isPhotoSheet ? `₹${photoColorRate.toFixed(2)}/sheet · Natural photo colours` : 'Vibrant natural photo colours'}
+                      {!isColourAvail ? 'Unavailable' : isPhotoSheet ? `₹${photoColorRate.toFixed(2)}/sheet · Natural photo colours` : 'Vibrant natural photo colours'}
                     </span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => upd({ colorMode: 'bw' })}
+                    disabled={!isBwAvail}
+                    onClick={() => isBwAvail && upd({ colorMode: 'bw' })}
                     style={{
                       ...btn,
                       padding: '10px 8px',
@@ -1591,12 +1606,14 @@ function FileCard({
                       flexDirection: 'column',
                       alignItems: 'center',
                       gap: 3,
+                      opacity: isBwAvail ? 1 : 0.45,
+                      cursor: isBwAvail ? 'pointer' : 'not-allowed',
                       ...sel(s.colorMode === 'bw')
                     }}
                   >
                     <span style={{ fontSize: 13, fontWeight: 800 }}>⬛ Black &amp; White</span>
                     <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>
-                      {isPhotoSheet ? `₹${photoBwRate.toFixed(2)}/sheet · 50% discount` : 'Studio monochrome · Economical'}
+                      {!isBwAvail ? 'Unavailable' : isPhotoSheet ? `₹${photoBwRate.toFixed(2)}/sheet · 50% discount` : 'Studio monochrome · Economical'}
                     </span>
                   </button>
                 </div>
@@ -1726,7 +1743,8 @@ function FileCard({
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   <button
                     type="button"
-                    onClick={() => upd({ colorMode: 'bw' })}
+                    disabled={!isBwAvail}
+                    onClick={() => isBwAvail && upd({ colorMode: 'bw' })}
                     style={{
                       ...btn,
                       padding: '10px 8px',
@@ -1734,15 +1752,20 @@ function FileCard({
                       flexDirection: 'column',
                       alignItems: 'center',
                       gap: 3,
+                      opacity: isBwAvail ? 1 : 0.45,
+                      cursor: isBwAvail ? 'pointer' : 'not-allowed',
                       ...sel(s.colorMode === 'bw')
                     }}
                   >
                     <span style={{ fontSize: 13, fontWeight: 800 }}>⬛ Black &amp; White</span>
-                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>₹{bwRate.toFixed(2)} per page · Fast &amp; Crisp</span>
+                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>
+                      {!isBwAvail ? 'Unavailable' : `₹${bwRate.toFixed(2)} per page · Fast & Crisp`}
+                    </span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => upd({ colorMode: 'color' })}
+                    disabled={!isColourAvail}
+                    onClick={() => isColourAvail && upd({ colorMode: 'color' })}
                     style={{
                       ...btn,
                       padding: '10px 8px',
@@ -1750,11 +1773,15 @@ function FileCard({
                       flexDirection: 'column',
                       alignItems: 'center',
                       gap: 3,
+                      opacity: isColourAvail ? 1 : 0.45,
+                      cursor: isColourAvail ? 'pointer' : 'not-allowed',
                       ...sel(s.colorMode === 'color' || s.colorMode === 'colour')
                     }}
                   >
                     <span style={{ fontSize: 13, fontWeight: 800 }}>🎨 Colour</span>
-                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>₹{colourRate.toFixed(2)} per page · Full Colour</span>
+                    <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>
+                      {!isColourAvail ? 'Unavailable' : `₹${colourRate.toFixed(2)} per page · Full Colour`}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -1838,9 +1865,21 @@ function FileCard({
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1.2, marginBottom: 8 }}>COLOUR MODE</div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  {getColorOptions(bwRate * mult, colourRate * mult).map(opt => (
-                    <button key={opt.value} onClick={() => upd({ colorMode: opt.value })}
-                      style={{ ...btn, flex: 1, padding: '9px 4px', lineHeight: 1.3, ...sel(s.colorMode === opt.value) }}>
+                  {getColorOptions(bwRate * mult, colourRate * mult, isBwAvail, isColourAvail).map(opt => (
+                    <button
+                      key={opt.value}
+                      disabled={opt.disabled}
+                      onClick={() => !opt.disabled && upd({ colorMode: opt.value })}
+                      style={{
+                        ...btn,
+                        flex: 1,
+                        padding: '9px 4px',
+                        lineHeight: 1.3,
+                        opacity: opt.disabled ? 0.45 : 1,
+                        cursor: opt.disabled ? 'not-allowed' : 'pointer',
+                        ...sel(s.colorMode === opt.value)
+                      }}
+                    >
                       {opt.label}<br /><span style={{ fontSize: 10, fontWeight: 400, opacity: 0.75 }}>{opt.sub}</span>
                     </button>
                   ))}

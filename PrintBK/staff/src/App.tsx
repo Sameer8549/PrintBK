@@ -396,7 +396,7 @@ function mapLiveItemToJob(item: LiveItem): Job {
     printed_at: item.printed_at,
     delete_after: item.delete_after,
     files_deleted_at: item.files_deleted_at,
-    cloudId: (item as any).cloudId || pld.cloudId || (Array.isArray(pld.fileRefs) ? pld.fileRefs[0] : undefined),
+    cloudId: (item as any).cloudId || (item as any).cloud_id || pld.cloudId || pld.cloud_id || (pld.files && pld.files[0]?.cloudId) || (Array.isArray(pld.fileRefs) ? pld.fileRefs[0] : undefined) || (Array.isArray((item as any).file_refs) ? (item as any).file_refs[0] : undefined),
     payload: pld,
   }
 }
@@ -979,18 +979,21 @@ function PrinterSettingsPanel({
     upiName: String(shop.rates?.upiName ?? "PrintBK HKBK"),
   })
 
-  const [services, setServices] = useState<Record<string, { available: boolean; reason?: string }>>({
+  const [services, setServices] = useState<Record<string, { available: boolean; reason?: string }>>(() => ({
     document_bw: { available: true },
     document_colour: { available: true },
     photos: { available: true },
     binding_spiral: { available: true },
+    binding_comb: { available: true },
+    binding_staple: { available: true },
     binding_soft: { available: true },
     binding_hard: { available: true },
     lamination: { available: true },
     scanning: { available: true },
     photocopy: { available: true },
-    typing: { available: true }
-  })
+    typing: { available: true },
+    ...((shop as any).services || {})
+  }))
 
   const [payments, setPayments] = useState<{ cash: boolean; upi: boolean; razorpay: boolean }>({
     cash: true,
@@ -1826,10 +1829,21 @@ function SheetPeek({ colour = false }: { colour?: boolean }) {
 
 function UltraHdPreviewPanel({ job, isColour, isPhoto }: { job: Job; isColour: boolean; isPhoto: boolean }) {
   const [fileUrl, setFileUrl] = useState<string | null>(null)
+  const [fileType, setFileType] = useState<'pdf' | 'image' | 'unknown'>('unknown')
   const [loading, setLoading] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [zoomLevel, setZoomLevel] = useState<number>(1)
-  const cloudId = job.cloudId || job.payload?.cloudId
+  const [canvasRendered, setCanvasRendered] = useState(false)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+
+  const cloudId = job.cloudId ||
+    (job as any).cloud_id ||
+    job.payload?.cloudId ||
+    job.payload?.cloud_id ||
+    (job.payload?.files && job.payload.files[0]?.cloudId) ||
+    (Array.isArray(job.payload?.fileRefs) && job.payload.fileRefs[0]) ||
+    (typeof job.payload?.file_refs === 'string' && (() => { try { return JSON.parse(job.payload.file_refs)[0] } catch(_) { return undefined } })()) ||
+    job.payload?.fileId
 
   useEffect(() => {
     if (!cloudId || job.files_deleted_at) return
@@ -1840,12 +1854,49 @@ function UltraHdPreviewPanel({ job, isColour, isPhoto }: { job: Job; isColour: b
       setLoading(true)
       try {
         const headers: Record<string, string> = {}
-        if (token) headers['X-Staff-Device-Token'] = token
+        if (token) {
+          headers['X-Staff-Device-Token'] = token
+          headers['X-Staff-Token'] = token
+        }
         const res = await fetch(`/server/api/files/${cloudId}`, { headers })
         if (res.ok && active) {
-          const blob = await res.blob()
-          const url = URL.createObjectURL(blob)
+          const rawBlob = await res.blob()
+          const buffer = await rawBlob.slice(0, 16).arrayBuffer()
+          const bytes = new Uint8Array(buffer)
+          const isPdfMagic = bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46
+          const isJpgMagic = bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF
+          const isPngMagic = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47
+
+          const fileName = (job.values[1] || '').toLowerCase()
+          const isPdf = isPdfMagic || (!isPhoto && (fileName.includes('.pdf') || rawBlob.type.includes('pdf') || job.service === 'bw' || job.service === 'colour'))
+          const mimeType = isPdf ? 'application/pdf' : (isPngMagic ? 'image/png' : 'image/jpeg')
+          const typedBlob = new Blob([rawBlob], { type: mimeType })
+          const url = URL.createObjectURL(typedBlob)
           setFileUrl(url)
+          setFileType(isPdf ? 'pdf' : 'image')
+
+          // If PDF, render canvas thumbnail with pdfjs if available
+          if (isPdf && (window as any).pdfjsLib) {
+            try {
+              const pdfDoc = await (window as any).pdfjsLib.getDocument({ data: buffer.byteLength > 16 ? buffer : await rawBlob.arrayBuffer() }).promise
+              if (active && canvasRef.current) {
+                const page = await pdfDoc.getPage(1)
+                const viewport = page.getViewport({ scale: 1.0 })
+                const targetScale = Math.min(220 / viewport.height, 1.5)
+                const scaledViewport = page.getViewport({ scale: targetScale })
+                const canvas = canvasRef.current
+                canvas.width = scaledViewport.width
+                canvas.height = scaledViewport.height
+                const ctx = canvas.getContext('2d')
+                if (ctx) {
+                  await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise
+                  if (active) setCanvasRendered(true)
+                }
+              }
+            } catch (canvasErr) {
+              console.warn('Canvas thumbnail render fallback to native viewer:', canvasErr)
+            }
+          }
         }
       } catch (err) {
         console.warn('Failed to fetch file asset:', err)
@@ -1863,7 +1914,7 @@ function UltraHdPreviewPanel({ job, isColour, isPhoto }: { job: Job; isColour: b
     if (!fileUrl) return
     const a = document.createElement('a')
     a.href = fileUrl
-    const ext = isPhoto ? 'jpg' : (job.values[1]?.toLowerCase().endsWith('.pdf') ? 'pdf' : 'jpg')
+    const ext = isPhoto ? 'jpg' : (job.values[1]?.toLowerCase().includes('.pdf') || fileType === 'pdf' ? 'pdf' : 'jpg')
     a.download = `Order_${job.order}_${job.values[1] || 'Asset'}.${ext}`
     document.body.appendChild(a)
     a.click()
@@ -1898,18 +1949,44 @@ function UltraHdPreviewPanel({ job, isColour, isPhoto }: { job: Job; isColour: b
         boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
       }}>
         {fileUrl ? (
-          <img
-            src={fileUrl}
-            alt="Asset Preview"
-            style={{
-              width: '100%',
-              height: '100%',
-              maxHeight: '220px',
-              objectFit: 'contain',
-              imageRendering: 'high-quality' as any,
-              background: '#ffffff'
-            }}
-          />
+          fileType === 'pdf' ? (
+            canvasRendered ? (
+              <canvas
+                ref={canvasRef}
+                style={{
+                  maxHeight: '220px',
+                  maxWidth: '100%',
+                  objectFit: 'contain',
+                  borderRadius: '4px'
+                }}
+              />
+            ) : (
+              <iframe
+                src={`${fileUrl}#toolbar=0&navpanes=0&view=FitH`}
+                title="Document Preview"
+                style={{
+                  width: '100%',
+                  height: '220px',
+                  border: 'none',
+                  background: '#ffffff',
+                  pointerEvents: 'none'
+                }}
+              />
+            )
+          ) : (
+            <img
+              src={fileUrl}
+              alt="Asset Preview"
+              style={{
+                width: '100%',
+                height: '100%',
+                maxHeight: '220px',
+                objectFit: 'contain',
+                imageRendering: 'high-quality' as any,
+                background: '#ffffff'
+              }}
+            />
+          )
         ) : loading ? (
           <div style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 600 }}>
             Loading Ultra HD asset…
@@ -2022,27 +2099,29 @@ function UltraHdPreviewPanel({ job, isColour, isPhoto }: { job: Job; isColour: b
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <strong>#{job.order} · Ultra HD Inspection</strong>
               <span style={{ fontSize: '11px', background: '#0284c7', padding: '2px 8px', borderRadius: '4px', fontWeight: 800 }}>
-                300 DPI Original Asset
+                {fileType === 'pdf' ? 'PDF Vector Asset · 300 DPI' : 'Photo Asset · 300 DPI'}
               </span>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => setZoomLevel((z) => (z === 1 ? 1.5 : z === 1.5 ? 2 : 1))}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid #334155',
-                  background: '#1e293b',
-                  color: '#ffffff',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
-              >
-                Zoom: {zoomLevel * 100}%
-              </button>
+              {fileType !== 'pdf' && (
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel((z) => (z === 1 ? 1.5 : z === 1.5 ? 2 : 1))}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid #334155',
+                    background: '#1e293b',
+                    color: '#ffffff',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Zoom: {zoomLevel * 100}%
+                </button>
+              )}
 
               <button
                 type="button"
@@ -2085,29 +2164,44 @@ function UltraHdPreviewPanel({ job, isColour, isPhoto }: { job: Job; isColour: b
             onClick={(e) => e.stopPropagation()}
             style={{
               flex: 1,
-              overflow: 'auto',
+              overflow: 'hidden',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               background: '#070b14',
               borderRadius: '8px',
               border: '1px solid #1e293b',
-              padding: '16px'
+              padding: '8px'
             }}
           >
-            <img
-              src={fileUrl}
-              alt="Ultra HD Asset"
-              style={{
-                width: zoomLevel > 1 ? `${zoomLevel * 100}%` : 'auto',
-                maxWidth: zoomLevel === 1 ? '100%' : undefined,
-                maxHeight: zoomLevel === 1 ? '85vh' : undefined,
-                objectFit: 'contain',
-                imageRendering: 'high-quality' as any,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-                borderRadius: '4px'
-              }}
-            />
+            {fileType === 'pdf' ? (
+              <iframe
+                src={`${fileUrl}#view=Fit`}
+                title="Ultra HD Document Inspection"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  minHeight: '80vh',
+                  border: 'none',
+                  borderRadius: '4px',
+                  background: '#ffffff'
+                }}
+              />
+            ) : (
+              <img
+                src={fileUrl}
+                alt="Ultra HD Asset"
+                style={{
+                  width: zoomLevel > 1 ? `${zoomLevel * 100}%` : 'auto',
+                  maxWidth: zoomLevel === 1 ? '100%' : undefined,
+                  maxHeight: zoomLevel === 1 ? '85vh' : undefined,
+                  objectFit: 'contain',
+                  imageRendering: 'high-quality' as any,
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                  borderRadius: '4px'
+                }}
+              />
+            )}
           </div>
         </div>
       )}
@@ -2874,6 +2968,12 @@ export default function App() {
 
   if (!isPaired) {
     if (isCounterApp) {
+      const bridgeToken = (window as any).printbkCounter?.getStaffTokenSync?.();
+      if (bridgeToken) {
+        setStaffCredentials("desktop-counter", bridgeToken);
+        setIsPaired(true);
+        return null;
+      }
       return <SetupFlow onFinish={() => setIsPaired(true)} />
     }
     return <DownloadPage onPairSuccess={() => setIsPaired(true)} />

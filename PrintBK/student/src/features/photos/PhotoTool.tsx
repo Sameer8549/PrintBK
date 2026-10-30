@@ -56,6 +56,7 @@ function PhotoTool({
 
   const shopConfig = useShopConfig(s => s.config);
   const shopRates = (shopConfig?.rates as any) || {};
+  const isPhotoAvail = shopConfig.services?.photos?.available !== false;
 
   const getLayoutBasePrice = (key: string, defaultVal: number) => {
     if (key === "Passport 8-up" && typeof shopRates.photoPassport === 'number') return shopRates.photoPassport;
@@ -196,6 +197,11 @@ function PhotoTool({
   return (
     <main className="page has-dock photo-page">
       <Topbar title="Photo print" back onBack={() => go("entry")} />
+      {!isPhotoAvail && (
+        <div style={{ background: '#fef2f2', border: '1.5px solid #f87171', borderRadius: 8, padding: '10px 14px', margin: '8px 16px', color: '#991b1b', fontSize: 13, fontWeight: 700 }}>
+          ⚠️ Photo printing is temporarily unavailable: {shopConfig.services?.photos?.reason || 'Service paused today by staff.'}
+        </div>
+      )}
       <input
         ref={photoInput}
         className="visually-hidden"
@@ -447,8 +453,12 @@ function PhotoTool({
         <button
           type="button"
           className="primary"
-          disabled={isGenerating || (isCardLayout ? cardPhotos.some(photo => !photo) : !photoSrc)}
+          disabled={!isPhotoAvail || isGenerating || (isCardLayout ? cardPhotos.some(photo => !photo) : !photoSrc)}
           onClick={async () => {
+            if (!isPhotoAvail) {
+              notify(shopConfig.services?.photos?.reason || 'Photo printing is currently unavailable.');
+              return;
+            }
             if (isGenerating) return;
             setIsGenerating(true);
             try {

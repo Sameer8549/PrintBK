@@ -75,7 +75,14 @@ function Entry({
 
       <Segmented values={["Documents", "Photos", "Other Services"]} selected={tab} onSelect={v => {
         setTab(v);
-        if (v === "Photos") openPhoto("");
+        if (v === "Photos") {
+          const isPhotoAvail = cfg.services?.photos?.available !== false;
+          if (!isPhotoAvail) {
+            notify(cfg.services?.photos?.reason || "Photo printing is temporarily unavailable today.");
+            return;
+          }
+          openPhoto("");
+        }
         if (v === "Other Services") go("services");
       }} />
       <button

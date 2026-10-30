@@ -1073,6 +1073,17 @@ app.post('/orders', async (req, res) => {
     if (Array.isArray(req.body.services)) {
       servicesToCheck.push(...req.body.services);
     }
+    if (Array.isArray(req.body.files)) {
+      for (const f of req.body.files) {
+        if (f.isPhotoSheet || f.preset) {
+          servicesToCheck.push({ type: 'photos', name: 'Photo Printing' });
+        } else if (f.colorMode === 'bw') {
+          servicesToCheck.push({ type: 'document_bw', name: 'Black & White Document Printing' });
+        } else if (f.colorMode === 'color' || f.colorMode === 'custom' || f.colorMode === 'auto') {
+          servicesToCheck.push({ type: 'document_colour', name: 'Colour Document Printing' });
+        }
+      }
+    }
     if (Array.isArray(req.body.items)) {
       for (const item of req.body.items) {
         if (item.type === 'photo') servicesToCheck.push({ type: 'photos', name: 'Photo Printing' });
@@ -1081,10 +1092,19 @@ app.post('/orders', async (req, res) => {
       }
     }
     for (const svc of servicesToCheck) {
-      const svcKey = svc.type === 'binding' ? `binding_${(svc.bindingType || 'spiral').toLowerCase()}` : (svc.type || '');
-      if (settings.services?.[svcKey] && settings.services[svcKey].available === false) {
+      let svcKey = svc.type || '';
+      if (svc.type === 'binding') {
+        const bType = String(svc.bindingType || svc.id || 'spiral').toLowerCase();
+        if (bType.includes('comb')) svcKey = 'binding_comb';
+        else if (bType.includes('staple')) svcKey = 'binding_staple';
+        else if (bType.includes('soft')) svcKey = 'binding_soft';
+        else if (bType.includes('hard')) svcKey = 'binding_hard';
+        else svcKey = 'binding_spiral';
+      }
+      const sConf = settings.services?.[svcKey] || (svcKey === 'document_bw' ? settings.services?.bw : (svcKey === 'document_colour' ? settings.services?.colour : undefined));
+      if (sConf && sConf.available === false) {
         return res.status(400).json({
-          error: `Service "${svc.name || svcKey}" is currently unavailable: ${settings.services[svcKey].reason || 'Unavailable today'}`
+          error: `Service "${svc.name || svcKey}" is currently unavailable: ${sConf.reason || 'Unavailable today'}`
         });
       }
     }
@@ -2207,9 +2227,27 @@ app.get('/files/:cloudId', async (req, res) => {
     const catalystApp = catalyst.initialize(req);
     const filestore = catalystApp.filestore();
     const folder = await getPrintFilesFolder(filestore);
+
+    let contentType = 'application/octet-stream';
+    let fileName = '';
+    try {
+      const details = await folder.getFileDetails(req.params.cloudId);
+      if (details && details.file_name) {
+        fileName = details.file_name;
+        const ext = path.extname(details.file_name).toLowerCase();
+        if (ext === '.pdf') contentType = 'application/pdf';
+        else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+        else if (ext === '.png') contentType = 'image/png';
+        else if (ext === '.webp') contentType = 'image/webp';
+      }
+    } catch (_) {}
+
     const fileStream = await folder.downloadFile(req.params.cloudId);
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Type', contentType);
+    if (fileName) {
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+    }
     if (fileStream && typeof fileStream.pipe === 'function') {
       fileStream.pipe(res);
     } else {

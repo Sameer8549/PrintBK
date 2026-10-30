@@ -297,7 +297,8 @@ function showMainWindow() {
       preload: path.resolve(__dirname, '../preload/preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      plugins: true
     }
   });
 
@@ -440,7 +441,8 @@ function showWizard() {
       preload: path.resolve(__dirname, '../preload/preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      plugins: true
     }
   });
 
@@ -470,7 +472,8 @@ function showHealthWindow() {
       preload: path.resolve(__dirname, '../preload/preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      plugins: true
     }
   });
 
@@ -580,7 +583,12 @@ ipcMain.handle('counter:pair', async (_event, { setupCode, label }) => {
               appConfig.staffAppUrl = `${base}/app/staff/index.html`;
             }
 
-            // Save tokens in encrypted store
+            // Save tokens and default printers in store
+            const currentStore = store.get();
+            const printers = lastDiscoveredPrinters.length > 0 ? lastDiscoveredPrinters : await discoverPrinters(false).catch(() => []);
+            const defaultBw = printers.find((p: any) => p.role === 'bw')?.name || printers[0]?.name || 'Default Printer';
+            const defaultColour = printers.find((p: any) => p.role === 'colour')?.name || printers[1]?.name || defaultBw;
+
             store.set({
               paired: true,
               counterId: data.counterId,
@@ -588,7 +596,10 @@ ipcMain.handle('counter:pair', async (_event, { setupCode, label }) => {
               staffToken: data.staffCredentials.token,
               staffDeviceId: data.staffCredentials.deviceId,
               agentToken: data.agentCredentials.token,
-              agentDeviceId: data.agentCredentials.deviceId
+              agentDeviceId: data.agentCredentials.deviceId,
+              bwPrinter: currentStore.bwPrinter || defaultBw,
+              colourPrinter: currentStore.colourPrinter || defaultColour,
+              photoPrinter: currentStore.photoPrinter || defaultColour
             });
 
             // Start supervisor with new credentials
@@ -699,7 +710,7 @@ app.whenReady().then(async () => {
   const creds = store.get();
   configureAutoStart(creds.openAtLogin !== false);
 
-  if (creds.paired && creds.staffToken && creds.agentToken) {
+  if (creds.paired && (creds.staffToken || creds.counterId)) {
     startAgentSupervisor();
     showMainWindow();
   } else {

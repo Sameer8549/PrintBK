@@ -59,6 +59,10 @@ export function isStaffPaired(): boolean {
   try {
     const token = getStaffToken()
     if (token) return true
+    if (typeof window !== "undefined" && (window as any).printbkCounter?.isCounterApp) {
+      const bridgeToken = (window as any).printbkCounter?.getStaffTokenSync?.()
+      if (bridgeToken) return true
+    }
     return localStorage.getItem("printbk-paired") === "true"
   } catch {
     return false
