@@ -897,6 +897,59 @@ export function Settings({ go }: { go: (screen: Screen) => void }) {
           </button>
         </section>
 
+        {/* ── STAFF & ADMINISTRATION ── */}
+        <section
+          style={{
+            background: '#ffffff',
+            borderRadius: 16,
+            border: '2px solid #0f172a',
+            boxShadow: '3px 3px 0px #0f172a',
+            overflow: 'hidden',
+            marginBottom: 20,
+          }}
+        >
+          <div
+            style={{
+              padding: '16px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 14,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <GoldBadge name="shop" size={44} ariaLabel="Staff Portal" />
+              <div>
+                <strong style={{ display: 'block', fontSize: 15, color: '#0f172a' }}>
+                  Store Staff &amp; Counter Portal
+                </strong>
+                <small style={{ color: '#64748b', fontSize: 13, marginTop: 2, display: 'block' }}>
+                  Access counter queue, order approvals, cash collection &amp; pricing
+                </small>
+              </div>
+            </div>
+            <a
+              href="./staff/index.html"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '10px 14px',
+                borderRadius: 10,
+                background: '#0f172a',
+                color: '#ffffff',
+                textDecoration: 'none',
+                fontWeight: 700,
+                fontSize: 13,
+                boxShadow: '0 2px 6px rgba(15,23,42,0.2)',
+                flexShrink: 0,
+              }}
+            >
+              Open Staff App &rarr;
+            </a>
+          </div>
+        </section>
+
         {/* ── FOOTER ── */}
         <footer
           style={{

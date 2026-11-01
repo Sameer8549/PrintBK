@@ -1,7 +1,8 @@
-import { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog, session, nativeImage } from 'electron';
+import { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog, session, nativeImage, net } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import https from 'https';
 import fetch from 'node-fetch';
 import { autoUpdater } from 'electron-updater';
 import { CounterStore } from './store';
@@ -9,6 +10,55 @@ import { AgentSupervisor, AgentStatus } from './agentSupervisor';
 import { discoverPrinters } from '../agent/printers';
 import { findSumatraBinary } from '../agent/sumatra';
 import { findLibreOfficeBinary } from '../agent/converter';
+
+// Custom HTTPS Agent with RFC 8305 Happy Eyeballs support for IPv4/IPv6 NAT64 networks
+const httpsAgent = new https.Agent({
+  autoSelectFamily: true,
+  autoSelectFamilyAttemptTimeout: 250,
+  keepAlive: true,
+  timeout: 8000
+});
+
+/**
+ * Robust network fetcher:
+ * 1. Uses Electron's Chromium network service (net.fetch) which automatically uses
+ *    Windows System Proxy, PAC scripts, Windows root certificate trust, and Happy Eyeballs.
+ * 2. Falls back to node-fetch with autoSelectFamily: true if net.fetch is unavailable.
+ * 3. Enforces an explicit connection & response timeout so the app never hangs indefinitely.
+ */
+async function robustFetch(url: string, options: any = {}, timeoutMs = 8000): Promise<any> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  // Attempt 1: Native Chromium network stack via Electron net.fetch
+  try {
+    if (net && typeof (net as any).fetch === 'function') {
+      const res = await (net as any).fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+      return res;
+    }
+  } catch (netErr: any) {
+    clearTimeout(timer);
+    console.warn(`[Network] net.fetch failed for ${url} (${netErr?.message}), trying fallback...`);
+  }
+
+  // Attempt 2: node-fetch with autoSelectFamily Happy Eyeballs agent
+  const fallbackController = new AbortController();
+  const fallbackTimer = setTimeout(() => fallbackController.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      ...options,
+      agent: url.startsWith('https') ? httpsAgent : undefined,
+      signal: fallbackController.signal
+    });
+    return res;
+  } finally {
+    clearTimeout(fallbackTimer);
+  }
+}
 
 // 1. Single-Instance Lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -70,6 +120,11 @@ if (process.env.COUNTER_STAFF_URL) {
 }
 
 const store = new CounterStore();
+const savedStore = store.get();
+if (savedStore.apiBase) {
+  appConfig.apiBase = savedStore.apiBase;
+  appConfig.staffAppUrl = savedStore.staffAppUrl || `${savedStore.apiBase}/app/staff/index.html`;
+}
 let mainWindow: BrowserWindow | null = null;
 let wizardWindow: BrowserWindow | null = null;
 let healthWindow: BrowserWindow | null = null;
@@ -487,8 +542,8 @@ function showHealthWindow() {
 // 9. Auto-Update Logic
 async function checkForAppUpdates(manual = false) {
   try {
-    const res = await fetch(`${appConfig.apiBase}/server/api/counter/version`);
-    if (res.ok) {
+    const res = await robustFetch(`${appConfig.apiBase}/server/api/counter/version`, {}, 5000);
+    if (res && res.ok) {
       const data: any = await res.json();
       const currentVer = app.getVersion();
       const latestVer = data.latestVersion || currentVer;
@@ -526,6 +581,11 @@ ipcMain.on('counter:get-credentials-sync', (event) => {
 
 ipcMain.handle('counter:get-version', () => app.getVersion());
 ipcMain.handle('counter:get-agent-status', () => currentAgentStatus);
+ipcMain.handle('counter:get-server-config', () => ({
+  apiBase: appConfig.apiBase,
+  staffAppUrl: appConfig.staffAppUrl,
+  environment: appConfig.environment
+}));
 ipcMain.handle('counter:open-printer-settings', () => {
   shell.openPath('ms-settings:printers');
 });
@@ -544,25 +604,38 @@ ipcMain.handle('counter:test-print', async (_event, role: 'bw' | 'colour' | 'pho
   return { success: false, message: 'Print supervisor not initialized' };
 });
 
-ipcMain.handle('counter:pair', async (_event, { setupCode, label }) => {
+ipcMain.handle('counter:pair', async (_event, { setupCode, label, serverUrl }: { setupCode: string; label?: string; serverUrl?: string }) => {
   try {
+    const cleanCode = (setupCode || '').trim();
+    if (!cleanCode) {
+      return { ok: false, error: 'Setup code is required.' };
+    }
+
     const candidateCodes = [
-      setupCode,
-      (setupCode === 'PBK-SETUP-9021' || setupCode === 'PKB-SETUP-9021') ? 'dev_test_counter_setup_code_hex_0123456789abcdef' : null
+      cleanCode,
+      (cleanCode === 'PBK-SETUP-9021' || cleanCode === 'PKB-SETUP-9021') ? 'dev_test_counter_setup_code_hex_0123456789abcdef' : null
     ].filter(Boolean) as string[];
 
+    // Priority ordering of candidate bases:
+    // 1. Explicit serverUrl if provided by user
+    // 2. Production endpoint
+    // 3. Current appConfig.apiBase
+    // 4. Development endpoint
     const candidateBases = [
-      appConfig.apiBase,
+      serverUrl ? serverUrl.trim().replace(/\/+$/, '') : null,
       'https://printbk-60074625517.catalystserverless.in',
+      appConfig.apiBase,
       'https://printbk-60074625517.development.catalystserverless.in'
-    ].filter((v, i, a) => a.indexOf(v) === i);
+    ].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i) as string[];
 
     let lastError = 'Pairing rejected by server';
+    let failedAttempts = 0;
 
     for (const base of candidateBases) {
       for (const code of candidateCodes) {
         try {
-          const res = await fetch(`${base}/server/api/counter/pair`, {
+          console.log(`[Pair] Attempting pairing with server: ${base}`);
+          const res = await robustFetch(`${base}/server/api/counter/pair`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -571,19 +644,21 @@ ipcMain.handle('counter:pair', async (_event, { setupCode, label }) => {
               appVersion: app.getVersion(),
               agentVersion: app.getVersion()
             })
-          });
+          }, 7500);
 
-          const data: any = await res.json();
-          if (res.ok && data.ok) {
-            // If development base was used, update appConfig apiBase to match
-            if (base !== appConfig.apiBase) {
-              appConfig.apiBase = base;
-              appConfig.staffAppUrl = `${base}/app/staff/index.html`;
-            } else {
-              appConfig.staffAppUrl = `${base}/app/staff/index.html`;
-            }
+          let data: any = {};
+          try {
+            data = await res.json();
+          } catch (_) {
+            data = {};
+          }
 
-            // Save tokens and default printers in store
+          if (res && res.ok && data.ok) {
+            console.log(`[Pair] Successfully paired with server: ${base}`);
+            appConfig.apiBase = base;
+            appConfig.staffAppUrl = `${base}/app/staff/index.html`;
+
+            // Save tokens, active base, and default printers in store
             const currentStore = store.get();
             const printers = lastDiscoveredPrinters.length > 0 ? lastDiscoveredPrinters : await discoverPrinters(false).catch(() => []);
             const defaultBw = printers.find((p: any) => p.role === 'bw')?.name || printers[0]?.name || 'Default Printer';
@@ -591,6 +666,8 @@ ipcMain.handle('counter:pair', async (_event, { setupCode, label }) => {
 
             store.set({
               paired: true,
+              apiBase: base,
+              staffAppUrl: `${base}/app/staff/index.html`,
               counterId: data.counterId,
               deviceLabel: data.label,
               staffToken: data.staffCredentials.token,
@@ -602,17 +679,23 @@ ipcMain.handle('counter:pair', async (_event, { setupCode, label }) => {
               photoPrinter: currentStore.photoPrinter || defaultColour
             });
 
-            // Start supervisor with new credentials
+            // Start supervisor with new credentials and active server base
             startAgentSupervisor();
 
-            return { ok: true };
+            return { ok: true, serverBase: base };
           } else {
-            lastError = data.error || lastError;
+            lastError = data.error || (res.status === 404 ? `Endpoint not found on ${base}` : `Server returned HTTP ${res.status}`);
           }
         } catch (netErr: any) {
-          lastError = netErr.message || lastError;
+          failedAttempts++;
+          console.warn(`[Pair] Connection attempt failed for ${base}: ${netErr.message || netErr}`);
+          lastError = netErr.message || 'Connection timed out';
         }
       }
+    }
+
+    if (failedAttempts > 0 && (lastError.includes('ETIMEDOUT') || lastError.includes('abort') || lastError.includes('failed to fetch') || lastError.includes('timeout'))) {
+      lastError = `Connection to server timed out (${lastError}). If using campus Wi-Fi, ensure you are logged into the campus portal, or switch to Production Server.`;
     }
 
     return { ok: false, error: lastError };
@@ -672,15 +755,16 @@ function startAgentSupervisor() {
   if (!creds.agentToken) return;
 
   const workerScript = path.resolve(__dirname, '../agent/worker.js');
+  const targetApiBase = creds.apiBase || appConfig.apiBase;
 
   if (supervisor) {
-    supervisor.updateCredentials(creds.agentToken, creds.deviceLabel);
+    supervisor.updateCredentials(creds.agentToken, creds.deviceLabel, targetApiBase);
     return;
   }
 
   supervisor = new AgentSupervisor({
     workerScript,
-    apiBase: appConfig.apiBase,
+    apiBase: targetApiBase,
     agentToken: creds.agentToken,
     deviceLabel: creds.deviceLabel || 'Shop Counter PC',
     sumatraPath: resolvedSumatra || undefined,

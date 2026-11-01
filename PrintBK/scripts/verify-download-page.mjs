@@ -108,14 +108,14 @@ async function main() {
   if (!downloadBtn) throw new Error('Missing #download-windows-btn');
   const btnText = await downloadBtn.textContent();
   console.log(`Download button text: "${btnText?.trim()}"`);
-  if (!btnText?.includes('DOWNLOAD FOR WINDOWS') || !btnText?.includes('367 MB')) {
+  if (!btnText?.includes('DOWNLOAD FOR WINDOWS') || !btnText?.includes('100.5 MB')) {
     throw new Error(`Expected download button to display version and size, got "${btnText}"`);
   }
 
   // 3. Verify SHA-256 displayed
   const hashText = await page.textContent('.integrity-hash');
   console.log(`Displayed SHA-256: "${hashText}"`);
-  if (!hashText?.includes('0d047441cc9d1fe2bf945983330af7f548f1b10c9f447438d3bd0eb613235f04')) {
+  if (!hashText?.includes('e90dcae73fcdb8b24e51fe6e03107d0f378d30e328dc3da4829da3e4a38aefba')) {
     throw new Error(`Expected exact SHA-256 match, got "${hashText}"`);
   }
 

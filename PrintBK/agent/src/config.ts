@@ -43,7 +43,7 @@ export function getConfigFilePath(): string {
 }
 
 const DEFAULT_CONFIG: AgentConfig = {
-  apiBase: process.env.API_BASE || 'https://printbk-60074625517.development.catalystserverless.in',
+  apiBase: process.env.API_BASE || 'https://printbk-60074625517.catalystserverless.in',
   agentToken: process.env.AGENT_TOKEN || '',
   agentSetupCode: process.env.AGENT_SETUP_CODE || 'PBK-SETUP-9021',
   deviceLabel: process.env.AGENT_LABEL || 'Shop Counter PC',

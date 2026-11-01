@@ -247,6 +247,16 @@
         <input type="text" id="setupCodeInput" class="code-input" placeholder="PBK-SETUP-9021" spellcheck="false" autocomplete="off" />
       </div>
       <div class="form-group">
+        <label>Server Gateway</label>
+        <select id="serverSelect">
+          <option value="https://printbk-60074625517.catalystserverless.in">Production (printbk-60074625517.catalystserverless.in)</option>
+          <option value="https://printbk-60074625517.development.catalystserverless.in">Development (development.catalystserverless.in)</option>
+          <option value="auto">Auto-Detect / Fast Failover</option>
+          <option value="__custom__">+ Custom Server URL...</option>
+        </select>
+        <input type="text" id="customServerInput" placeholder="https://printbk-60074625517.catalystserverless.in" style="display: none; margin-top: 8px; font-size: 13px;" />
+      </div>
+      <div class="form-group">
         <label>Workstation Label</label>
         <input type="text" id="deviceLabelInput" value="Campus Store Counter PC #1" />
       </div>
@@ -347,6 +357,8 @@
     const backBtn = document.getElementById('backBtn');
     const errorBox = document.getElementById('errorBox');
     const setupCodeInput = document.getElementById('setupCodeInput');
+    const serverSelect = document.getElementById('serverSelect');
+    const customServerInput = document.getElementById('customServerInput');
     const deviceLabelInput = document.getElementById('deviceLabelInput');
     const bwPrinterSelect = document.getElementById('bwPrinterSelect');
     const colourPrinterSelect = document.getElementById('colourPrinterSelect');
@@ -406,6 +418,25 @@
     photoPrinterCheck.addEventListener('change', () => {
       photoGroup.style.display = photoPrinterCheck.checked ? 'block' : 'none';
     });
+
+    serverSelect.addEventListener('change', () => {
+      if (serverSelect.value === '__custom__') {
+        customServerInput.style.display = 'block';
+        customServerInput.focus();
+      } else {
+        customServerInput.style.display = 'none';
+      }
+    });
+
+    function getSelectedServer() {
+      if (serverSelect.value === '__custom__') {
+        return customServerInput.value.trim() || 'https://printbk-60074625517.catalystserverless.in';
+      }
+      if (serverSelect.value === 'auto') {
+        return '';
+      }
+      return serverSelect.value;
+    }
 
     function showError(msg) {
       errorBox.textContent = msg;
@@ -549,7 +580,8 @@
         nextBtn.textContent = 'Pairing Workstation…';
 
         try {
-          const res = await window.printbkCounter.pairWorkstation(code, label);
+          const selectedServer = getSelectedServer();
+          const res = await window.printbkCounter.pairWorkstation(code, label, selectedServer);
           if (!res.ok) {
             showError(res.error || 'Pairing failed. Check code or internet connectivity.');
             nextBtn.disabled = false;
@@ -614,9 +646,22 @@
       }
     });
 
-    // Auto-advance if workstation is already paired
-    window.addEventListener('DOMContentLoaded', () => {
+    // Auto-advance if workstation is already paired, initialize server selection
+    window.addEventListener('DOMContentLoaded', async () => {
       const bridge = window.printbkCounter || window.electronAPI;
+      if (bridge?.getServerConfig) {
+        try {
+          const cfg = await bridge.getServerConfig();
+          if (cfg && cfg.apiBase) {
+            if (cfg.apiBase.includes('development')) {
+              serverSelect.value = 'https://printbk-60074625517.development.catalystserverless.in';
+            } else {
+              serverSelect.value = 'https://printbk-60074625517.catalystserverless.in';
+            }
+          }
+        } catch (_) {}
+      }
+
       if (bridge?.getStaffTokenSync && bridge.getStaffTokenSync()) {
         if (bridge.finishWizard) {
           bridge.finishWizard();

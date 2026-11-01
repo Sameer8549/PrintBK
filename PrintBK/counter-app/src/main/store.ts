@@ -5,6 +5,8 @@ import { safeStorage } from 'electron';
 
 export interface CounterStoreData {
   paired: boolean;
+  apiBase?: string;
+  staffAppUrl?: string;
   counterId?: string;
   deviceLabel?: string;
   staffToken?: string;
@@ -101,6 +103,8 @@ export class CounterStore {
     delete this.data.staffDeviceId;
     delete this.data.agentToken;
     delete this.data.agentDeviceId;
+    delete this.data.apiBase;
+    delete this.data.staffAppUrl;
     this.save();
   }
 

@@ -30,6 +30,17 @@ import { useBasket } from '../store/basket';
 import { useShopConfig } from '../store/shopConfig';
 import type { ServiceLine } from '@printbk/shared';
 
+function StaffRedirect() {
+  useEffect(() => {
+    window.location.href = './staff/index.html';
+  }, []);
+  return (
+    <div style={{ display: 'grid', placeItems: 'center', height: '100vh', fontFamily: 'system-ui, sans-serif', background: '#f7f4ee', color: '#0f172a' }}>
+      <p style={{ fontWeight: 600 }}>Opening PrintBK Staff Counter Portal…</p>
+    </div>
+  );
+}
+
 function ShopClosedBarrier({
   announcement,
   onCheckStatus,
@@ -171,6 +182,8 @@ function RouteMapper() {
         <Route path="/uploading" element={<Uploading go={go} />} />
         <Route path="/preview"   element={<PrintPreview go={go} />} />
         <Route path="/privacy"   element={<PrivacyPolicy go={go} />} />
+        <Route path="/staff"     element={<StaffRedirect />} />
+        <Route path="/counter"   element={<StaffRedirect />} />
         <Route path="*"          element={<Entry go={go} setSheet={setSheet} openPhoto={() => navigate('/photos')} />} />
       </Routes>
       {renderSheet()}

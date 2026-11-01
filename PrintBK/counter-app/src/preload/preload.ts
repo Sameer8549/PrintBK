@@ -22,8 +22,10 @@ contextBridge.exposeInMainWorld('printbkCounter', {
   openWindowsPrinterSettings: (): Promise<void> => ipcRenderer.invoke('counter:open-printer-settings'),
   triggerTestPrint: (role: 'bw' | 'colour' | 'photo'): Promise<{ success: boolean; message?: string }> =>
     ipcRenderer.invoke('counter:test-print', role),
-  pairWorkstation: (setupCode: string, label?: string): Promise<{ ok: boolean; error?: string }> =>
-    ipcRenderer.invoke('counter:pair', { setupCode, label }),
+  pairWorkstation: (setupCode: string, label?: string, serverUrl?: string): Promise<{ ok: boolean; error?: string; serverBase?: string }> =>
+    ipcRenderer.invoke('counter:pair', { setupCode, label, serverUrl }),
+  getServerConfig: (): Promise<{ apiBase: string; staffAppUrl: string; environment: string }> =>
+    ipcRenderer.invoke('counter:get-server-config'),
   getHealth: (): Promise<any> => ipcRenderer.invoke('counter:get-health'),
   repairInstallation: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('counter:repair'),
   checkForUpdates: (): Promise<{ updateAvailable: boolean; version?: string }> =>

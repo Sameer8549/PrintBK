@@ -7,6 +7,13 @@ const { computeEffectiveShopStatus, getNextClosingTime } = require('./shared/sho
 
 const router = express.Router();
 
+router.get('/', (req, res, next) => {
+  if (req.accepts('html') || !req.headers['x-staff-token']) {
+    return res.redirect(302, '/app/staff/index.html');
+  }
+  next();
+});
+
 /* ─── Helpers ────────────────────────────────────────────────────── */
 function timingSafeCompare(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string') return false;

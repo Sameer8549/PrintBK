@@ -1,6 +1,31 @@
 import fs from 'fs';
 import path from 'path';
+import https from 'https';
+import http from 'http';
 import fetch from 'node-fetch';
+
+// RFC 8305 Happy Eyeballs support to prevent IPv4 ETIMEDOUT on IPv6/NAT64 networks
+const httpsAgent = new https.Agent({
+  autoSelectFamily: true,
+  autoSelectFamilyAttemptTimeout: 250,
+  keepAlive: true,
+  timeout: 10000
+});
+
+const httpAgent = new http.Agent({
+  autoSelectFamily: true,
+  autoSelectFamilyAttemptTimeout: 250,
+  keepAlive: true,
+  timeout: 10000
+});
+
+function agentFetch(url: string, options: any = {}) {
+  const isHttps = url.startsWith('https:');
+  return fetch(url, {
+    ...options,
+    agent: isHttps ? httpsAgent : httpAgent
+  });
+}
 import { loadConfig, saveConfig, AgentConfig } from './config';
 import { discoverPrinters } from './printers';
 import { executeSumatraPrint } from './sumatra';
@@ -130,7 +155,7 @@ class PrintAgentDaemon {
   private async pairDevice(): Promise<void> {
     logger.info(`[Agent] Pairing device with setup code against ${this.config.apiBase}...`);
     try {
-      const res = await fetch(`${this.config.apiBase}/server/api/agent/pair`, {
+      const res = await agentFetch(`${this.config.apiBase}/server/api/agent/pair`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -162,7 +187,7 @@ class PrintAgentDaemon {
       if (process.send) {
         process.send({ type: 'printers', printers });
       }
-      const res = await fetch(`${this.config.apiBase}/server/api/agent/heartbeat`, {
+      const res = await agentFetch(`${this.config.apiBase}/server/api/agent/heartbeat`, {
         method: 'POST',
         headers: this.authHeaders,
         body: JSON.stringify({
@@ -217,7 +242,7 @@ class PrintAgentDaemon {
   }
 
   private async pollNextJob(): Promise<boolean> {
-    const res = await fetch(`${this.config.apiBase}/server/api/agent/jobs/next`, {
+    const res = await agentFetch(`${this.config.apiBase}/server/api/agent/jobs/next`, {
       method: 'GET',
       headers: this.authHeaders
     });
@@ -348,7 +373,7 @@ class PrintAgentDaemon {
       }
 
       // Notify server item is ready_to_print
-      await fetch(`${this.config.apiBase}/server/api/agent/items/${item.id}/ready`, {
+      await agentFetch(`${this.config.apiBase}/server/api/agent/items/${item.id}/ready`, {
         method: 'POST',
         headers: this.authHeaders
       });
@@ -462,7 +487,7 @@ class PrintAgentDaemon {
       if (!fileId) continue;
 
       const fileUrl = `${this.config.apiBase}/server/api/files/${fileId}`;
-      const res = await fetch(fileUrl, {
+      const res = await agentFetch(fileUrl, {
         headers: { 'X-Agent-Token': this.config.agentToken }
       });
 
@@ -483,7 +508,7 @@ class PrintAgentDaemon {
 
   private async reportProgress(jobId: string, pagesDone: number, pagesTotal: number): Promise<void> {
     try {
-      await fetch(`${this.config.apiBase}/server/api/agent/jobs/${jobId}/progress`, {
+      await agentFetch(`${this.config.apiBase}/server/api/agent/jobs/${jobId}/progress`, {
         method: 'POST',
         headers: this.authHeaders,
         body: JSON.stringify({ pages_done: pagesDone, pages_total: pagesTotal })
@@ -493,7 +518,7 @@ class PrintAgentDaemon {
 
   private async reportComplete(jobId: string, totalPages: number): Promise<void> {
     try {
-      await fetch(`${this.config.apiBase}/server/api/agent/jobs/${jobId}/complete`, {
+      await agentFetch(`${this.config.apiBase}/server/api/agent/jobs/${jobId}/complete`, {
         method: 'POST',
         headers: this.authHeaders,
         body: JSON.stringify({ pages_printed: totalPages })
@@ -505,7 +530,7 @@ class PrintAgentDaemon {
 
   private async reportFailure(jobId: string, errorCode: string, message: string): Promise<void> {
     try {
-      await fetch(`${this.config.apiBase}/server/api/agent/jobs/${jobId}/fail`, {
+      await agentFetch(`${this.config.apiBase}/server/api/agent/jobs/${jobId}/fail`, {
         method: 'POST',
         headers: this.authHeaders,
         body: JSON.stringify({ error_code: errorCode, error_message: message })

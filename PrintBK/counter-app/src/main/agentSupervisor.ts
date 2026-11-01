@@ -49,9 +49,10 @@ export class AgentSupervisor extends EventEmitter {
     return this.status;
   }
 
-  public updateCredentials(token: string, label?: string): void {
+  public updateCredentials(token: string, label?: string, apiBase?: string): void {
     this.options.agentToken = token;
     if (label) this.options.deviceLabel = label;
+    if (apiBase) this.options.apiBase = apiBase;
     if (this.child) {
       this.restart();
     }

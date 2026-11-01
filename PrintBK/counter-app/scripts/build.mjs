@@ -4,7 +4,7 @@ import { execSync } from 'child_process';
 
 const args = process.argv.slice(2);
 const envArg = args.find(a => a.startsWith('--env='));
-const targetEnv = envArg ? envArg.split('=')[1] : 'dev';
+const targetEnv = envArg ? envArg.split('=')[1] : 'prod';
 
 console.log(`[Build] Building PrintBK Counter (${targetEnv})...`);
 
@@ -49,12 +49,16 @@ if (fs.existsSync(uiSrc)) {
 }
 
 // 4. Copy Config file for target environment
-console.log(`[Build] Step 3: Copying config/${targetEnv}.json...`);
-const configSrc = path.resolve(`config/${targetEnv}.json`);
-if (fs.existsSync(configSrc)) {
-  fs.copyFileSync(configSrc, path.join(configDist, `${targetEnv}.json`));
-  // Also copy as active default
-  fs.copyFileSync(configSrc, path.join(configDist, 'active.json'));
+console.log(`[Build] Step 3: Copying configurations (active: ${targetEnv})...`);
+['prod.json', 'dev.json'].forEach(cfg => {
+  const cfgPath = path.resolve(`config/${cfg}`);
+  if (fs.existsSync(cfgPath)) {
+    fs.copyFileSync(cfgPath, path.join(configDist, cfg));
+  }
+});
+const activeSrc = path.resolve(`config/${targetEnv}.json`);
+if (fs.existsSync(activeSrc)) {
+  fs.copyFileSync(activeSrc, path.join(configDist, 'active.json'));
 }
 
 // 5. Copy Public assets

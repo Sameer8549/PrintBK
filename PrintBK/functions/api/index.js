@@ -320,6 +320,15 @@ app.use(cors({
 
 app.use(express.json({ limit: '2mb' }));
 
+/* ─── Web Client Portal Redirects ────────────────────────────────── */
+app.get(['/staff', '/staff/', '/counter', '/counter/', '/staff-portal', '/app-staff'], (req, res, next) => {
+  // If browser navigation (HTML) or direct root hits without API tokens, redirect to Web Client staff portal
+  if (req.accepts('html') || !req.headers['x-staff-token']) {
+    return res.redirect(302, '/app/staff/index.html');
+  }
+  next();
+});
+
 /* ─── Mount Staff API Router ─────────────────────────────────────── */
 const staffRouter = require('./staff');
 app.use('/server/api/staff', staffRouter);
@@ -769,6 +778,11 @@ async function listFolderFiles(folder) {
 }
 
 /* ─── PUBLIC ENDPOINTS ───────────────────────────────────────────── */
+
+// Direct browser portal routes: redirect staff navigation to the Web Client hosting staff portal
+app.get(['/staff', '/staff/', '/counter', '/counter/', '/staff-portal', '/app-staff'], (_req, res) => {
+  return res.redirect(302, '/app/staff/index.html');
+});
 
 app.get('/health', (_req, res) => res.json({
   status: 'ok',
