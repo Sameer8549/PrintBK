@@ -602,7 +602,7 @@ router.post('/jobs/:id/complete', async (req, res) => {
     }
 
     if (global.__printbk_invalidateCachedQueue) {
-      global.__printbk_invalidateCachedQueue(catalystApp);
+      await global.__printbk_invalidateCachedQueue(catalystApp);
     }
 
     return res.json({ ok: true, jobId, itemId, delete_after: deleteAfter });

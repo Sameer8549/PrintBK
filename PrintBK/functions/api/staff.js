@@ -266,7 +266,8 @@ router.get('/live', async (req, res) => {
 
     // 0. Catalyst Cache Routing: Check cache for sub-millisecond zero-datastore response
     const forceRefresh = req.query.refresh === 'true' || req.headers['x-refresh'] === 'true';
-    if (!forceRefresh && global.__printbk_getCachedQueue) {
+    const includeTest = req.headers['x-include-test'] === 'true' || req.query.include_test === 'true';
+    if (!forceRefresh && !includeTest && global.__printbk_getCachedQueue) {
       const cached = await global.__printbk_getCachedQueue(catalystApp);
       if (cached && Array.isArray(cached.orders)) {
         return res.json({
@@ -373,7 +374,6 @@ router.get('/live', async (req, res) => {
     const activeStatuses = "'pending_cash', 'upi_claimed', 'cash_collected', 'processing', 'printing', 'ready', 'waiting_quote', 'quote_sent'";
     
     const ordersMap = new Map();
-    const includeTest = req.query.include_test === 'true' || req.headers['x-include-test'] === 'true';
     if (zcql) {
       try {
         const testFilter = includeTest ? '' : '(is_test IS NULL OR is_test = false) AND ';
@@ -671,7 +671,7 @@ router.get('/live', async (req, res) => {
     res.setHeader('ETag', etag);
     res.setHeader('Cache-Control', 'no-cache, must-revalidate');
 
-    if (global.__printbk_setCachedQueue) {
+    if (!includeTest && global.__printbk_setCachedQueue) {
       await global.__printbk_setCachedQueue(catalystApp, payload, 1);
     }
 

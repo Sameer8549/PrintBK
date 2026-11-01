@@ -1167,7 +1167,7 @@ app.post('/orders', async (req, res) => {
     }
 
     const quotePending = pricing.quotePending;
-    const paymentMethod = String(req.body.payment || '').toLowerCase();
+    const paymentMethod = String(req.body.payment || req.body.paymentMethod || '').toLowerCase();
     const status = quotePending ? 'waiting_quote' : (paymentMethod === 'cash' ? 'pending_cash' : 'pending_payment');
     
     // 4. Map into Typed Order Items for Staff App Tables with dynamic rates
@@ -1275,7 +1275,7 @@ app.post('/orders', async (req, res) => {
     }
 
     if (global.__printbk_invalidateCachedQueue) {
-      global.__printbk_invalidateCachedQueue(catalystApp);
+      await global.__printbk_invalidateCachedQueue(catalystApp);
     }
 
     res.json({
