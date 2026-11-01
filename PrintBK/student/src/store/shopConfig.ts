@@ -66,14 +66,24 @@ const DEFAULT_EXTENDED_CONFIG: ExtendedShopConfig = {
   services: {
     document_bw: { available: true },
     document_colour: { available: true },
+    bw: { available: true },
+    colour: { available: true },
     photos: { available: true },
     binding_spiral: { available: true },
+    binding_comb: { available: true },
+    binding_staple: { available: true },
     binding_soft: { available: true },
     binding_hard: { available: true },
+    spiral: { available: true },
+    comb: { available: true },
+    staple: { available: true },
+    soft: { available: true },
+    hard: { available: true },
     lamination: { available: true },
     scanning: { available: true },
     photocopy: { available: true },
-    typing: { available: true }
+    typing: { available: true },
+    rush: { available: true }
   },
   paymentMethods: {
     cash: true,
@@ -151,6 +161,10 @@ export const useShopConfig = create<ShopConfigStore>((set, get) => ({
             rates: {
               ...DEFAULT_EXTENDED_CONFIG.rates,
               ...(data.rates || {})
+            },
+            services: {
+              ...DEFAULT_EXTENDED_CONFIG.services,
+              ...(data.services || {})
             },
             shopInfo: {
               ...DEFAULT_EXTENDED_CONFIG.shopInfo,

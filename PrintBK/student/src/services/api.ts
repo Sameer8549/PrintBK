@@ -1,4 +1,5 @@
 import { Basket, ShopConfig, OrderStatus, OrderItem, defaultShopConfig } from '@printbk/shared';
+import { useHistory } from '../store/basket';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/server/api';
 
@@ -91,12 +92,23 @@ export const api = {
     let effectiveToken = token;
     if (!effectiveToken) {
       try {
-        const stored = localStorage.getItem('printbk_history') || localStorage.getItem('printbk-basket-v4');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          const orders = parsed?.state?.orders || parsed?.orders || (Array.isArray(parsed) ? parsed : []);
-          const match = orders.find((o: any) => o.id === orderId);
-          if (match?.accessToken) effectiveToken = match.accessToken;
+        const historyOrders = useHistory.getState().orders;
+        const matchMem = historyOrders.find((o: any) => o.id === orderId);
+        if (matchMem?.accessToken) effectiveToken = matchMem.accessToken;
+
+        if (!effectiveToken) {
+          for (const key of ['printbk-history-v1', 'printbk_history', 'printbk-basket-v4']) {
+            const stored = localStorage.getItem(key);
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              const orders = parsed?.state?.orders || parsed?.orders || (Array.isArray(parsed) ? parsed : []);
+              const match = orders.find((o: any) => o.id === orderId);
+              if (match?.accessToken) {
+                effectiveToken = match.accessToken;
+                break;
+              }
+            }
+          }
         }
       } catch (_) {}
     }

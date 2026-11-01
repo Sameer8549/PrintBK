@@ -14,12 +14,29 @@ function BindingSheet({
   addService: (service: ServiceItem) => void;
   initialType: string;
 }) {
-  const [type, setType] = useState(initialType || "Spiral");
+  const cfg = useShopConfig(s => s.config);
+  const svcAvail = cfg.services || {};
+  const isSpiralAvail = (svcAvail.binding_spiral?.available !== false) && (svcAvail.spiral?.available !== false);
+  const isCombAvail = (svcAvail.binding_comb?.available !== false) && (svcAvail.comb?.available !== false);
+  const isStapleAvail = (svcAvail.binding_staple?.available !== false) && (svcAvail.staple?.available !== false);
+  const isHardAvail = (svcAvail.binding_hard?.available !== false) && (svcAvail.hard?.available !== false);
+
+  const availableTypes = [
+    isSpiralAvail ? "Spiral" : null,
+    isCombAvail ? "Comb" : null,
+    isStapleAvail ? "Staple" : null,
+    isHardAvail ? "Hard cover" : null
+  ].filter(Boolean) as string[];
+
+  const [type, setType] = useState(
+    initialType && availableTypes.includes(initialType)
+      ? initialType
+      : (availableTypes[0] || "Spiral")
+  );
   const [cover, setCover] = useState("Clear front + black back");
   const [attach, setAttach] = useState('');
   const [quantity, setQuantity] = useState(1);
   const basketFiles = useBasket(s => s.files);
-  const cfg = useShopConfig(s => s.config);
   const rates = (cfg.rates as any) || {};
   const prices: Record<string, number> = {
     Spiral: rates.bindingSpiral ?? rates.spiral ?? 30,
@@ -33,7 +50,7 @@ function BindingSheet({
   return (
     <SheetShell tall onClose={close}>
       <div className="sheet-title"><div><span className="kicker">ADD TO A PRINT</span><h2>Binding</h2></div><span className="recommended">Recommended</span></div>
-      <div className="setting-group"><label>Binding type</label><Segmented values={["Spiral", "Comb", "Staple", "Hard cover"]} selected={type} onSelect={setType} /></div>
+      <div className="setting-group"><label>Binding type</label><Segmented values={availableTypes.length > 0 ? availableTypes : ["Spiral"]} selected={type} onSelect={setType} /></div>
       <div className="binding-recommendation"><span><b>8 mm spine</b><small>Best fit for 40 pages</small></span><i>Recommended</i></div>
       <div className="setting-group"><label>Cover</label><div className="choice-stack">{["Clear front + black back", "Colored cards", "Custom front page"].map(value => <button className={cover === value ? "selected" : ""} onClick={() => setCover(value)} key={value}>{value}<i /></button>)}</div></div>
       <div className="setting-group"><label>Cover colour</label><div className="color-swatches">{["Black", "Navy", "Red", "Green", "Cream"].map(value => <button aria-label={value} title={value} className={value.toLowerCase()} onClick={() => notify(`${value} cover selected`)} key={value} />)}</div></div>

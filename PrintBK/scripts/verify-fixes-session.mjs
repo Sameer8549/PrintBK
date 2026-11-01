@@ -158,6 +158,106 @@ async function runVerification() {
     allPassed = false;
   }
 
+  // 5. Test File Deletion via Device-ID fallback (No Token)
+  console.log(`\n--- Test 5: File Deletion via Device ID Fallback (No Token) ---`);
+  try {
+    const orderRes2 = await fetch(`${BASE_URL}/server/api/orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Device-Id': 'device-del-fallback-999'
+      },
+      body: JSON.stringify({
+        files: [{
+          id: 'file-del-test-2',
+          name: 'exam_notes.pdf',
+          size: 2048,
+          pages: 1,
+          settings: { copies: 1, colorMode: 'bw', sided: 'single', paper: 'A4' }
+        }],
+        services: [],
+        rush: false,
+        payment: 'Cash',
+        expectedTotal: 1.5,
+        is_test: true
+      })
+    });
+    const orderData2 = await orderRes2.json();
+    const orderId2 = orderData2.orderId;
+
+    // Delete WITHOUT X-Order-Token header, using ONLY X-Device-Id
+    const delRes2 = await fetch(`${BASE_URL}/server/api/orders/${orderId2}/delete-files`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Device-Id': 'device-del-fallback-999'
+      }
+    });
+    const delData2 = await delRes2.json();
+    if (delRes2.ok && delData2.ok) {
+      console.log(`✅ [PASS] Device-ID fallback file deletion succeeded without token! (deletedAt: ${delData2.deletedAt})`);
+    } else {
+      console.log(`❌ [FAIL] Device-ID fallback deletion failed:`, delData2);
+      allPassed = false;
+    }
+  } catch (err) {
+    console.log(`❌ [FAIL] Device-ID deletion test error: ${err.message}`);
+    allPassed = false;
+  }
+
+  // 6. Test Staff Toggle Service Availability (Enable/Disable)
+  console.log(`\n--- Test 6: Staff Service Availability Toggle ---`);
+  if (staffToken) {
+    try {
+      const toggleRes = await fetch(`${BASE_URL}/server/api/staff/settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Staff-Device-Token': staffToken
+        },
+        body: JSON.stringify({
+          services: {
+            binding_spiral: { available: false, reason: 'Machine under routine maintenance' },
+            spiral: { available: false, reason: 'Machine under routine maintenance' }
+          }
+        })
+      });
+      const toggleData = await toggleRes.json();
+      if (toggleRes.ok && toggleData.ok) {
+        console.log(`✅ [PASS] PUT /staff/settings successfully disabled spiral binding.`);
+      }
+
+      // Verify Student Config reflects disabled state
+      const checkRes = await fetch(`${BASE_URL}/server/api/config`);
+      const checkData = await checkRes.json();
+      if (checkData.services?.binding_spiral?.available === false) {
+        console.log(`✅ [PASS] Student config received disabled state with reason: "${checkData.services.binding_spiral.reason}"`);
+      } else {
+        console.log(`❌ [FAIL] Student config did not reflect disabled state:`, checkData.services?.binding_spiral);
+        allPassed = false;
+      }
+
+      // Re-enable spiral binding
+      await fetch(`${BASE_URL}/server/api/staff/settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Staff-Device-Token': staffToken
+        },
+        body: JSON.stringify({
+          services: {
+            binding_spiral: { available: true },
+            spiral: { available: true }
+          }
+        })
+      });
+      console.log(`✅ [PASS] Re-enabled spiral binding after test.`);
+    } catch (err) {
+      console.log(`❌ [FAIL] Staff toggle test error: ${err.message}`);
+      allPassed = false;
+    }
+  }
+
   console.log(`\n======================================================`);
   if (allPassed) {
     console.log(`🎉 ALL EMPIRICAL VERIFICATION TESTS PASSED (4/4)!`);

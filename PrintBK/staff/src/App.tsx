@@ -396,7 +396,7 @@ function mapLiveItemToJob(item: LiveItem): Job {
     printed_at: item.printed_at,
     delete_after: item.delete_after,
     files_deleted_at: item.files_deleted_at,
-    cloudId: (item as any).cloudId || (item as any).cloud_id || pld.cloudId || pld.cloud_id || (pld.files && pld.files[0]?.cloudId) || (Array.isArray(pld.fileRefs) ? pld.fileRefs[0] : undefined) || (Array.isArray((item as any).file_refs) ? (item as any).file_refs[0] : undefined),
+    cloudId: (item as any).cloudId || (item as any).cloud_id || (item as any).specifications?.cloudId || pld.cloudId || pld.cloud_id || pld.specifications?.cloudId || (pld.files && pld.files[0]?.cloudId) || (Array.isArray(pld.fileRefs) ? pld.fileRefs[0] : undefined) || (Array.isArray((item as any).file_refs) ? (item as any).file_refs[0] : undefined) || (typeof (item as any).file_refs === 'string' && (() => { try { return JSON.parse((item as any).file_refs)[0] } catch(_) { return undefined } })()),
     payload: pld,
   }
 }
@@ -1471,11 +1471,11 @@ function PrinterSettingsPanel({
                   { key: "bw", altKey: "document_bw", label: "Black & White Printing", desc: "A4 / A3 standard document printing" },
                   { key: "colour", altKey: "document_colour", label: "Colour Printing", desc: "Full colour document printing" },
                   { key: "photos", label: "Photo Printing", desc: "4×6, 8×10, and passport prints" },
-                  { key: "binding_spiral", label: "Spiral Binding", desc: "Standard spiral binding with plastic sheet" },
-                  { key: "binding_comb", label: "Comb Binding", desc: "Plastic comb spine for manuals and reports" },
-                  { key: "binding_staple", label: "Corner Staple / Pin", desc: "Simple stapled finish for short documents" },
-                  { key: "binding_soft", label: "Soft Cover Binding", desc: "Thermal and soft card book binding" },
-                  { key: "binding_hard", label: "Hard Bound Project", desc: "Golden embossed project hard binding" },
+                  { key: "binding_spiral", altKey: "spiral", label: "Spiral Binding", desc: "Standard spiral binding with plastic sheet" },
+                  { key: "binding_comb", altKey: "comb", label: "Comb Binding", desc: "Plastic comb spine for manuals and reports" },
+                  { key: "binding_staple", altKey: "staple", label: "Corner Staple / Pin", desc: "Simple stapled finish for short documents" },
+                  { key: "binding_soft", altKey: "soft", label: "Soft Cover Binding", desc: "Thermal and soft card book binding" },
+                  { key: "binding_hard", altKey: "hard", label: "Hard Bound Project", desc: "Golden embossed project hard binding" },
                   { key: "lamination", label: "Thermal Lamination", desc: "A4, A3 & ID sheet pouch lamination" },
                   { key: "scanning", label: "Document Scanning", desc: "Walk-in scan to email/drive" },
                   { key: "photocopy", label: "Photocopy Counter", desc: "Walk-in manual page copy" },
@@ -1834,16 +1834,53 @@ function UltraHdPreviewPanel({ job, isColour, isPhoto }: { job: Job; isColour: b
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [zoomLevel, setZoomLevel] = useState<number>(1)
   const [canvasRendered, setCanvasRendered] = useState(false)
+  const [resolvedCloudId, setResolvedCloudId] = useState<string | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
-  const cloudId = job.cloudId ||
+  const directCloudId = job.cloudId ||
     (job as any).cloud_id ||
     job.payload?.cloudId ||
     job.payload?.cloud_id ||
+    job.payload?.specifications?.cloudId ||
     (job.payload?.files && job.payload.files[0]?.cloudId) ||
     (Array.isArray(job.payload?.fileRefs) && job.payload.fileRefs[0]) ||
     (typeof job.payload?.file_refs === 'string' && (() => { try { return JSON.parse(job.payload.file_refs)[0] } catch(_) { return undefined } })()) ||
     job.payload?.fileId
+
+  useEffect(() => {
+    if (directCloudId) {
+      setResolvedCloudId(directCloudId)
+      return
+    }
+    const orderKey = job.orderId || job.order
+    if (!orderKey || job.files_deleted_at) return
+    let active = true
+
+    async function lookupOrderFiles() {
+      try {
+        const token = getStaffToken()
+        const headers: Record<string, string> = {}
+        if (token) {
+          headers['X-Staff-Device-Token'] = token
+          headers['X-Staff-Token'] = token
+        }
+        const res = await fetch(`/server/api/orders/${orderKey}`, { headers })
+        if (res.ok && active) {
+          const ord = await res.json()
+          const basket = ord?.basket || {}
+          const files = basket.files || []
+          const foundId = files[0]?.cloudId || basket.typedItems?.[0]?.specifications?.cloudId
+          if (foundId && active) {
+            setResolvedCloudId(foundId)
+          }
+        }
+      } catch (_) {}
+    }
+    lookupOrderFiles()
+    return () => { active = false }
+  }, [directCloudId, job.orderId, job.order, job.files_deleted_at])
+
+  const cloudId = resolvedCloudId || directCloudId
 
   useEffect(() => {
     if (!cloudId || job.files_deleted_at) return
@@ -1961,17 +1998,28 @@ function UltraHdPreviewPanel({ job, isColour, isPhoto }: { job: Job; isColour: b
                 }}
               />
             ) : (
-              <iframe
-                src={`${fileUrl}#toolbar=0&navpanes=0&view=FitH`}
-                title="Document Preview"
+              <object
+                data={`${fileUrl}#toolbar=0&navpanes=0&view=FitH`}
+                type="application/pdf"
                 style={{
                   width: '100%',
                   height: '220px',
                   border: 'none',
-                  background: '#ffffff',
-                  pointerEvents: 'none'
+                  background: '#ffffff'
                 }}
-              />
+              >
+                <iframe
+                  src={`${fileUrl}#toolbar=0&navpanes=0&view=FitH`}
+                  title="Document Preview"
+                  style={{
+                    width: '100%',
+                    height: '220px',
+                    border: 'none',
+                    background: '#ffffff',
+                    pointerEvents: 'none'
+                  }}
+                />
+              </object>
             )
           ) : (
             <img

@@ -1173,6 +1173,7 @@ app.post('/orders', async (req, res) => {
       services,
       rush,
       phone: req.body.phone ? String(req.body.phone).trim() : null,
+      deviceId: req.headers['x-device-id'] || req.body.deviceId || null,
       pickupCode,
       orderNumber: 0,
       accessTokenHash,
@@ -2696,32 +2697,54 @@ app.post('/orders/:id/delete-files', async (req, res) => {
     let b = {};
     try { b = typeof o.basket === 'string' ? JSON.parse(o.basket || '{}') : (o.basket || {}); } catch(e) {}
 
-    // Verify token or staff
+    // Verify token or staff or client device
     const clientToken = req.headers['x-order-token'] || req.query.token;
     const storedHash = o.access_token_hash || b.accessTokenHash;
+    const clientDeviceId = req.headers['x-device-id'];
+    const storedDeviceId = b.deviceId;
 
     if (!isStaff(req)) {
-      if (!clientToken) return res.status(401).json({ error: 'Order token required' });
-      const clientHash = crypto.createHash('sha256').update(String(clientToken)).digest('hex');
-      if (!timingSafeCompare(clientHash, storedHash)) {
+      let authorized = false;
+      if (clientToken && storedHash) {
+        const clientHash = crypto.createHash('sha256').update(String(clientToken)).digest('hex');
+        if (timingSafeCompare(clientHash, storedHash)) {
+          authorized = true;
+        }
+      }
+      if (!authorized && clientDeviceId && storedDeviceId && clientDeviceId === storedDeviceId) {
+        authorized = true;
+      }
+      if (!authorized && !storedHash) {
+        authorized = true;
+      }
+      if (!authorized) {
+        if (!clientToken && !clientDeviceId) {
+          return res.status(401).json({ error: 'Order token or device ID required' });
+        }
         return res.status(403).json({ error: 'Invalid order token' });
       }
     }
 
-    // Delete files from Catalyst File Store & In-Memory cache
+    // Collect all cloudIds across files, typedItems, specifications
+    const cloudIdsToDelete = new Set();
     for (const f of (b.files || [])) {
-      if (f.cloudId) {
-        memFiles.delete(String(f.cloudId));
-      }
+      if (f.cloudId) cloudIdsToDelete.add(String(f.cloudId));
+    }
+    for (const item of (b.typedItems || [])) {
+      if (item.cloudId) cloudIdsToDelete.add(String(item.cloudId));
+      if (item.specifications?.cloudId) cloudIdsToDelete.add(String(item.specifications.cloudId));
+    }
+
+    // Delete files from Catalyst File Store & In-Memory cache
+    for (const cid of cloudIdsToDelete) {
+      memFiles.delete(cid);
     }
     if (catalystApp) {
       try {
         const filestore = catalystApp.filestore();
         const folder = await getPrintFilesFolder(filestore);
-        for (const f of (b.files || [])) {
-          if (f.cloudId) {
-            try { await folder.deleteFile(f.cloudId); } catch(delErr) {}
-          }
+        for (const cid of cloudIdsToDelete) {
+          try { await folder.deleteFile(cid); } catch(delErr) {}
         }
       } catch (_) {}
     }

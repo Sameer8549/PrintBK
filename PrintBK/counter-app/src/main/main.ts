@@ -735,6 +735,7 @@ ipcMain.handle('counter:check-update', async () => {
 ipcMain.handle('counter:finish-wizard', async (_event, config) => {
   if (config) {
     store.set({
+      paired: true,
       bwPrinter: config.bwPrinter,
       colourPrinter: config.colourPrinter,
       photoPrinter: config.photoPrinter || config.colourPrinter,

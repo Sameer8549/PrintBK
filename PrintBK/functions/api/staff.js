@@ -444,10 +444,11 @@ router.get('/live', async (req, res) => {
           try {
             fileRefsArr = typeof it.file_refs === 'string' ? JSON.parse(it.file_refs || '[]') : (it.file_refs || []);
           } catch (_) {}
-          const itemCloudId = specObj.cloudId || (fileRefsArr.length > 0 ? fileRefsArr[0] : undefined);
+          const itemCloudId = specObj.cloudId || (fileRefsArr.length > 0 ? fileRefsArr[0] : undefined) || (b.files && b.files[0]?.cloudId);
           if (itemCloudId) {
             specObj.cloudId = itemCloudId;
           }
+          specObj.files = b.files || [];
           const matchingTyped = (b.typedItems || []).find(t => t.id === it.id);
           const printInstructions = it.printInstructions || it.print_instructions || matchingTyped?.printInstructions || specObj.printInstructions || '';
           items.push({
@@ -482,10 +483,11 @@ router.get('/live', async (req, res) => {
         for (const item of typed) {
           const specObj = item.specifications || {};
           const matchingFile = (b.files || []).find(f => f.id === specObj.fileId);
-          const itemCloudId = matchingFile?.cloudId || specObj.cloudId;
+          const itemCloudId = matchingFile?.cloudId || specObj.cloudId || (b.files && b.files[0]?.cloudId);
           if (itemCloudId) {
             specObj.cloudId = itemCloudId;
           }
+          specObj.files = b.files || [];
           items.push({
             id: item.id || `${o.id}_${item.type || 'doc'}`,
             orderId: o.id,

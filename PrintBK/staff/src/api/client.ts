@@ -103,10 +103,13 @@ async function staffFetch(endpoint: string, options: RequestInit = {}): Promise<
   })
 
   if (response.status === 401) {
-    // Token is invalid or revoked
-    clearStaffCredentials()
-    window.dispatchEvent(new CustomEvent("printbk-unauthorized"))
-    throw new StaffApiError("Unauthorized: Staff device credentials invalid or revoked.", 401)
+    // Only clear credentials if explicitly revoked by the server
+    const data = await response.clone().json().catch(() => ({}));
+    if (data?.revoked === true) {
+      clearStaffCredentials()
+      window.dispatchEvent(new CustomEvent("printbk-unauthorized"))
+    }
+    throw new StaffApiError(data?.error || "Unauthorized: Staff device credentials rejected or pending authorization.", 401, data)
   }
 
   return response

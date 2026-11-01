@@ -19,10 +19,13 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
 
   // Find the specific order from history by ID (or fall back to latest)
   const localOrder = id ? orders.find(o => o.id === id) : orders[0];
+  const urlToken = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search || (window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '')).get('token')
+    : null;
   const [liveOrder, setLiveOrder] = useState<any>(null);
   const order = liveOrder
-    ? { ...liveOrder, accessToken: localOrder?.accessToken || liveOrder.accessToken }
-    : localOrder;
+    ? { ...liveOrder, accessToken: localOrder?.accessToken || liveOrder.accessToken || urlToken }
+    : (localOrder ? { ...localOrder, accessToken: localOrder.accessToken || urlToken } : null);
 
   const cfg = useShopConfig(s => s.config);
   const shopName = cfg.shopInfo?.name || 'HKBK Student Point';
@@ -211,7 +214,7 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
     if (!order?.id) return;
     setDeleting(true);
     try {
-      const token = order.accessToken || localOrder?.accessToken;
+      const token = order.accessToken || localOrder?.accessToken || urlToken;
       const res = await api.deleteFiles(order.id, token);
       const deletedAt = res?.deletedAt || Math.floor(Date.now() / 1000);
       updateOrder(order.id, { filesDeletedAt: deletedAt });
@@ -228,7 +231,9 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
   };
 
   const shareWhatsApp = () => {
-    const trackingUrl = `${window.location.origin}/app/#/order/${order?.id || ''}`;
+    const token = order?.accessToken || localOrder?.accessToken || urlToken;
+    const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : '';
+    const trackingUrl = `${window.location.origin}/app/#/order/${order?.id || ''}${tokenQuery}`;
     const text = `PrintBK Order ${orderNumber} · Pickup Code: ${pickupCode} · Amount: ₹${total.toFixed(2)} · Location: ${shopName}\nTrack: ${trackingUrl}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
@@ -238,7 +243,9 @@ function Ticket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
       notify('Complete payment selection first');
       return;
     }
-    const trackingUrl = `${window.location.origin}/app/#/order/${order?.id || ''}`;
+    const token = order?.accessToken || localOrder?.accessToken || urlToken;
+    const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : '';
+    const trackingUrl = `${window.location.origin}/app/#/order/${order?.id || ''}${tokenQuery}`;
     const shareText = `PrintBK Order ${orderNumber} — Pickup Code: ${pickupCode} — Location: ${shopName}`;
     if (navigator.share) {
       try {
