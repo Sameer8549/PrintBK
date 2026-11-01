@@ -22,6 +22,7 @@ import { parsePageRange } from './parsePageRange';
 export function basketToOrderItems(basket: Basket, cfg?: ShopConfig): OrderItem[] {
   const config = cfg || defaultShopConfig;
   const items: OrderItem[] = [];
+  const processedPhotoFileIds = new Set<string>();
 
   // 1. Process files
   for (const file of basket.files || []) {
@@ -35,6 +36,69 @@ export function basketToOrderItems(basket: Basket, cfg?: ShopConfig): OrderItem[
     const duplexEdge = sided === 'double'
       ? (s.duplexEdge ?? (orientation === 'landscape' ? 'short' : 'long'))
       : undefined;
+
+    const isPhoto = Boolean(
+      (file as any).isPhotoSheet ||
+      (file as any).photoLayout ||
+      s.paper === 'Glossy' ||
+      (s as any).photoSize ||
+      /\.(jpe?g|png|webp|gif|bmp)$/i.test(file.name)
+    );
+
+    if (isPhoto) {
+      // Photo Item strictly for Photos counter queue
+      const layoutKey = (file as any).photoLayout || ((s as any).photoSize === '8x8' ? '8×8 Square' : (s as any).photoSize === '4x6' ? '4×6' : 'Full Sheet Photo');
+      const size = (layoutKey.includes('4x6') || layoutKey.includes('4×6') || (s as any).photoSize === '4x6')
+        ? '4x6'
+        : layoutKey.includes('passport')
+        ? 'passport'
+        : 'A4';
+
+      const photoRate = (typeof (file as any).photoUnitPrice === 'number' && (file as any).photoUnitPrice > 0)
+        ? (file as any).photoUnitPrice
+        : (config.rates as any).photoRates?.[layoutKey] ?? (config.rates as any).photo4x6 ?? 20;
+
+      const colorMode = s.colorPlan?.mode ?? s.colorMode ?? 'colour';
+      const photoPrice = (colorMode === 'bw') ? Math.max(5, Math.round(photoRate * 0.5)) : photoRate;
+      const totalPhotoPrice = photoPrice * copies;
+
+      const specs = {
+        size,
+        paperType: 'glossy',
+        copies,
+        fileId: file.id,
+        cloudId: (file as any).cloudId,
+        fileName: file.name,
+        originalFilename: file.name,
+        photoLayout: layoutKey,
+        preset: layoutKey,
+        photoCount: 1,
+        sheetLayout: `Glossy · ${layoutKey}`,
+        colourMode: colorMode === 'bw' ? 'Monochrome B&W' : 'Natural Colour',
+        colorMode: colorMode === 'bw' ? 'bw' : 'colour',
+        printInstructions: `Glossy Photo Paper, ${layoutKey}, ${colorMode === 'bw' ? 'B&W' : 'Colour'}, ${copies} ${copies > 1 ? 'copies' : 'copy'}`
+      };
+
+      const item: OrderItem = {
+        id: `photo-${file.id}`,
+        type: 'photo',
+        title: file.name,
+        quantity: copies,
+        specifications: specs,
+        computedPricing: {
+          baseRate: photoPrice,
+          unitPrice: photoPrice,
+          lineTotal: totalPhotoPrice,
+          colourSubtotal: colorMode === 'bw' ? 0 : totalPhotoPrice,
+          bwSubtotal: colorMode === 'bw' ? totalPhotoPrice : 0
+        },
+        printInstructions: specs.printInstructions
+      };
+
+      items.push(OrderItemSchema.parse(item));
+      processedPhotoFileIds.add(file.id);
+      continue;
+    }
 
     const details = computeFilePrintDetails(file);
     const { pages } = parsePageRange(s.range ?? 'all', file.pages || 1);
@@ -202,11 +266,19 @@ export function basketToOrderItems(basket: Basket, cfg?: ShopConfig): OrderItem[
     let printInstructions = '';
 
     if ((sName.includes('photo') || sId.startsWith('photo') || sId === 'photo') && !sName.includes('photocopy')) {
+      const attachedFileId = s.attachTo || s.attachedToFileId;
+      if (attachedFileId && processedPhotoFileIds.has(attachedFileId)) {
+        // Skip duplicate photo line because the photo sheet file was already emitted as a photo item
+        continue;
+      }
+      if (processedPhotoFileIds.size > 0 && (basket.files || []).some(f => (f as any).isPhotoSheet)) {
+        // Skip duplicate photo sheet service
+        continue;
+      }
       type = 'photo';
       const sizeMatch = sDetail.match(/(passport|stamp|4x6|5x7|a4)/i);
       const size = (sizeMatch ? sizeMatch[1].toLowerCase() : 'passport') as any;
       const paperType = sDetail.includes('matte') ? 'matte' : 'glossy';
-      const attachedFileId = s.attachTo || s.attachedToFileId;
       const attachedFile = (basket.files || []).find(f => f.id === attachedFileId);
       const photoCloudId = s.cloudId || (attachedFile as any)?.cloudId;
       specs = {

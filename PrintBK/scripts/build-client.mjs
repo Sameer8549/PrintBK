@@ -37,9 +37,10 @@ execSync('pnpm --filter printbk-staff build', { cwd: rootDir, stdio: 'inherit' }
 // 4. Assemble into client/ directory
 console.log('📁 [build-client] Step 4: Assembling unified client directory...');
 const clientDir = path.join(rootDir, 'client');
-if (!fs.existsSync(clientDir)) {
-  fs.mkdirSync(clientDir, { recursive: true });
+if (fs.existsSync(clientDir)) {
+  fs.rmSync(clientDir, { recursive: true, force: true });
 }
+fs.mkdirSync(clientDir, { recursive: true });
 
 // Copy student/dist to client/
 const studentDist = path.join(rootDir, 'student', 'dist');

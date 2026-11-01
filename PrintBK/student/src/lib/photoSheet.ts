@@ -167,6 +167,13 @@ export async function generateUltraHdPhotoSheet(opts: PhotoSheetOptions): Promis
         });
       }
     }
+  } else if (layout === '8×8 Square' || layout === '8x8 Square' || layout === '8×8' || layout === '8x8') {
+    // 8 x 8 inch Square Photo (2400 x 2400 px) centered on substrate
+    const slotW = 2400;
+    const slotH = 2400;
+    const startX = Math.round((A4_W - slotW) / 2);
+    const startY = Math.round((A4_H - slotH) / 2);
+    slots.push({ x: startX, y: startY, w: slotW, h: slotH });
   } else {
     // Custom Grid (customColumns x customRows)
     const margin = 120;

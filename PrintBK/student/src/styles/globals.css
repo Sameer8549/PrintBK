@@ -430,6 +430,8 @@ h2 { font-size: 24px; line-height: 1.08; }
 .photo-sheet.layout-id > .photo-slot, .photo-sheet.layout-aadhaar > .photo-slot { width: 72%; aspect-ratio: 1.586; justify-self: center; }
 .photo-sheet.layout-resume { grid-template: 1fr / 1fr; }
 .photo-sheet.layout-resume > .photo-slot { width: 100%; height: 100%; justify-self: stretch; }
+.photo-sheet.layout-square { grid-template: 1fr / 1fr; align-items: center; justify-items: center; }
+.photo-sheet.layout-square > .photo-slot { width: 88%; aspect-ratio: 1 / 1; justify-self: center; align-self: center; }
 .photo-sheet.layout-custom { grid-template: repeat(3, 1fr) / repeat(3, 1fr); }
 .photo-slot { position: relative; min-width: 0; min-height: 0; display: grid; place-items: center; overflow: hidden; padding: 0; border: 1px solid #ccd3d0; background: #e5ebe8; touch-action: none; cursor: grab; transition: transform .18s ease, outline-color .18s ease; }
 .photo-slot:active { cursor: grabbing; }

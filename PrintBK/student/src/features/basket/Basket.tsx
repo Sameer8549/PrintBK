@@ -765,9 +765,21 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
       <div style={{
         position: 'relative',
         width: '100%',
-        maxWidth: isSheetWide ? (s.paper === 'A3' ? 360 : 330) : (s.paper === 'A3' ? 275 : 245),
-        aspectRatio: isSheetWide ? '1.414 / 1' : '1 / 1.414',
-        minHeight: isSheetWide ? (s.paper === 'A3' ? 245 : 220) : (s.paper === 'A3' ? 350 : 310),
+        maxWidth: (isImage && ((file as any).photoLayout?.includes('Square') || (file as any).photoLayout?.includes('8x8') || (file as any).photoLayout?.includes('8×8') || (s as any).photoSize === '8x8'))
+          ? 280
+          : (isImage && ((file as any).photoLayout?.includes('4x6') || (file as any).photoLayout?.includes('4×6') || (s as any).photoSize === '4x6'))
+          ? (isSheetWide ? 330 : 220)
+          : isSheetWide ? (s.paper === 'A3' ? 360 : 330) : (s.paper === 'A3' ? 275 : 245),
+        aspectRatio: (isImage && ((file as any).photoLayout?.includes('Square') || (file as any).photoLayout?.includes('8x8') || (file as any).photoLayout?.includes('8×8') || (s as any).photoSize === '8x8'))
+          ? '1 / 1'
+          : (isImage && ((file as any).photoLayout?.includes('4x6') || (file as any).photoLayout?.includes('4×6') || (s as any).photoSize === '4x6'))
+          ? (isSheetWide ? '1.5 / 1' : '1 / 1.5')
+          : isSheetWide ? '1.414 / 1' : '1 / 1.414',
+        minHeight: (isImage && ((file as any).photoLayout?.includes('Square') || (file as any).photoLayout?.includes('8x8') || (file as any).photoLayout?.includes('8×8') || (s as any).photoSize === '8x8'))
+          ? 280
+          : (isImage && ((file as any).photoLayout?.includes('4x6') || (file as any).photoLayout?.includes('4×6') || (s as any).photoSize === '4x6'))
+          ? (isSheetWide ? 220 : 330)
+          : isSheetWide ? (s.paper === 'A3' ? 245 : 220) : (s.paper === 'A3' ? 350 : 310),
         background: '#fff',
         borderRadius: 8,
         border: s.paper === 'A3' ? '2.5px solid #0f172a' : '2px solid #0f172a',
@@ -994,10 +1006,12 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
                 style={{
                   maxWidth: '100%',
                   maxHeight: '100%',
-                  width: (s.imageFit === 'fill' || (s as any).fit === 'fill') ? '100%' : '100%',
+                  width: (s.imageFit === 'fill' || (s as any).fit === 'fill') ? '100%' : 'auto',
                   height: (s.imageFit === 'fill' || (s as any).fit === 'fill') ? '100%' : 'auto',
                   display: 'block',
+                  margin: 'auto',
                   objectFit: (s.imageFit === 'fill' || (s as any).fit === 'fill') ? 'cover' : 'contain',
+                  objectPosition: 'center',
                   imageRendering: 'high-quality' as any,
                   WebkitBackfaceVisibility: 'hidden',
                   backfaceVisibility: 'hidden',
@@ -1391,6 +1405,12 @@ function FileCard({
     }
   }, [isColourAvail, isBwAvail, s.colorMode]);
 
+  useEffect(() => {
+    if (isImage && s.paper !== 'Glossy') {
+      upd({ paper: 'Glossy' } as any);
+    }
+  }, [isImage, s.paper]);
+
   const cfgRates = (cfg?.rates as any) || {};
   const bwRate = cfgRates.bw ?? 1.50;
   const duplexRate = cfgRates.duplex ?? (cfgRates.doubleSideDiscount ? Number((bwRate * (1 - cfgRates.doubleSideDiscount)).toFixed(2)) : 0.85);
@@ -1663,15 +1683,15 @@ function FileCard({
               {/* Paper Size & Finish */}
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
-                  <span>PAPER SIZE &amp; FINISH</span>
+                  <span>PHOTO PAPER &amp; PRINT SIZE</span>
                   <span style={{ color: '#0f172a', fontWeight: 800 }}>
-                    {s.paper === 'A3' ? 'A3 Large Sheet (297×420 mm)' : (s.paper === 'Glossy' || s.paper === 'Legal') ? 'Glossy Photo Paper' : 'A4 Standard Paper'}
+                    {(s as any).photoSize === '8x8' ? '8×8 Square (Glossy Photo Paper)' : (s as any).photoSize === '4x6' ? '4×6 Photo (Glossy Photo Paper)' : 'Full Sheet Glossy Photo Paper (210 GSM)'}
                   </span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                   <button
                     type="button"
-                    onClick={() => upd({ paper: 'A4' })}
+                    onClick={() => upd({ paper: 'Glossy', photoSize: 'A4' } as any)}
                     style={{
                       ...btn,
                       padding: '8px 4px',
@@ -1679,15 +1699,15 @@ function FileCard({
                       flexDirection: 'column',
                       alignItems: 'center',
                       gap: 2,
-                      ...sel((s.paper ?? 'A4') === 'A4')
+                      ...sel((s as any).photoSize !== '4x6' && (s as any).photoSize !== '8x8')
                     }}
                   >
-                    <span style={{ fontSize: 12, fontWeight: 700 }}>A4 Standard</span>
-                    <span style={{ fontSize: 9, opacity: 0.75 }}>Clean 80 GSM</span>
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>✨ Full Sheet</span>
+                    <span style={{ fontSize: 9, opacity: 0.75 }}>A4 Glossy (210 GSM)</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => upd({ paper: 'A3' })}
+                    onClick={() => upd({ paper: 'Glossy', photoSize: '4x6' } as any)}
                     style={{
                       ...btn,
                       padding: '8px 4px',
@@ -1695,15 +1715,15 @@ function FileCard({
                       flexDirection: 'column',
                       alignItems: 'center',
                       gap: 2,
-                      ...sel(s.paper === 'A3')
+                      ...sel((s as any).photoSize === '4x6')
                     }}
                   >
-                    <span style={{ fontSize: 12, fontWeight: 700 }}>📐 A3 Large</span>
-                    <span style={{ fontSize: 9, opacity: 0.75 }}>{mult}× A4 Poster</span>
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>🖼️ 4×6 Photo</span>
+                    <span style={{ fontSize: 9, opacity: 0.75 }}>10×15 cm Glossy</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => upd({ paper: 'Glossy' } as any)}
+                    onClick={() => upd({ paper: 'Glossy', photoSize: '8x8' } as any)}
                     style={{
                       ...btn,
                       padding: '8px 4px',
@@ -1711,12 +1731,16 @@ function FileCard({
                       flexDirection: 'column',
                       alignItems: 'center',
                       gap: 2,
-                      ...sel(s.paper === 'Glossy' || s.paper === 'Legal')
+                      ...sel((s as any).photoSize === '8x8')
                     }}
                   >
-                    <span style={{ fontSize: 12, fontWeight: 700 }}>✨ Glossy</span>
-                    <span style={{ fontSize: 9, opacity: 0.75 }}>Photo Paper</span>
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>🔲 8×8 Square</span>
+                    <span style={{ fontSize: 9, opacity: 0.75 }}>20×20 cm Glossy</span>
                   </button>
+                </div>
+                <div style={{ marginTop: 8, padding: '6px 10px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#166534' }}>
+                  <span>📸</span>
+                  <span>Photos are strictly printed on 210 GSM glossy photo paper for true photographic quality.</span>
                 </div>
               </div>
 

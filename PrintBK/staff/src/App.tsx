@@ -1010,12 +1010,39 @@ function PrinterSettingsPanel({
     delete: String(shop.delete_delay_minutes || 5),
   })
 
+  const [hasPriceChanges, setHasPriceChanges] = useState(false)
+  const [isUpdatingPrices, setIsUpdatingPrices] = useState(false)
+  const [priceUpdateSuccess, setPriceUpdateSuccess] = useState(false)
+  const hasPriceChangesRef = useRef(false)
+  hasPriceChangesRef.current = hasPriceChanges
+
+  const handleRateChange = (field: string, val: string) => {
+    setRates((prev) => ({ ...prev, [field]: val }))
+    setHasPriceChanges(true)
+    setPriceUpdateSuccess(false)
+  }
+
+  const handleUpdatePrices = async () => {
+    setIsUpdatingPrices(true)
+    setErrorMsg(null)
+    try {
+      await saveSettings(rates, services, payments, shopDetails)
+      setHasPriceChanges(false)
+      setPriceUpdateSuccess(true)
+      setTimeout(() => setPriceUpdateSuccess(false), 4000)
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to update prices")
+    } finally {
+      setIsUpdatingPrices(false)
+    }
+  }
+
   useEffect(() => {
     let mounted = true
     fetchShopSettings().then((s) => {
       if (!mounted || !s) return
       setVersion(s.version || 1)
-      if (s.rates) {
+      if (s.rates && !hasPriceChangesRef.current) {
         setRates((prev) => {
           const next = { ...prev }
           for (const [k, v] of Object.entries(s.rates)) {
@@ -1394,73 +1421,140 @@ function PrinterSettingsPanel({
             <div className="settings-tab">
               <div className="settings-intro"><span>PRICING &amp; PAYMENT</span><strong>All campus services rates</strong></div>
 
+              {/* Explicit Update Prices Action Banner */}
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                background: hasPriceChanges ? "#eff6ff" : "#f8fafc",
+                border: `1.5px solid ${hasPriceChanges ? "#2563eb" : "#cbd5e1"}`,
+                borderRadius: 12,
+                padding: "14px 18px",
+                marginBottom: 20,
+                boxShadow: hasPriceChanges ? "0 4px 12px rgba(37, 99, 235, 0.12)" : "none",
+                transition: "all 0.2s ease"
+              }}>
+                <div>
+                  <strong style={{ fontSize: 14, color: "#0f172a", display: "block" }}>
+                    {hasPriceChanges ? "⚠️ Unsaved Price Changes" : priceUpdateSuccess ? "✓ Prices Updated & Locked" : "Store Rates Locked"}
+                  </strong>
+                  <span style={{ fontSize: 12, color: "#64748b" }}>
+                    {hasPriceChanges ? "Click UPDATE PRICES to commit changes to the student app." : "Rates remain unchanged until you explicitly update them."}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="button button--primary"
+                  onClick={handleUpdatePrices}
+                  disabled={!hasPriceChanges || isUpdatingPrices}
+                  style={{
+                    minWidth: 160,
+                    height: 42,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: hasPriceChanges ? "pointer" : "default",
+                    opacity: hasPriceChanges ? 1 : 0.6
+                  }}
+                >
+                  {isUpdatingPrices ? "UPDATING..." : priceUpdateSuccess ? "✓ UPDATED" : "UPDATE PRICES"}
+                </button>
+              </div>
+
               <section className="setting-card">
                 <div className="setting-card-title"><div><span>1. DOCUMENT PRINTS</span><strong>Black &amp; white and colour per page</strong></div></div>
                 <div className="field-grid">
-                  <SettingsField label="B&W per page" value={rates.bw} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, bw: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="Colour per page" value={rates.colour} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, colour: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="Double-sided rate" value={rates.duplex} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, duplex: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="Bulk discount after" value={rates.bulk} type="number" suffix="pages" onChange={(v) => { const nr = { ...rates, bulk: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="A3 multiplier" value={rates.a3} type="number" suffix="×" onChange={(v) => { const nr = { ...rates, a3: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="Legal multiplier" value={rates.legal} type="number" suffix="×" onChange={(v) => { const nr = { ...rates, legal: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="Glossy multiplier" value={rates.glossy} type="number" suffix="×" onChange={(v) => { const nr = { ...rates, glossy: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="B&W per page" value={rates.bw} type="number" suffix="₹" onChange={(v) => handleRateChange('bw', v)} />
+                  <SettingsField label="Colour per page" value={rates.colour} type="number" suffix="₹" onChange={(v) => handleRateChange('colour', v)} />
+                  <SettingsField label="Double-sided rate" value={rates.duplex} type="number" suffix="₹" onChange={(v) => handleRateChange('duplex', v)} />
+                  <SettingsField label="Bulk discount after" value={rates.bulk} type="number" suffix="pages" onChange={(v) => handleRateChange('bulk', v)} />
+                  <SettingsField label="A3 multiplier" value={rates.a3} type="number" suffix="×" onChange={(v) => handleRateChange('a3', v)} />
+                  <SettingsField label="Legal multiplier" value={rates.legal} type="number" suffix="×" onChange={(v) => handleRateChange('legal', v)} />
+                  <SettingsField label="Glossy multiplier" value={rates.glossy} type="number" suffix="×" onChange={(v) => handleRateChange('glossy', v)} />
                 </div>
               </section>
 
               <section className="setting-card">
                 <div className="setting-card-title"><div><span>2. PHOTO PRINTS</span><strong>Glossy &amp; passport print pricing</strong></div></div>
                 <div className="field-grid">
-                  <SettingsField label="4×6 Photo rate" value={rates.photo4x6} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, photo4x6: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="8×10 Photo rate" value={rates.photo8x10} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, photo8x10: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="Passport set (8 photos)" value={rates.photoPassport} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, photoPassport: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="4×6 Photo rate" value={rates.photo4x6} type="number" suffix="₹" onChange={(v) => handleRateChange('photo4x6', v)} />
+                  <SettingsField label="8×10 Photo rate" value={rates.photo8x10} type="number" suffix="₹" onChange={(v) => handleRateChange('photo8x10', v)} />
+                  <SettingsField label="Passport set (8 photos)" value={rates.photoPassport} type="number" suffix="₹" onChange={(v) => handleRateChange('photoPassport', v)} />
                 </div>
               </section>
 
               <section className="setting-card">
                 <div className="setting-card-title"><div><span>3. BINDING DESK</span><strong>Spiral, comb, staple, and hard bound</strong></div></div>
                 <div className="field-grid">
-                  <SettingsField label="Spiral binding rate" value={rates.bindingSpiral} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, bindingSpiral: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="Comb binding rate" value={rates.bindingComb} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, bindingComb: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="Staple / pin rate" value={rates.bindingStaple} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, bindingStaple: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="Soft cover binding rate" value={rates.bindingSoft} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, bindingSoft: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="Hard project bound rate" value={rates.bindingHard} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, bindingHard: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Spiral binding rate" value={rates.bindingSpiral} type="number" suffix="₹" onChange={(v) => handleRateChange('bindingSpiral', v)} />
+                  <SettingsField label="Comb binding rate" value={rates.bindingComb} type="number" suffix="₹" onChange={(v) => handleRateChange('bindingComb', v)} />
+                  <SettingsField label="Staple / pin rate" value={rates.bindingStaple} type="number" suffix="₹" onChange={(v) => handleRateChange('bindingStaple', v)} />
+                  <SettingsField label="Soft cover binding rate" value={rates.bindingSoft} type="number" suffix="₹" onChange={(v) => handleRateChange('bindingSoft', v)} />
+                  <SettingsField label="Hard project bound rate" value={rates.bindingHard} type="number" suffix="₹" onChange={(v) => handleRateChange('bindingHard', v)} />
                 </div>
               </section>
 
               <section className="setting-card">
                 <div className="setting-card-title"><div><span>4. LAMINATION</span><strong>Thermal protection sheets</strong></div></div>
                 <div className="field-grid">
-                  <SettingsField label="ID Card lamination" value={rates.laminationID} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, laminationID: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="A4 Lamination sheet" value={rates.laminationA4} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, laminationA4: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="A3 Lamination sheet" value={rates.laminationA3} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, laminationA3: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="Thick 250µm extra" value={rates.laminationThickExtra} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, laminationThickExtra: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="ID Card lamination" value={rates.laminationID} type="number" suffix="₹" onChange={(v) => handleRateChange('laminationID', v)} />
+                  <SettingsField label="A4 Lamination sheet" value={rates.laminationA4} type="number" suffix="₹" onChange={(v) => handleRateChange('laminationA4', v)} />
+                  <SettingsField label="A3 Lamination sheet" value={rates.laminationA3} type="number" suffix="₹" onChange={(v) => handleRateChange('laminationA3', v)} />
+                  <SettingsField label="Thick 250µm extra" value={rates.laminationThickExtra} type="number" suffix="₹" onChange={(v) => handleRateChange('laminationThickExtra', v)} />
                 </div>
               </section>
 
               <section className="setting-card">
                 <div className="setting-card-title"><div><span>5. SCANNING &amp; PHOTOCOPY</span><strong>Service counter walk-in rates</strong></div></div>
                 <div className="field-grid">
-                  <SettingsField label="Scanning per page" value={rates.scanPerPage} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, scanPerPage: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="Photocopy B&W rate" value={rates.copyBw} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, copyBw: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="Photocopy Colour rate" value={rates.copyColour} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, copyColour: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Scanning per page" value={rates.scanPerPage} type="number" suffix="₹" onChange={(v) => handleRateChange('scanPerPage', v)} />
+                  <SettingsField label="Photocopy B&W rate" value={rates.copyBw} type="number" suffix="₹" onChange={(v) => handleRateChange('copyBw', v)} />
+                  <SettingsField label="Photocopy Colour rate" value={rates.copyColour} type="number" suffix="₹" onChange={(v) => handleRateChange('copyColour', v)} />
                 </div>
               </section>
 
               <section className="setting-card">
                 <div className="setting-card-title"><div><span>6. TYPING &amp; CUSTOM REQUESTS</span><strong>Custom project work &amp; formatting</strong></div></div>
                 <div className="field-grid">
-                  <SettingsField label="Base quote minimum" value={rates.typingBase} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, typingBase: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="Typing per page" value={rates.typingPerPage} type="number" suffix="₹" onChange={(v) => { const nr = { ...rates, typingPerPage: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="Base quote minimum" value={rates.typingBase} type="number" suffix="₹" onChange={(v) => handleRateChange('typingBase', v)} />
+                  <SettingsField label="Typing per page" value={rates.typingPerPage} type="number" suffix="₹" onChange={(v) => handleRateChange('typingPerPage', v)} />
                 </div>
               </section>
 
               <section className="setting-card">
                 <div className="setting-card-title"><div><span>7. COUNTER UPI DETAILS</span><strong>Merchant QR &amp; student payment</strong></div></div>
                 <div className="field-grid">
-                  <SettingsField label="UPI VPA (Virtual ID)" value={rates.upiVpa} onChange={(v) => { const nr = { ...rates, upiVpa: v }; setRates(nr); saveSettings(nr) }} />
-                  <SettingsField label="Merchant Display Name" value={rates.upiName} onChange={(v) => { const nr = { ...rates, upiName: v }; setRates(nr); saveSettings(nr) }} />
+                  <SettingsField label="UPI VPA (Virtual ID)" value={rates.upiVpa} onChange={(v) => handleRateChange('upiVpa', v)} />
+                  <SettingsField label="Merchant Display Name" value={rates.upiName} onChange={(v) => handleRateChange('upiName', v)} />
                 </div>
               </section>
+
+              {/* Bottom Update Prices Action Bar */}
+              {hasPriceChanges && (
+                <div style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  background: "#eff6ff",
+                  border: "1.5px solid #2563eb",
+                  borderRadius: 12,
+                  padding: "14px 18px",
+                  marginBottom: 20
+                }}>
+                  <div>
+                    <strong style={{ fontSize: 14, color: "#0f172a", display: "block" }}>You have unsaved price changes</strong>
+                    <span style={{ fontSize: 12, color: "#64748b" }}>Click UPDATE PRICES to save changes to student app and database.</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="button button--primary"
+                    onClick={handleUpdatePrices}
+                    disabled={isUpdatingPrices}
+                    style={{ minWidth: 160, height: 42, fontSize: 13, fontWeight: 800 }}
+                  >
+                    {isUpdatingPrices ? "UPDATING..." : "UPDATE PRICES"}
+                  </button>
+                </div>
+              )}
 
               <section className="setting-card">
                 <div className="setting-card-title"><div><span>8. SERVICE AVAILABILITY</span><strong>Enable or disable individual services</strong></div></div>

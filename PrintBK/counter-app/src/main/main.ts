@@ -26,7 +26,7 @@ const httpsAgent = new https.Agent({
  * 2. Falls back to node-fetch with autoSelectFamily: true if net.fetch is unavailable.
  * 3. Enforces an explicit connection & response timeout so the app never hangs indefinitely.
  */
-async function robustFetch(url: string, options: any = {}, timeoutMs = 8000): Promise<any> {
+async function robustFetch(url: string, options: any = {}, timeoutMs = 15000): Promise<any> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -644,7 +644,7 @@ ipcMain.handle('counter:pair', async (_event, { setupCode, label, serverUrl }: {
               appVersion: app.getVersion(),
               agentVersion: app.getVersion()
             })
-          }, 7500);
+          }, 15000);
 
           let data: any = {};
           try {

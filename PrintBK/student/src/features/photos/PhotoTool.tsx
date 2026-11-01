@@ -61,6 +61,8 @@ function PhotoTool({
   const getLayoutBasePrice = (key: string, defaultVal: number) => {
     if (key === "Passport 8-up" && typeof shopRates.photoPassport === 'number') return shopRates.photoPassport;
     if (key === "4×6" && typeof shopRates.photo4x6 === 'number') return shopRates.photo4x6;
+    if (key === "8×8 Square" && typeof shopRates.photo8x10 === 'number') return shopRates.photo8x10;
+    if (key === "8×8 Square" && typeof shopRates.photo8x8 === 'number') return shopRates.photo8x8;
     if (shopRates.photoRates && typeof shopRates.photoRates[key] === 'number') return shopRates.photoRates[key];
     return defaultVal;
   };
@@ -106,6 +108,13 @@ function PhotoTool({
       label: "Two 4 × 6 inch prints",
       price: getLayoutBasePrice("4×6", 30),
       ratio: "2:3"
+    },
+    "8×8 Square": {
+      slots: 1,
+      className: "layout-square",
+      label: "8 × 8 inch Square (20 × 20 cm)",
+      price: getLayoutBasePrice("8×8 Square", 30),
+      ratio: "1:1"
     },
     "ID card": {
       slots: 2,
@@ -501,7 +510,7 @@ function PhotoTool({
                 settings: {
                   copies: 1,
                   colorMode: colorMode === 'bw' ? 'bw' : 'colour',
-                  paper: 'A4',
+                  paper: 'Glossy',
                   sided: 'single',
                   orientation: 'auto',
                   nUp: 1,
@@ -531,16 +540,6 @@ function PhotoTool({
 
               useBasket.getState().addFile(pFile);
 
-              addService({
-                id: crypto.randomUUID(),
-                type: 'addon',
-                name: `Photo print — ${config.label}`,
-                detail: `A4 · ${config.slots} slot${config.slots > 1 ? 's' : ''} · ${colorMode === 'bw' ? 'B&W' : 'Colour'}`,
-                price: finalPrice,
-                qty: 1,
-                attachTo: fileId,
-              });
-
               notify(`${config.label} (${colorMode === 'bw' ? 'B&W' : 'Colour'}) added to basket`);
               go("basket");
             } finally {
@@ -550,6 +549,8 @@ function PhotoTool({
         >
           {isGenerating
             ? "Generating Ultra HD…"
+            : !isPhotoAvail
+            ? "Photo printing unavailable"
             : (isCardLayout && cardPhotos.some(photo => !photo) ? "Add front + back" : "Add photo sheet")}
         </button>
       </div>
