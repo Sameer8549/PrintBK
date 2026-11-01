@@ -264,12 +264,17 @@ router.get('/live', async (req, res) => {
     const zcql = catalystApp ? catalystApp.zcql() : null;
     const now = nowSec();
 
-    // Trigger lazy file purge on staff poll
-    if (typeof global.__printbk_purgeExpiredFiles === 'function') {
-      try {
-        const filestore = catalystApp ? catalystApp.filestore() : null;
-        await global.__printbk_purgeExpiredFiles(catalystApp, zcql, filestore);
-      } catch (_) {}
+    // 0. Catalyst Cache Routing: Check cache for sub-millisecond zero-datastore response
+    const forceRefresh = req.query.refresh === 'true' || req.headers['x-refresh'] === 'true';
+    if (!forceRefresh && global.__printbk_getCachedQueue) {
+      const cached = await global.__printbk_getCachedQueue(catalystApp);
+      if (cached && Array.isArray(cached.orders)) {
+        return res.json({
+          ...cached,
+          cached: true,
+          serverTime: Date.now()
+        });
+      }
     }
 
     // 1. Fetch shop_settings
@@ -373,10 +378,10 @@ router.get('/live', async (req, res) => {
       try {
         const testFilter = includeTest ? '' : '(is_test IS NULL OR is_test = false) AND ';
         const orderRows = await zcql.executeZCQLQuery(
-          `SELECT id, order_number, status, total, quote_pending, basket, is_test, created_at, updated_at FROM orders WHERE ${testFilter}status IN (${activeStatuses}) ORDER BY created_at ASC`
+          `SELECT id, order_number, status, total, quote_pending, basket, is_test, created_at, updated_at FROM orders WHERE ${testFilter}status IN (${activeStatuses}) AND created_at >= ${now - 86400} ORDER BY created_at ASC`
         ).catch(async () => {
           return zcql.executeZCQLQuery(
-            `SELECT id, order_number, status, total, quote_pending, basket, created_at, updated_at FROM orders WHERE status IN (${activeStatuses}) ORDER BY created_at ASC`
+            `SELECT id, order_number, status, total, quote_pending, basket, created_at, updated_at FROM orders WHERE status IN (${activeStatuses}) AND created_at >= ${now - 86400} ORDER BY created_at ASC`
           ).catch(() => []);
         });
         for (const r of (orderRows || [])) {
@@ -665,6 +670,11 @@ router.get('/live', async (req, res) => {
 
     res.setHeader('ETag', etag);
     res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+
+    if (global.__printbk_setCachedQueue) {
+      await global.__printbk_setCachedQueue(catalystApp, payload, 1);
+    }
+
     res.json(payload);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch live feed: ' + err.message });
@@ -753,6 +763,10 @@ router.post('/orders/:id/collect-cash', async (req, res) => {
       fromStatus: 'pending_cash',
       toStatus: 'cash_collected'
     });
+
+    if (global.__printbk_invalidateCachedQueue) {
+      await global.__printbk_invalidateCachedQueue(catalystApp);
+    }
 
     res.json({ ok: true, orderId, status: 'cash_collected', actionId });
   } catch (err) {
@@ -950,6 +964,10 @@ router.post('/items/:id/approve-print', async (req, res) => {
       toStatus: 'sending'
     });
 
+    if (global.__printbk_invalidateCachedQueue) {
+      await global.__printbk_invalidateCachedQueue(catalystApp);
+    }
+
     res.json({ ok: true, itemId, status: 'sending', printJobId });
   } catch (err) {
     res.status(500).json({ error: 'Failed to approve print: ' + err.message });
@@ -1094,6 +1112,10 @@ router.post('/orders/:id/reject', async (req, res) => {
         `INSERT INTO staff_actions (id, action_type, order_id, payload, expires_at, undone, created_at) VALUES ('${actionId}', 'reject', '${esc(orderId)}', '${esc(undoPayload)}', ${now + 5}, false, ${now})`
       ).catch(() => {});
       await zcql.executeZCQLQuery(`UPDATE orders SET status = 'rejected', updated_at = ${now} WHERE id = '${esc(orderId)}'`).catch(() => {});
+    }
+
+    if (global.__printbk_invalidateCachedQueue) {
+      await global.__printbk_invalidateCachedQueue(catalystApp);
     }
 
     res.json({ ok: true, orderId, status: 'rejected', actionId });
@@ -1527,6 +1549,10 @@ router.put('/settings', authenticateStaff, async (req, res) => {
     }).catch(() => {});
 
     const effective = computeEffectiveShopStatus(mem, now);
+
+    if (global.__printbk_invalidateCachedQueue) {
+      await global.__printbk_invalidateCachedQueue(catalystApp);
+    }
 
     res.json({
       ok: true,

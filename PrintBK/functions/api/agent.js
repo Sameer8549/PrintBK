@@ -246,14 +246,6 @@ router.get(['/jobs/next', '/jobs/poll'], async (req, res) => {
     const zcql = catalystApp ? catalystApp.zcql() : null;
     const now = nowSec();
 
-    // Trigger lazy file purge on agent job poll
-    if (typeof global.__printbk_purgeExpiredFiles === 'function') {
-      try {
-        const filestore = catalystApp ? catalystApp.filestore() : null;
-        await global.__printbk_purgeExpiredFiles(catalystApp, zcql, filestore);
-      } catch (_) {}
-    }
-
     // 1. Check for queued print jobs
     let queuedJob = null;
     if (zcql) {
@@ -607,6 +599,10 @@ router.post('/jobs/:id/complete', async (req, res) => {
           );
         } catch (_) {}
       }
+    }
+
+    if (global.__printbk_invalidateCachedQueue) {
+      global.__printbk_invalidateCachedQueue(catalystApp);
     }
 
     return res.json({ ok: true, jobId, itemId, delete_after: deleteAfter });

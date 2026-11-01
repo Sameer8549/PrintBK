@@ -508,13 +508,16 @@ const DEFAULT_SHOP_SETTINGS = {
     binding_spiral: { available: true },
     binding_comb: { available: true },
     binding_staple: { available: true },
+    staple: { available: true },
     binding_soft: { available: true },
     binding_hard: { available: true },
     lamination: { available: true },
     scanning: { available: true },
     photocopy: { available: true },
     typing: { available: true },
-    rush: { available: true }
+    rush: { available: true },
+    custom: { available: true },
+    something_else: { available: true }
   },
   payments: {
     cash: true,
@@ -852,13 +855,16 @@ app.get(['/config', '/shop/config'], async (req, res) => {
       binding_spiral: { available: true },
       binding_comb: { available: true },
       binding_staple: { available: true },
+      staple: { available: true },
       binding_soft: { available: true },
       binding_hard: { available: true },
       lamination: { available: true },
       scanning: { available: true },
       photocopy: { available: true },
       typing: { available: true },
-      rush: { available: true }
+      rush: { available: true },
+      custom: { available: true },
+      something_else: { available: true }
     },
     paymentMethods: {
       cash: settings.payments?.cash !== false,
@@ -1266,6 +1272,10 @@ app.post('/orders', async (req, res) => {
     if (['pending_payment', 'pending_cash', 'upi_started', 'waiting_quote'].includes(status)) {
       currentUnpaid.add(orderId);
       unpaidOrdersByIp.set(clientIp, currentUnpaid);
+    }
+
+    if (global.__printbk_invalidateCachedQueue) {
+      global.__printbk_invalidateCachedQueue(catalystApp);
     }
 
     res.json({
@@ -2274,12 +2284,14 @@ app.get('/files/:cloudId', async (req, res) => {
 });
 
 // 6. Scheduled Cleanup / Cron Purge Engine (Protected by CRON_SECRET)
+// Bulk Fetching + Bulk Updates + Stateless File Cleanup
 async function expireStaleOrdersAndPurgeFiles(catalystApp, zcql, filestore) {
   const now = nowSec();
   const settings = await getEffectiveShopSettings(catalystApp);
   const paymentExpirySec = Number(settings.order_expiry_minutes || settings.payments?.order_expiry_minutes || 15) * 60;
   const upiClaimExpirySec = Number(settings.upi_claimed_expiry_hours || settings.payments?.upi_claimed_expiry_hours || 24) * 3600;
   const filePurgeCutoff = now - 3600; // 60-minute ceiling from upload
+  const staleDayCutoff = now - 86400; // 24-hour ceiling to auto-purge abandoned test/demo orders
 
   let expiredOrdersCount = 0;
   let purgedFilesCount = 0;
@@ -2291,8 +2303,9 @@ async function expireStaleOrdersAndPurgeFiles(catalystApp, zcql, filestore) {
 
     const isPendingExpired = ['pending_payment', 'upi_started'].includes(o.status) && (now - createdAt >= paymentExpirySec);
     const isUpiClaimExpired = (o.status === 'upi_claimed') && (now - updatedAt >= upiClaimExpirySec);
+    const isAncientStale = createdAt <= staleDayCutoff && !['printed', 'completed'].includes(o.status);
 
-    if (isPendingExpired || isUpiClaimExpired) {
+    if (isPendingExpired || isUpiClaimExpired || isAncientStale) {
       o.status = 'expired';
       o.payment_status = 'not_paid';
       o.updated_at = now;
@@ -2305,7 +2318,7 @@ async function expireStaleOrdersAndPurgeFiles(catalystApp, zcql, filestore) {
       const deleteAfter = o.delete_after ? Number(o.delete_after) : (o.printed_at ? Number(o.printed_at) + 300 : null);
       const isPastPrintDelete = deleteAfter && deleteAfter <= now;
 
-      if ((isTerminal && isPastFileCeiling) || isPastPrintDelete || (isTerminal && now - updatedAt >= 1800)) {
+      if ((isTerminal && isPastFileCeiling) || isPastPrintDelete || (isTerminal && now - updatedAt >= 1800) || isAncientStale) {
         o.files_deleted_at = now;
         o.updated_at = now;
         purgedFilesCount++;
@@ -2323,65 +2336,189 @@ async function expireStaleOrdersAndPurgeFiles(catalystApp, zcql, filestore) {
     }
   }
 
-  // 2. Cloud Database & File Store purge (when catalystApp is provided)
+  // 2. Cloud Database & File Store purge using BULK APIs
   if (zcql) {
     try {
-      // A. Expire stale orders in DB
+      const datastore = catalystApp ? catalystApp.datastore() : null;
+      const ordersTable = datastore ? datastore.table('orders') : null;
+      const orderEventsTable = datastore ? datastore.table('order_events') : null;
+
+      // A. Bulk Fetching: Paginated single query (up to 200 stale orders)
       const staleRows = await zcql.executeZCQLQuery(
-        `SELECT id, order_number, status, created_at, updated_at FROM orders WHERE (status IN ('pending_payment', 'upi_started') AND created_at <= ${now - paymentExpirySec}) OR (status = 'upi_claimed' AND updated_at <= ${now - upiClaimExpirySec})`
+        `SELECT ROWID, id, order_number, status, created_at, updated_at FROM orders WHERE (status IN ('pending_payment', 'upi_started') AND created_at <= ${now - paymentExpirySec}) OR (status = 'upi_claimed' AND updated_at <= ${now - upiClaimExpirySec}) OR (created_at <= ${staleDayCutoff} AND status NOT IN ('printed', 'completed', 'expired')) LIMIT 1, 200`
       ).catch(() => []);
 
-      for (const r of (staleRows || [])) {
-        const o = r.orders;
-        await zcql.executeZCQLQuery(
-          `UPDATE orders SET status = 'expired', payment_status = 'not_paid', updated_at = ${now} WHERE id = '${esc(o.id)}'`
-        ).catch(() => {});
+      if (staleRows && staleRows.length > 0) {
+        const updateBatch = [];
+        const eventsBatch = [];
+        const fallbackIds = [];
 
-        await zcql.executeZCQLQuery(
-          `INSERT INTO order_events (id, order_id, actor_type, actor_label, action, from_status, to_status, timestamp) VALUES ('${crypto.randomUUID()}', '${esc(o.id)}', 'system', 'expiry_engine', 'expire_timeout', '${esc(o.status)}', 'expired', ${now})`
-        ).catch(() => {});
+        for (const r of staleRows) {
+          const o = r.orders;
+          if (o.ROWID) {
+            updateBatch.push({
+              ROWID: o.ROWID,
+              status: 'expired',
+              payment_status: 'not_paid',
+              updated_at: now
+            });
+          }
+          fallbackIds.push(`'${esc(o.id)}'`);
+          eventsBatch.push({
+            id: crypto.randomUUID(),
+            order_id: o.id,
+            actor_type: 'system',
+            actor_label: 'expiry_engine',
+            action: 'expire_timeout',
+            from_status: o.status,
+            to_status: 'expired',
+            timestamp: now
+          });
+          expiredOrdersCount++;
+        }
 
-        expiredOrdersCount++;
+        // B. Bulk Updates: Single table.updateRows() API call
+        if (ordersTable && updateBatch.length > 0) {
+          await ordersTable.updateRows(updateBatch).catch(async () => {
+            if (fallbackIds.length > 0) {
+              await zcql.executeZCQLQuery(
+                `UPDATE orders SET status = 'expired', payment_status = 'not_paid', updated_at = ${now} WHERE id IN (${fallbackIds.join(',')})`
+              ).catch(() => {});
+            }
+          });
+        }
+
+        if (orderEventsTable && eventsBatch.length > 0) {
+          await orderEventsTable.insertRows(eventsBatch).catch(() => {});
+        }
       }
 
-      // B. Purge files for expired, cancelled, rejected, or 60-min past upload orders
+      // C. Stateless Batch File Cleanup: Paginated single query (up to 100 orders with files)
       let folder = null;
       if (filestore) {
         try { folder = await getPrintFilesFolder(filestore); } catch (_) {}
       }
 
       const rows = await zcql.executeZCQLQuery(
-        `SELECT id, basket, status, delete_after, created_at FROM orders WHERE (delete_after IS NOT NULL AND delete_after <= ${now} AND files_deleted_at IS NULL) OR (status IN ('cancelled', 'rejected', 'expired') AND files_deleted_at IS NULL) OR (created_at <= ${filePurgeCutoff} AND files_deleted_at IS NULL)`
+        `SELECT ROWID, id, basket, status, delete_after, created_at FROM orders WHERE files_deleted_at IS NULL AND ((delete_after IS NOT NULL AND delete_after <= ${now}) OR (status IN ('cancelled', 'rejected', 'expired') AND files_deleted_at IS NULL) OR (created_at <= ${filePurgeCutoff} AND files_deleted_at IS NULL)) LIMIT 1, 100`
       ).catch(() => []);
 
-      for (const r of (rows || [])) {
-        const o = r.orders;
-        let b = {};
-        try { b = JSON.parse(o.basket || '{}'); } catch (_) {}
-        if (folder) {
+      if (rows && rows.length > 0) {
+        const cloudIdsToDelete = [];
+        const filesCleanedBatch = [];
+        const fallbackCleanIds = [];
+
+        for (const r of rows) {
+          const o = r.orders;
+          let b = {};
+          try { b = JSON.parse(o.basket || '{}'); } catch (_) {}
           for (const f of (b.files || [])) {
             if (f.cloudId) {
-              try {
-                await folder.deleteFile(f.cloudId);
-                purgedFilesCount++;
-              } catch (_) {}
+              cloudIdsToDelete.push(f.cloudId);
             }
           }
+          if (o.ROWID) {
+            filesCleanedBatch.push({
+              ROWID: o.ROWID,
+              files_deleted_at: now,
+              updated_at: now
+            });
+          }
+          fallbackCleanIds.push(`'${esc(o.id)}'`);
         }
-        await zcql.executeZCQLQuery(
-          `UPDATE orders SET files_deleted_at = ${now}, updated_at = ${now} WHERE id = '${esc(o.id)}'`
-        ).catch(() => {});
+
+        // Parallel batch file deletion from Filestore
+        if (folder && cloudIdsToDelete.length > 0) {
+          const deletePromises = cloudIdsToDelete.map(id => folder.deleteFile(id).catch(() => null));
+          await Promise.allSettled(deletePromises);
+          purgedFilesCount += cloudIdsToDelete.length;
+        }
+
+        // Single bulk update to mark all rows cleaned in Datastore
+        if (ordersTable && filesCleanedBatch.length > 0) {
+          await ordersTable.updateRows(filesCleanedBatch).catch(async () => {
+            if (fallbackCleanIds.length > 0) {
+              await zcql.executeZCQLQuery(
+                `UPDATE orders SET files_deleted_at = ${now}, updated_at = ${now} WHERE id IN (${fallbackCleanIds.join(',')})`
+              ).catch(() => {});
+            }
+          });
+        }
       }
 
-      // Also clean order_items
+      // D. Clean order_items in 1 bulk query
       await zcql.executeZCQLQuery(
         `UPDATE order_items SET files_deleted_at = ${now} WHERE status = 'printed' AND files_deleted_at IS NULL AND delete_after IS NOT NULL AND delete_after <= ${now}`
       ).catch(() => {});
+
+      // Invalidate cache after bulk cleanup
+      if (global.__printbk_invalidateCachedQueue) {
+        await global.__printbk_invalidateCachedQueue(catalystApp);
+      }
     } catch (_) {}
   }
 
   return { expiredOrdersCount, purgedOrdersCount: expiredOrdersCount, purgedFilesCount };
 }
+
+// Catalyst Cache Routing Helpers (with in-memory sub-millisecond layer)
+let memQueueCache = null;
+let memQueueCacheExpires = 0;
+
+async function getCachedQueue(catalystApp) {
+  const now = nowSec();
+  // 1. In-memory sub-millisecond hot cache
+  if (memQueueCache && now < memQueueCacheExpires) {
+    return memQueueCache;
+  }
+  // 2. Catalyst Cache component
+  try {
+    if (!catalystApp) return null;
+    const cache = catalystApp.cache();
+    const segment = cache.segment();
+    const val = await segment.getValue('active_print_queue');
+    if (val) {
+      const parsed = JSON.parse(val);
+      memQueueCache = parsed;
+      memQueueCacheExpires = now + 10; // keep hot for 10s locally
+      return parsed;
+    }
+  } catch (_) {}
+  return null;
+}
+
+async function setCachedQueue(catalystApp, queueData, expiryHours = 1) {
+  const now = nowSec();
+  memQueueCache = queueData;
+  memQueueCacheExpires = now + 10;
+
+  try {
+    if (!catalystApp) return;
+    const cache = catalystApp.cache();
+    const segment = cache.segment();
+    const serialized = JSON.stringify(queueData);
+    try {
+      await segment.put('active_print_queue', serialized, expiryHours);
+    } catch (putErr) {
+      await segment.update('active_print_queue', serialized, expiryHours).catch(() => {});
+    }
+  } catch (_) {}
+}
+
+async function invalidateCachedQueue(catalystApp) {
+  memQueueCache = null;
+  memQueueCacheExpires = 0;
+  try {
+    if (!catalystApp) return;
+    const cache = catalystApp.cache();
+    const segment = cache.segment();
+    await segment.delete('active_print_queue').catch(() => {});
+  } catch (_) {}
+}
+
+global.__printbk_getCachedQueue = getCachedQueue;
+global.__printbk_setCachedQueue = setCachedQueue;
+global.__printbk_invalidateCachedQueue = invalidateCachedQueue;
 
 global.__printbk_purgeExpiredFiles = expireStaleOrdersAndPurgeFiles;
 

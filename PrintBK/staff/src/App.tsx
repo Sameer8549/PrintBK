@@ -986,12 +986,16 @@ function PrinterSettingsPanel({
     binding_spiral: { available: true },
     binding_comb: { available: true },
     binding_staple: { available: true },
+    staple: { available: true },
     binding_soft: { available: true },
     binding_hard: { available: true },
     lamination: { available: true },
     scanning: { available: true },
     photocopy: { available: true },
     typing: { available: true },
+    rush: { available: true },
+    custom: { available: true },
+    something_else: { available: true },
     ...((shop as any).services || {})
   }))
 
@@ -1055,6 +1059,19 @@ function PrinterSettingsPanel({
               (next as any)[k] = String(v)
             }
           }
+          // Explicit mapping for synonyms and server keys to guarantee persistence
+          if (s.rates.bw !== undefined) next.bw = String(s.rates.bw)
+          if (s.rates.colour !== undefined || s.rates.color !== undefined) next.colour = String(s.rates.colour ?? s.rates.color)
+          if (s.rates.duplex !== undefined || s.rates.doubleSideDiscount !== undefined) next.duplex = String(s.rates.duplex ?? s.rates.doubleSideDiscount)
+          if (s.rates.bulk !== undefined || s.rates.bulkTierThreshold !== undefined) next.bulk = String(s.rates.bulk ?? s.rates.bulkTierThreshold)
+          if (s.rates.bindingSpiral !== undefined || s.rates.spiral !== undefined) next.bindingSpiral = String(s.rates.bindingSpiral ?? s.rates.spiral)
+          if (s.rates.bindingComb !== undefined || s.rates.comb !== undefined) next.bindingComb = String(s.rates.bindingComb ?? s.rates.comb)
+          if (s.rates.bindingStaple !== undefined || s.rates.staple !== undefined) next.bindingStaple = String(s.rates.bindingStaple ?? s.rates.staple)
+          if (s.rates.bindingSoft !== undefined || s.rates.soft !== undefined) next.bindingSoft = String(s.rates.bindingSoft ?? s.rates.soft)
+          if (s.rates.bindingHard !== undefined || s.rates.hardCover !== undefined) next.bindingHard = String(s.rates.bindingHard ?? s.rates.hardCover)
+          if (s.rates.scanPerPage !== undefined || s.rates.scan !== undefined) next.scanPerPage = String(s.rates.scanPerPage ?? s.rates.scan)
+          if (s.rates.copyBw !== undefined || s.rates.photocopy !== undefined) next.copyBw = String(s.rates.copyBw ?? s.rates.photocopy)
+          if (s.rates.copyColour !== undefined || s.rates.copyColor !== undefined) next.copyColour = String(s.rates.copyColour ?? s.rates.copyColor)
           return next
         })
       }
@@ -1575,6 +1592,7 @@ function PrinterSettingsPanel({
                   { key: "photocopy", label: "Photocopy Counter", desc: "Walk-in manual page copy" },
                   { key: "typing", label: "Typing & Formatting", desc: "Custom typing and thesis project editing" },
                   { key: "rush", label: "Express / Rush Priority", desc: "Priority queue processing for urgent deadlines" },
+                  { key: "custom", altKey: "something_else", label: "Need Something Else / Custom Service", desc: "Special requests, custom notes and unlisted student jobs" },
                 ].map((s) => {
                   const sInfo = (services as any)[s.key] || (services as any)[s.altKey || ''] || { available: true }
                   const isAvailable = sInfo.available !== false
@@ -1604,6 +1622,14 @@ function PrinterSettingsPanel({
                             (updated as any).colour = stateObj
                             (updated as any).document_colour = stateObj
                           }
+                          if (s.key === "binding_staple" || s.key === "staple") {
+                            (updated as any).binding_staple = stateObj
+                            (updated as any).staple = stateObj
+                          }
+                          if (s.key === "custom" || s.key === "something_else") {
+                            (updated as any).custom = stateObj
+                            (updated as any).something_else = stateObj
+                          }
                           setServices(updated)
                           saveSettings(rates, updated)
                         }}
@@ -1630,6 +1656,14 @@ function PrinterSettingsPanel({
                               if (s.key === "colour" || s.key === "document_colour") {
                                 (updated as any).colour = stateObj
                                 (updated as any).document_colour = stateObj
+                              }
+                              if (s.key === "binding_staple" || s.key === "staple") {
+                                (updated as any).binding_staple = stateObj
+                                (updated as any).staple = stateObj
+                              }
+                              if (s.key === "custom" || s.key === "something_else") {
+                                (updated as any).custom = stateObj
+                                (updated as any).something_else = stateObj
                               }
                               setServices(updated)
                               saveSettings(rates, updated)

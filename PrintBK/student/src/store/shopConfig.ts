@@ -83,7 +83,9 @@ const DEFAULT_EXTENDED_CONFIG: ExtendedShopConfig = {
     scanning: { available: true },
     photocopy: { available: true },
     typing: { available: true },
-    rush: { available: true }
+    rush: { available: true },
+    custom: { available: true },
+    something_else: { available: true }
   },
   paymentMethods: {
     cash: true,
