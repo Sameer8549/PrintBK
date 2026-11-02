@@ -81,8 +81,9 @@ async function runTests() {
     assert.ok(pairData.agentCredentials?.token, 'Expected agent token');
     console.log('  -> Counter paired successfully. CounterId:', pairData.counterId);
 
-    // 5. Single-use verification
+    // 5. Single-use verification (when multi-use is disabled)
     console.log('[Test 5] Reject reuse of already redeemed code');
+    process.env.COUNTER_CODE_MULTI_USE = 'false';
     const reuseRes = await fetch(`${baseUrl}/server/api/counter/pair`, {
       method: 'POST',
       headers: {
@@ -94,6 +95,7 @@ async function runTests() {
         label: 'Another PC'
       })
     });
+    delete process.env.COUNTER_CODE_MULTI_USE;
     assert.strictEqual(reuseRes.status, 400, 'Expected 400 for already redeemed code');
     const reuseData = await reuseRes.json();
     assert.ok(reuseData.error.includes('already been redeemed'), 'Expected redeemed error message');
