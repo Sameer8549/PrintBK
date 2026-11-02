@@ -85,7 +85,63 @@ export async function generateTestPrintPdf(printerName: string, shopInfo?: any):
     page.drawText(`${i * 10}%`, { x: xPos + 10, y: 480, size: 9, font: fontRegular });
   }
 
-  // 3. Margin & Border Registration Crosshairs
+  // 3. Live Student App QR Code
+  const studentUrl = shopInfo?.studentUrl || 'https://printbk-60074625517.catalystserverless.in/app/index.html';
+  page.drawText('Student Ordering QR Code (Scan to Print)', { x: 50, y: 445, size: 13, font: fontBold });
+  page.drawText('Students scan this code to upload documents and send print jobs directly to this counter.', {
+    x: 50,
+    y: 430,
+    size: 9.5,
+    font: fontRegular,
+    color: rgb(0.35, 0.35, 0.35)
+  });
+
+  // Draw card for QR
+  page.drawRectangle({
+    x: 50,
+    y: 130,
+    width: 495,
+    height: 285,
+    borderColor: rgb(0.85, 0.85, 0.85),
+    borderWidth: 1,
+    color: rgb(0.98, 0.98, 0.98)
+  });
+
+  try {
+    const qrBuffer = await QRCode.toBuffer(studentUrl, {
+      errorCorrectionLevel: 'H',
+      margin: 1,
+      width: 240,
+      color: {
+        dark: '#0f172a',
+        light: '#ffffff'
+      }
+    });
+    const qrImg = await doc.embedPng(qrBuffer);
+    page.drawImage(qrImg, {
+      x: 70,
+      y: 155,
+      width: 235,
+      height: 235
+    });
+  } catch (err) {
+    // Fallback if QR generation fails
+  }
+
+  // QR Info side text
+  page.drawText('ONLINE STUDENT PORTAL', { x: 325, y: 365, size: 11, font: fontBold, color: rgb(0.2, 0.2, 0.2) });
+  page.drawText('PrintBK Campus Point', { x: 325, y: 345, size: 15, font: fontBold, color: rgb(0.08, 0.45, 0.75) });
+
+  page.drawText('• Scan with any Smartphone Camera', { x: 325, y: 305, size: 9.5, font: fontRegular });
+  page.drawText('• Upload PDF, Word, Images, PPT', { x: 325, y: 285, size: 9.5, font: fontRegular });
+  page.drawText('• Select B&W / Colour & Options', { x: 325, y: 265, size: 9.5, font: fontRegular });
+  page.drawText('• Pay Online via UPI or Cash at Desk', { x: 325, y: 245, size: 9.5, font: fontRegular });
+
+  page.drawText('Direct Student Portal Link:', { x: 325, y: 200, size: 9, font: fontBold, color: rgb(0.4, 0.4, 0.4) });
+  page.drawText(studentUrl, { x: 325, y: 185, size: 8, font: fontRegular, color: rgb(0.15, 0.15, 0.15) });
+  page.drawText('Display this page at your shop counter for students.', { x: 325, y: 155, size: 8, font: fontBold, color: rgb(0.1, 0.5, 0.2) });
+
+  // 4. Margin & Border Registration Crosshairs
   page.drawRectangle({
     x: 20,
     y: 20,
@@ -96,10 +152,10 @@ export async function generateTestPrintPdf(printerName: string, shopInfo?: any):
   });
   page.drawText('5mm Registration Boundary', { x: 25, y: 25, size: 8, font: fontRegular, color: rgb(0.5, 0.5, 0.5) });
 
-  page.drawText('If this page printed clearly with even tones and sharp text, this printer is ready for student orders.', {
+  page.drawText('Hardware Verified: If this test page printed clearly with sharp QR and text, printer is ready for shop use.', {
     x: 50,
-    y: 100,
-    size: 11,
+    y: 75,
+    size: 10,
     font: fontBold,
     color: rgb(0.1, 0.5, 0.2)
   });
