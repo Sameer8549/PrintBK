@@ -99,7 +99,8 @@ export async function executeSumatraPrint(
   }
 
   const printSettings = buildSumatraSettings(settings);
-  const isDefaultTarget = !printerName || printerName === 'Default Printer' || printerName.includes('-');
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test((printerName || '').trim());
+  const isDefaultTarget = !printerName || printerName === 'Default Printer' || isUuid;
   const primaryTarget = isDefaultTarget ? '-print-to-default' : `-print-to "${printerName}"`;
   const command = `"${bin}" ${primaryTarget} -print-settings "${printSettings}" -silent "${filePath}"`;
 
@@ -107,14 +108,17 @@ export async function executeSumatraPrint(
     const { stdout, stderr } = await execAsync(command, { timeout: 60000 });
     return { success: true, stdout, stderr };
   } catch (err: any) {
-    // If targeted print failed (e.g. invalid printer name or UUID), retry with default printer
+    // 1. If targeted print failed due to driver rejecting advanced -print-settings, retry same printer with safe minimal options
     if (primaryTarget !== '-print-to-default') {
       try {
-        const fallbackCmd = `"${bin}" -print-to-default -print-settings "${printSettings}" -silent "${filePath}"`;
-        const { stdout, stderr } = await execAsync(fallbackCmd, { timeout: 60000 });
+        const safeSettings = settings.copies && settings.copies > 1 ? `${settings.copies}x,fit` : 'fit';
+        const safeCmd = `"${bin}" ${primaryTarget} -print-settings "${safeSettings}" -silent "${filePath}"`;
+        const { stdout, stderr } = await execAsync(safeCmd, { timeout: 60000 });
         return { success: true, stdout, stderr };
-      } catch (_) {}
+      } catch (safeErr: any) {
+        // Driver still refused or printer offline
+      }
     }
-    throw new Error(`SumatraPDF execution failed: ${err.message}`);
+    throw new Error(`SumatraPDF print failed for "${printerName || 'default'}": ${err.message}`);
   }
 }

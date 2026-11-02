@@ -6,7 +6,7 @@ export class ManualUpiProvider implements PaymentProvider {
   description = 'Scan QR at shop or use any UPI app.';
   upiId: string;
 
-  constructor(upiId: string = 'printbk@upi') {
+  constructor(upiId: string = 'Q098686787@ybl') {
     this.upiId = upiId;
   }
 

@@ -211,18 +211,21 @@ router.post(['/heartbeat', '/printers/register'], async (req, res) => {
     let shopSettings = {
       mixed_colour_mode: 'split',
       delete_delay_minutes: 5,
-      open: true
+      open: true,
+      printer_mapping: {}
     };
 
     if (zcql) {
       try {
-        const settingsRows = await zcql.executeZCQLQuery(`SELECT mixed_colour_mode, delete_delay_minutes, open FROM shop_settings LIMIT 1`);
+        const settingsRows = await zcql.executeZCQLQuery(`SELECT mixed_colour_mode, delete_delay_minutes, open, shop_info FROM shop_settings LIMIT 1`);
         if (settingsRows && settingsRows.length > 0) {
           const s = settingsRows[0].shop_settings;
+          const sInfo = typeof s.shop_info === 'string' ? JSON.parse(s.shop_info || '{}') : (s.shop_info || {});
           shopSettings = {
             mixed_colour_mode: s.mixed_colour_mode || 'split',
             delete_delay_minutes: Number(s.delete_delay_minutes || 5),
-            open: s.open !== false && String(s.open) !== 'false'
+            open: s.open !== false && String(s.open) !== 'false',
+            printer_mapping: sInfo.printer_mapping || {}
           };
         }
       } catch (_) {}

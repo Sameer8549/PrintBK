@@ -523,15 +523,16 @@ const DEFAULT_SHOP_SETTINGS = {
     cash: true,
     upi: true,
     razorpay: false,
-    upiVpa: 'printbk@upi',
-    upiName: 'PrintBK Campus Store'
+    upiVpa: 'Q098686787@ybl',
+    upiName: 'HKBK Student Point'
   },
   shop_info: {
     name: 'HKBK Student Point',
     address: 'HKBK College Campus, Nagawara, Bengaluru',
     hours: '8:30 AM – 6:00 PM (Mon–Sat)',
     phone: '',
-    logo: '/printbk-logo.svg'
+    logo: '/printbk-logo.svg',
+    printer_mapping: {}
   },
   updated_at: Math.floor(Date.now() / 1000)
 };
@@ -565,6 +566,12 @@ async function getEffectiveShopSettings(catalystApp) {
         if (s.payments) {
           const p = typeof s.payments === 'string' ? JSON.parse(s.payments) : s.payments;
           memShopSettings.payments = { ...memShopSettings.payments, ...p };
+        }
+        if (!memShopSettings.payments.upiVpa || memShopSettings.payments.upiVpa === 'printbk@upi') {
+          memShopSettings.payments.upiVpa = process.env.UPI_ID || 'Q098686787@ybl';
+        }
+        if (!memShopSettings.payments.upiName || memShopSettings.payments.upiName === 'PrintBK Campus Store') {
+          memShopSettings.payments.upiName = process.env.UPI_PAYEE_NAME || 'HKBK Student Point';
         }
         if (s.shop_info) {
           const si = typeof s.shop_info === 'string' ? JSON.parse(s.shop_info) : s.shop_info;
@@ -1565,21 +1572,24 @@ app.post('/orders/:id/start-upi', async (req, res) => {
         payeeName = payeeName || global.__printbk_settings.rates?.upiName || global.__printbk_settings.payments?.upiName || global.__printbk_settings.shop_info?.payee;
       }
       if (!upiId && zcql) {
-        const sRows = await zcql.executeZCQLQuery("SELECT settings_json FROM shop_settings WHERE id = 'default_shop' LIMIT 1").catch(() => null);
+        const sRows = await zcql.executeZCQLQuery("SELECT * FROM shop_settings WHERE id = 'default' LIMIT 1").catch(() => null);
         if (sRows && sRows.length > 0) {
-          const cfg = JSON.parse(sRows[0].shop_settings.settings_json || '{}');
-          upiId = upiId || cfg.rates?.upiVpa || cfg.payments?.upiVpa || cfg.shop_info?.upi;
-          payeeName = payeeName || cfg.rates?.upiName || cfg.payments?.upiName || cfg.shop_info?.payee;
+          const cfg = sRows[0].shop_settings;
+          const p = typeof cfg.payments === 'string' ? JSON.parse(cfg.payments || '{}') : (cfg.payments || {});
+          upiId = upiId || p.upiVpa || cfg.upi_id;
+          payeeName = payeeName || p.upiName || cfg.payee_name;
         }
       }
     } catch (_) {}
 
-    upiId = (upiId || 'printbk@upi').trim();
-    payeeName = (payeeName || 'PrintBK Campus Reprographics').trim();
+    upiId = (upiId || process.env.UPI_ID || 'Q098686787@ybl').trim();
+    if (upiId === 'printbk@upi') upiId = 'Q098686787@ybl';
+    payeeName = (payeeName || process.env.UPI_PAYEE_NAME || 'HKBK Student Point').trim();
     const orderNum = o.order_number || b.orderNumber || 1001;
-    const amountStr = Number(o.total).toFixed(2);
+    const amountStr = Number(o.total || 0).toFixed(2);
     const tr = o.id.replace(/-/g, '').slice(0, 32);
-    const note = `Order #${orderNum}`;
+    // Sanitize note: no '#' characters (strict bank compliance prevents "internal policy" rejection)
+    const note = `Order ${orderNum}`;
 
     // Clean NPCI Standard UPI URI
     const queryParams = `pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(amountStr)}&tn=${encodeURIComponent(note)}&cu=INR`;
@@ -1628,7 +1638,7 @@ app.post('/orders/:id/start-upi', async (req, res) => {
       tr
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to start UPI flow' });
+    res.status(500).json({ error: 'Failed to start UPI flow: ' + err.message });
   }
 });
 

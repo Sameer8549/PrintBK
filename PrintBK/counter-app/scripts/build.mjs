@@ -88,4 +88,10 @@ if (fs.existsSync(agentSrc)) {
   fs.cpSync(agentSrc, agentTarget, { recursive: true });
 }
 
+// 8. Copy root agent.js launcher into dist/agent.js
+const rootAgentJs = path.resolve('agent.js');
+if (fs.existsSync(rootAgentJs)) {
+  fs.copyFileSync(rootAgentJs, path.join(distDir, 'agent.js'));
+}
+
 console.log('[Build] SUCCESS: PrintBK Counter desktop build assembled in dist/!');

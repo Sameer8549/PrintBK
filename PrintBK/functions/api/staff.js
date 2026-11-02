@@ -371,7 +371,7 @@ router.get('/live', async (req, res) => {
 
     // 3. Fetch active orders
     const deleteCutoff = now - (shop.delete_delay_minutes * 60);
-    const activeStatuses = "'pending_cash', 'upi_claimed', 'cash_collected', 'processing', 'printing', 'ready', 'waiting_quote', 'quote_sent'";
+    const activeStatuses = "'pending_cash', 'pending_payment', 'upi_started', 'upi_claimed', 'cash_collected', 'processing', 'printing', 'ready', 'waiting_quote', 'quote_sent'";
     
     const ordersMap = new Map();
     if (zcql) {
@@ -399,7 +399,7 @@ router.get('/live', async (req, res) => {
 
     // Merge in-memory orders
     for (const [id, o] of memOrders) {
-      const activeList = ['pending_cash', 'upi_claimed', 'cash_collected', 'processing', 'printing', 'ready', 'waiting_quote', 'quote_sent'];
+      const activeList = ['pending_cash', 'pending_payment', 'upi_started', 'upi_claimed', 'cash_collected', 'processing', 'printing', 'ready', 'waiting_quote', 'quote_sent'];
       if (activeList.includes(o.status) && !ordersMap.has(id)) {
         ordersMap.set(id, o);
       }
@@ -1721,8 +1721,8 @@ router.get('/devices', async (req, res) => {
     let list = [];
     if (zcql) {
       try {
-        const rows = await zcql.executeZCQLQuery(`SELECT id, label, created_at, last_seen_at, revoked FROM staff_devices ORDER BY created_at DESC`);
-        list = (rows || []).map(r => r.staff_devices);
+        const rows = await zcql.executeZCQLQuery(`SELECT ROWID, label, created_at, last_seen_at, revoked FROM staff_devices ORDER BY created_at DESC`).catch(() => []);
+        list = (rows || []).map(r => ({ id: r.staff_devices.ROWID || r.staff_devices.id, ...r.staff_devices }));
       } catch (_) {}
     }
     if (list.length === 0) {
@@ -1748,7 +1748,7 @@ router.post('/devices/:id/revoke', async (req, res) => {
     const now = nowSec();
 
     if (zcql) {
-      await zcql.executeZCQLQuery(`UPDATE staff_devices SET revoked = true WHERE id = '${esc(targetId)}'`).catch(() => {});
+      await zcql.executeZCQLQuery(`UPDATE staff_devices SET revoked = true WHERE ROWID = ${targetId} OR label LIKE '%${esc(targetId)}%'`).catch(() => {});
     }
     for (const d of memStaffDevices.values()) {
       if (d.id === targetId) {
@@ -1769,8 +1769,8 @@ router.get('/agent-devices', async (req, res) => {
     let list = [];
     if (zcql) {
       try {
-        const rows = await zcql.executeZCQLQuery(`SELECT id, label, created_at, last_seen_at, revoked FROM agent_devices ORDER BY created_at DESC`);
-        list = (rows || []).map(r => r.agent_devices);
+        const rows = await zcql.executeZCQLQuery(`SELECT ROWID, label, created_at, last_seen_at, revoked FROM agent_devices ORDER BY created_at DESC`).catch(() => []);
+        list = (rows || []).map(r => ({ id: r.agent_devices.ROWID || r.agent_devices.id, ...r.agent_devices }));
       } catch (_) {}
     }
     if (list.length === 0) {
@@ -1796,7 +1796,7 @@ router.post('/agent-devices/:id/revoke', async (req, res) => {
     const now = nowSec();
 
     if (zcql) {
-      await zcql.executeZCQLQuery(`UPDATE agent_devices SET revoked = true WHERE id = '${esc(targetId)}'`).catch(() => {});
+      await zcql.executeZCQLQuery(`UPDATE agent_devices SET revoked = true WHERE ROWID = ${targetId} OR label LIKE '%${esc(targetId)}%'`).catch(() => {});
     }
     for (const d of memAgentDevices.values()) {
       if (d.id === targetId) {
@@ -1828,8 +1828,8 @@ router.get('/counters', async (req, res) => {
     if (zcql) {
       try {
         const rows = await zcql.executeZCQLQuery(
-          `SELECT id, label, created_at, last_seen_at, revoked FROM staff_devices WHERE label LIKE '%[COUNTER:%' ORDER BY created_at DESC`
-        );
+          `SELECT ROWID, label, created_at, last_seen_at, revoked FROM staff_devices WHERE label LIKE '%[COUNTER:%' ORDER BY created_at DESC`
+        ).catch(() => []);
         for (const row of rows || []) {
           const d = row.staff_devices;
           const match = d.label.match(/^(.*?) \(Counter UI\) \[COUNTER:([^:]+)(?::([^:]+):([^\]]+))?\]/);
@@ -1842,7 +1842,7 @@ router.get('/counters', async (req, res) => {
               map.set(counterId, {
                 id: counterId,
                 label: rawLabel,
-                staff_device_id: d.id,
+                staff_device_id: d.ROWID || d.id,
                 app_version: appVersion,
                 agent_version: agentVersion,
                 created_at: d.created_at,
@@ -1919,6 +1919,68 @@ router.post('/counters/:id/revoke', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to revoke counter: ' + err.message });
+  }
+});
+
+router.post('/counters/reset-all', authenticateStaff, async (req, res) => {
+  try {
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+
+    let deletedStaffDevices = 0;
+    let deletedAgentDevices = 0;
+    let deletedPrinters = 0;
+
+    if (zcql) {
+      try {
+        const sRows = await zcql.executeZCQLQuery('SELECT ROWID FROM staff_devices').catch(() => []);
+        for (const r of sRows || []) {
+          const rowId = r.staff_devices?.ROWID;
+          if (rowId) {
+            await zcql.executeZCQLQuery(`DELETE FROM staff_devices WHERE ROWID = ${rowId}`).catch(() => {});
+            deletedStaffDevices++;
+          }
+        }
+      } catch (_) {}
+
+      try {
+        const aRows = await zcql.executeZCQLQuery('SELECT ROWID FROM agent_devices').catch(() => []);
+        for (const r of aRows || []) {
+          const rowId = r.agent_devices?.ROWID;
+          if (rowId) {
+            await zcql.executeZCQLQuery(`DELETE FROM agent_devices WHERE ROWID = ${rowId}`).catch(() => {});
+            deletedAgentDevices++;
+          }
+        }
+      } catch (_) {}
+
+      try {
+        const pRows = await zcql.executeZCQLQuery('SELECT ROWID FROM printers').catch(() => []);
+        for (const r of pRows || []) {
+          const rowId = r.printers?.ROWID;
+          if (rowId) {
+            await zcql.executeZCQLQuery(`DELETE FROM printers WHERE ROWID = ${rowId}`).catch(() => {});
+            deletedPrinters++;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Clear all in-memory registries completely
+    memStaffDevices.clear();
+    memAgentDevices.clear();
+    memPairedCounters.clear();
+    if (global.__printbk_printers) global.__printbk_printers.clear();
+
+    res.json({
+      ok: true,
+      message: 'All client systems, paired counters, devices, and printers have been completely wiped.',
+      deletedStaffDevices,
+      deletedAgentDevices,
+      deletedPrinters
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reset systems: ' + err.message });
   }
 });
 

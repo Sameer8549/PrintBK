@@ -2,7 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import https from 'https';
 import http from 'http';
+import dns from 'dns';
 import fetch from 'node-fetch';
+
+// Prioritize IPv4 across all Node DNS lookups to prevent blackhole timeouts on campus/office Ethernet
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch (_) {}
 
 // RFC 8305 Happy Eyeballs support to prevent IPv4 ETIMEDOUT on IPv6/NAT64 networks
 const httpsAgent = new https.Agent({
@@ -212,6 +218,12 @@ class PrintAgentDaemon {
           if (body.shop_settings.mixed_colour_mode) {
             this.mixedColourMode = body.shop_settings.mixed_colour_mode;
           }
+          if (body.shop_settings.printer_mapping) {
+            const pm = body.shop_settings.printer_mapping;
+            if (pm.bw && pm.bw !== 'No B&W printer') this.config.printerProfiles.bw = pm.bw;
+            if (pm.colour && pm.colour !== 'No colour printer') this.config.printerProfiles.colour = pm.colour;
+            if (pm.photo && pm.photo !== 'No photo printer') this.config.printerProfiles.photo = pm.photo;
+          }
         }
         this.trayManager?.updateStatus(`PrintBK Agent (Online - ${printers.length} printer${printers.length > 1 ? 's' : ''})`);
       } else {
@@ -294,9 +306,21 @@ class PrintAgentDaemon {
   private async handleTestPrintJob(payload: any): Promise<void> {
     const { job, targetPrinter } = payload;
     const discovered = await discoverPrinters(this.config.dryRun, this.config.printerProfiles).catch(() => []);
-    let printerName = targetPrinter || this.config.printerProfiles.bw;
-    if (!printerName || printerName === 'bw' || printerName === 'colour' || printerName === 'photo' || printerName.includes('-') || !discovered.some(p => p.name.toLowerCase() === (printerName || '').toLowerCase())) {
-      printerName = discovered.find(p => p.isDefault)?.name || discovered[0]?.name || this.config.printerProfiles.bw || '';
+    let printerName = targetPrinter;
+    if (!printerName || printerName === 'bw') {
+      printerName = this.config.printerProfiles.bw || discovered.find(p => p.role === 'bw' || p.role === 'both')?.name;
+    } else if (printerName === 'colour') {
+      printerName = this.config.printerProfiles.colour || discovered.find(p => p.role === 'colour' || p.role === 'both')?.name;
+    } else if (printerName === 'photo') {
+      printerName = this.config.printerProfiles.photo || this.config.printerProfiles.colour;
+    }
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test((printerName || '').trim());
+    if (isUuid || !printerName || !discovered.some(p => p.name.toLowerCase() === (printerName || '').toLowerCase())) {
+      printerName = discovered.find(p => p.name.toLowerCase() === (this.config.printerProfiles.bw || '').toLowerCase())?.name
+        || discovered.find(p => p.isDefault)?.name
+        || discovered[0]?.name
+        || this.config.printerProfiles.bw
+        || '';
     }
     console.log(`[Agent] Generating test print for ${printerName || 'Default Printer'}...`);
 
@@ -335,8 +359,13 @@ class PrintAgentDaemon {
     const { job, targetPrinter } = payload;
     const discovered = await discoverPrinters(this.config.dryRun, this.config.printerProfiles).catch(() => []);
     let printerName = targetPrinter || this.config.printerProfiles.colour;
-    if (!printerName || printerName === 'bw' || printerName === 'colour' || printerName === 'photo' || printerName.includes('-') || !discovered.some(p => p.name.toLowerCase() === (printerName || '').toLowerCase())) {
-      printerName = discovered.find(p => p.role === 'colour' || p.role === 'both')?.name || discovered.find(p => p.isDefault)?.name || discovered[0]?.name || '';
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test((printerName || '').trim());
+    if (isUuid || !printerName || printerName === 'bw' || printerName === 'colour' || printerName === 'photo' || !discovered.some(p => p.name.toLowerCase() === (printerName || '').toLowerCase())) {
+      printerName = discovered.find(p => p.name.toLowerCase() === (this.config.printerProfiles.colour || '').toLowerCase())?.name
+        || discovered.find(p => p.role === 'colour' || p.role === 'both')?.name
+        || discovered.find(p => p.isDefault)?.name
+        || discovered[0]?.name
+        || '';
     }
     const qrUrl = `${this.config.apiBase.replace('/server/api', '')}/app/student`;
 
@@ -463,10 +492,39 @@ class PrintAgentDaemon {
                 ? (this.config.printerProfiles.colour || job.printer)
                 : (this.config.printerProfiles.bw || job.printer));
 
-          if (!targetPrinter || targetPrinter === 'bw' || targetPrinter === 'colour' || targetPrinter === 'photo' || targetPrinter === 'both' || !discoveredPrinters.some(p => p.name.toLowerCase() === (targetPrinter || '').toLowerCase())) {
-            const roleMatch = discoveredPrinters.find(p => p.role === part.role || p.role === 'both');
-            targetPrinter = roleMatch?.name || discoveredPrinters.find(p => p.isDefault)?.name || discoveredPrinters[0]?.name || targetPrinter || 'Default Printer';
+          const cleanTarget = (targetPrinter || '').trim();
+          const isTargetUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanTarget);
+          
+          let resolvedPrinter = '';
+          if (!isTargetUuid && cleanTarget && !['bw', 'colour', 'photo', 'both', 'Default Printer'].includes(cleanTarget)) {
+            // 1. Exact match in discovered printers
+            const exact = discoveredPrinters.find(p => p.name.toLowerCase() === cleanTarget.toLowerCase());
+            if (exact) resolvedPrinter = exact.name;
+            // 2. Fuzzy substring match (driver names often have "(Copy 1)" or model prefixes)
+            if (!resolvedPrinter) {
+              const fuzzy = discoveredPrinters.find(p => p.name.toLowerCase().includes(cleanTarget.toLowerCase()) || cleanTarget.toLowerCase().includes(p.name.toLowerCase()));
+              if (fuzzy) resolvedPrinter = fuzzy.name;
+            }
           }
+
+          if (!resolvedPrinter) {
+            // 3. Match against configured role profile
+            const profileName = (part.role === 'colour' ? this.config.printerProfiles.colour : (part.role === 'photo' ? (this.config.printerProfiles.photo || this.config.printerProfiles.colour) : this.config.printerProfiles.bw)) || '';
+            if (profileName) {
+              const profileMatch = discoveredPrinters.find(p => p.name.toLowerCase() === profileName.toLowerCase())
+                || discoveredPrinters.find(p => p.name.toLowerCase().includes(profileName.toLowerCase()) || profileName.toLowerCase().includes(p.name.toLowerCase()));
+              if (profileMatch) resolvedPrinter = profileMatch.name;
+            }
+          }
+
+          if (!resolvedPrinter) {
+            // 4. Role-based fallback: strictly match printer with corresponding capability
+            const roleMatch = discoveredPrinters.find(p => p.role === part.role)
+              || discoveredPrinters.find(p => p.role === 'both');
+            if (roleMatch) resolvedPrinter = roleMatch.name;
+          }
+
+          targetPrinter = resolvedPrinter || discoveredPrinters.find(p => p.isDefault)?.name || discoveredPrinters[0]?.name || 'Default Printer';
 
           const partFile = path.join(this.config.workDir, `print_${job.id}_${part.role}.pdf`);
           fs.writeFileSync(partFile, part.pdfBytes);

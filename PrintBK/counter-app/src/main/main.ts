@@ -2,6 +2,7 @@ import { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog, session, native
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import dns from 'dns';
 import https from 'https';
 import fetch from 'node-fetch';
 import { autoUpdater } from 'electron-updater';
@@ -10,6 +11,14 @@ import { AgentSupervisor, AgentStatus } from './agentSupervisor';
 import { discoverPrinters } from '../agent/printers';
 import { findSumatraBinary } from '../agent/sumatra';
 import { findLibreOfficeBinary } from '../agent/converter';
+
+// Prioritize IPv4 across all Node DNS lookups to prevent blackhole timeouts on campus/office Ethernet
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch (_) {}
+
+// Disable DNS over HTTPS in Chromium network service to prevent Ethernet gateway blocks
+app.commandLine.appendSwitch('disable-features', 'DnsOverHttps');
 
 // Custom HTTPS Agent with RFC 8305 Happy Eyeballs support for IPv4/IPv6 NAT64 networks
 const httpsAgent = new https.Agent({
@@ -772,7 +781,21 @@ function startAgentSupervisor() {
   const creds = store.get();
   if (!creds.agentToken) return;
 
-  const workerScript = path.resolve(__dirname, '../agent/worker.js');
+  const resPath = (process as any).resourcesPath || '';
+  const execDir = path.dirname(process.execPath);
+  const workerCandidates = [
+    path.resolve(__dirname, '../agent/worker.js'),
+    path.join(resPath, 'agent/worker.js'),
+    path.join(resPath, 'agent.js'),
+    path.join(resPath, 'app/dist/agent/worker.js'),
+    path.join(execDir, 'resources/agent/worker.js'),
+    path.join(execDir, 'resources/agent.js'),
+    path.join(execDir, 'agent.js'),
+    path.resolve(__dirname, '../../agent.js'),
+    path.resolve(process.cwd(), 'agent.js'),
+    path.resolve(process.cwd(), 'dist/agent/worker.js')
+  ];
+  const workerScript = workerCandidates.find(p => fs.existsSync(p)) || path.resolve(__dirname, '../agent/worker.js');
   const targetApiBase = creds.apiBase || appConfig.apiBase;
 
   if (supervisor) {

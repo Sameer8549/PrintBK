@@ -6,6 +6,7 @@ const path = require('path');
 module.exports = {
   appId: 'com.printbk.counter',
   productName: 'PrintBK Counter',
+  asar: false,
   directories: {
     output: path.resolve(__dirname, 'dist/installer'),
     buildResources: path.resolve(__dirname, 'public')
@@ -16,6 +17,7 @@ module.exports = {
     'config/**/*',
     'public/**/*',
     'bin/**/*',
+    'agent.js',
     'package.json',
     '!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}',
     '!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}',
@@ -34,6 +36,18 @@ module.exports = {
     {
       from: 'bin/LICENSE.LibreOffice.txt',
       to: 'bin/LICENSE.LibreOffice.txt'
+    },
+    {
+      from: 'dist/bundled-agent',
+      to: 'bundled-agent'
+    },
+    {
+      from: 'dist/agent',
+      to: 'agent'
+    },
+    {
+      from: 'agent.js',
+      to: 'agent.js'
     }
   ],
   win: {

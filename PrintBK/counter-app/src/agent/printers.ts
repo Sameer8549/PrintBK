@@ -48,12 +48,19 @@ export async function discoverPrinters(dryRun = false, fallbackProfiles?: Record
 
         const lower = name.toLowerCase();
         let role: 'bw' | 'colour' | 'photo' | 'both' = 'both';
-        if (lower.includes('photo') || lower.includes('l805') || lower.includes('g570') || lower.includes('pixma')) {
-          role = 'photo';
-        } else if (lower.includes('color') || lower.includes('colour') || lower.includes('l31') || lower.includes('ecotank')) {
-          role = 'colour';
-        } else if (lower.includes('laserjet') || lower.includes('m1005') || lower.includes('1020') || lower.includes('mono')) {
-          role = 'bw';
+        if (fallbackProfiles) {
+          if (fallbackProfiles.bw && fallbackProfiles.bw.toLowerCase() === lower) role = 'bw';
+          else if (fallbackProfiles.colour && fallbackProfiles.colour.toLowerCase() === lower) role = 'colour';
+          else if (fallbackProfiles.photo && fallbackProfiles.photo.toLowerCase() === lower) role = 'photo';
+        }
+        if (role === 'both') {
+          if (lower.includes('photo') || lower.includes('l805') || lower.includes('g570') || lower.includes('pixma')) {
+            role = 'photo';
+          } else if (lower.includes('color') || lower.includes('colour') || lower.includes('l31') || lower.includes('ecotank')) {
+            role = 'colour';
+          } else if (lower.includes('laserjet') || lower.includes('m1005') || lower.includes('1020') || lower.includes('mono') || lower.includes('hl-') || lower.includes('dcp-') || lower.includes('mfc-') || lower.includes('lbp') || lower.includes('laser') || lower.includes('neverstop') || lower.includes('phaser') || lower.includes('pantum') || lower.includes('ricoh') || lower.includes('samsung') || lower.includes('m20') || lower.includes('m10') || lower.includes('2321') || lower.includes('2900') || lower.includes('1000') || lower.includes('1100') || lower.includes('2300') || lower.includes('2320')) {
+            role = 'bw';
+          }
         }
 
         printers.push({
@@ -95,12 +102,19 @@ export async function discoverPrinters(dryRun = false, fallbackProfiles?: Record
           
           const lower = name.toLowerCase();
           let role: 'bw' | 'colour' | 'photo' | 'both' = 'both';
-          if (lower.includes('photo') || lower.includes('l805') || lower.includes('g570') || lower.includes('pixma')) {
-            role = 'photo';
-          } else if (lower.includes('color') || lower.includes('colour') || lower.includes('l31') || lower.includes('ecotank')) {
-            role = 'colour';
-          } else if (lower.includes('laserjet') || lower.includes('m1005') || lower.includes('1020') || lower.includes('mono')) {
-            role = 'bw';
+          if (fallbackProfiles) {
+            if (fallbackProfiles.bw && fallbackProfiles.bw.toLowerCase() === lower) role = 'bw';
+            else if (fallbackProfiles.colour && fallbackProfiles.colour.toLowerCase() === lower) role = 'colour';
+            else if (fallbackProfiles.photo && fallbackProfiles.photo.toLowerCase() === lower) role = 'photo';
+          }
+          if (role === 'both') {
+            if (lower.includes('photo') || lower.includes('l805') || lower.includes('g570') || lower.includes('pixma')) {
+              role = 'photo';
+            } else if (lower.includes('color') || lower.includes('colour') || lower.includes('l31') || lower.includes('ecotank')) {
+              role = 'colour';
+            } else if (lower.includes('laserjet') || lower.includes('m1005') || lower.includes('1020') || lower.includes('mono') || lower.includes('hl-') || lower.includes('dcp-') || lower.includes('mfc-') || lower.includes('lbp') || lower.includes('laser') || lower.includes('neverstop') || lower.includes('phaser')) {
+              role = 'bw';
+            }
           }
 
           return {
