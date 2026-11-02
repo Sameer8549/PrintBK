@@ -1,8 +1,9 @@
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import util from 'util';
 import os from 'os';
 
 const execAsync = util.promisify(exec);
+const execFileAsync = util.promisify(execFile);
 
 export interface DiscoveredPrinter {
   name: string;
@@ -19,8 +20,11 @@ export async function discoverPrinters(dryRun = false, fallbackProfiles?: Record
 
   if (!dryRun && isWindows) {
     try {
-      const psCommand = `powershell -NoProfile -Command "Get-CimInstance -ClassName Win32_Printer | Select-Object Name, Default, PrinterStatus, WorkOffline, PortName | ConvertTo-Json -Compress"`;
-      const { stdout } = await execAsync(psCommand, { timeout: 4000 });
+      const { stdout } = await execFileAsync('powershell', [
+        '-NoProfile',
+        '-Command',
+        'Get-CimInstance -ClassName Win32_Printer | Select-Object Name, Default, PrinterStatus, WorkOffline, PortName | ConvertTo-Json -Compress'
+      ], { timeout: 12000 });
       if (stdout && stdout.trim()) {
         const parsed = JSON.parse(stdout.trim());
         const list = Array.isArray(parsed) ? parsed : [parsed];
