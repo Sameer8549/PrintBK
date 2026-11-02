@@ -631,7 +631,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
     }}>
       {/* Top Preview Status */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', fontSize: 11, fontWeight: 700, color: '#64748b' }}>
-        <span>{isImage ? 'PHOTO PRINT PREVIEW' : 'DOCUMENT PREVIEW'}</span>
+        <span>{isPhotoSheet ? 'PHOTO PRINT PREVIEW' : 'DOCUMENT PREVIEW'}</span>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{
             background: isBW ? '#e2e8f0' : '#dbeafe',
@@ -765,19 +765,19 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
       <div style={{
         position: 'relative',
         width: '100%',
-        maxWidth: (isImage && ((file as any).photoLayout?.includes('Square') || (file as any).photoLayout?.includes('8x8') || (file as any).photoLayout?.includes('8×8') || (s as any).photoSize === '8x8'))
+        maxWidth: (isPhotoSheet && ((file as any).photoLayout?.includes('Square') || (file as any).photoLayout?.includes('8x8') || (file as any).photoLayout?.includes('8×8') || (s as any).photoSize === '8x8'))
           ? 280
-          : (isImage && ((file as any).photoLayout?.includes('4x6') || (file as any).photoLayout?.includes('4×6') || (s as any).photoSize === '4x6'))
+          : (isPhotoSheet && ((file as any).photoLayout?.includes('4x6') || (file as any).photoLayout?.includes('4×6') || (s as any).photoSize === '4x6'))
           ? (isSheetWide ? 330 : 220)
           : isSheetWide ? (s.paper === 'A3' ? 360 : 330) : (s.paper === 'A3' ? 275 : 245),
-        aspectRatio: (isImage && ((file as any).photoLayout?.includes('Square') || (file as any).photoLayout?.includes('8x8') || (file as any).photoLayout?.includes('8×8') || (s as any).photoSize === '8x8'))
+        aspectRatio: (isPhotoSheet && ((file as any).photoLayout?.includes('Square') || (file as any).photoLayout?.includes('8x8') || (file as any).photoLayout?.includes('8×8') || (s as any).photoSize === '8x8'))
           ? '1 / 1'
-          : (isImage && ((file as any).photoLayout?.includes('4x6') || (file as any).photoLayout?.includes('4×6') || (s as any).photoSize === '4x6'))
+          : (isPhotoSheet && ((file as any).photoLayout?.includes('4x6') || (file as any).photoLayout?.includes('4×6') || (s as any).photoSize === '4x6'))
           ? (isSheetWide ? '1.5 / 1' : '1 / 1.5')
           : isSheetWide ? '1.414 / 1' : '1 / 1.414',
-        minHeight: (isImage && ((file as any).photoLayout?.includes('Square') || (file as any).photoLayout?.includes('8x8') || (file as any).photoLayout?.includes('8×8') || (s as any).photoSize === '8x8'))
+        minHeight: (isPhotoSheet && ((file as any).photoLayout?.includes('Square') || (file as any).photoLayout?.includes('8x8') || (file as any).photoLayout?.includes('8×8') || (s as any).photoSize === '8x8'))
           ? 280
-          : (isImage && ((file as any).photoLayout?.includes('4x6') || (file as any).photoLayout?.includes('4×6') || (s as any).photoSize === '4x6'))
+          : (isPhotoSheet && ((file as any).photoLayout?.includes('4x6') || (file as any).photoLayout?.includes('4×6') || (s as any).photoSize === '4x6'))
           ? (isSheetWide ? 220 : 330)
           : isSheetWide ? (s.paper === 'A3' ? 245 : 220) : (s.paper === 'A3' ? 350 : 310),
         background: '#fff',
@@ -1389,9 +1389,10 @@ function FileCard({
 
   const fileName = (raw?.name || file.name || '').toLowerCase();
   const isPhotoSheet = Boolean((file as any).isPhotoSheet);
-  const isImage = Boolean(raw?.type?.startsWith('image/')) || /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(fileName) || isPhotoSheet;
-  const isSinglePageDoc = !isImage && (file.pages === 1);
-  const isMultiPageDoc = !isImage && (file.pages > 1);
+  const isNormalImage = (Boolean(raw?.type?.startsWith('image/')) || /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(fileName)) && !isPhotoSheet;
+  const isImage = isNormalImage || isPhotoSheet;
+  const isSinglePageDoc = (!isPhotoSheet && (file.pages === 1 || isNormalImage));
+  const isMultiPageDoc = !isPhotoSheet && !isNormalImage && (file.pages > 1);
 
   const cfg = useShopConfig(st => st.config);
   const isBwAvail = (cfg.services?.document_bw?.available !== false) && (cfg.services?.bw?.available !== false);
@@ -1406,10 +1407,12 @@ function FileCard({
   }, [isColourAvail, isBwAvail, s.colorMode]);
 
   useEffect(() => {
-    if (isImage && s.paper !== 'Glossy') {
+    if (isPhotoSheet && s.paper !== 'Glossy') {
       upd({ paper: 'Glossy' } as any);
+    } else if (!isPhotoSheet && s.paper === 'Glossy') {
+      upd({ paper: 'A4' } as any);
     }
-  }, [isImage, s.paper]);
+  }, [isPhotoSheet, s.paper]);
 
   const cfgRates = (cfg?.rates as any) || {};
   const bwRate = cfgRates.bw ?? 1.50;
@@ -1435,18 +1438,18 @@ function FileCard({
       {/* ── Header row: Clean single Edit toggle, formula, savings chip ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px' }}>
         <div style={{ display: 'grid', placeItems: 'center', marginTop: 2 }}>
-          <Icon name={isImage ? "camera" : "file"} size={22} />
+          <Icon name={isPhotoSheet ? "camera" : "file"} size={22} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 800, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0f172a' }}>{file.name}</div>
           <div style={{ fontSize: 12, color: '#475569', fontWeight: 600, marginTop: 2 }}>
-            {isImage ? (
+            {isPhotoSheet ? (
               <span>
-                Photo Print · {s.paper === 'A3' ? 'A3 Large Sheet' : '1 Sheet'} · {s.colorMode === 'bw' ? 'B&W' : 'Colour'} · {(s.imageFit === 'fill' || (s as any).fit === 'fill') ? 'Full Sheet' : 'Fitted to Paper'} · ×{s.copies}
+                Photo Print · {(s as any).photoSize === '8x8' ? '8×8 Square' : (s as any).photoSize === '4x6' ? '4×6 Photo' : 'Passport / A4 Sheet'} Glossy · {s.colorMode === 'bw' ? 'B&W' : 'Colour'} · ×{s.copies}
               </span>
             ) : isSinglePageDoc ? (
               <span>
-                Single Page Document · {s.paper === 'A3' ? 'A3 Large Sheet' : '1 Page'} · {s.colorMode === 'bw' ? 'B&W' : 'Colour'} · ×{s.copies}
+                {isNormalImage ? 'Image Document' : 'Single Page Document'} · {s.paper === 'A3' ? 'A3 Large Sheet' : s.paper === 'Legal' ? 'Legal' : 'A4 Standard'} · {s.colorMode === 'bw' ? 'B&W' : 'Colour'} · ×{s.copies}
               </span>
             ) : (
               <span>
@@ -1537,9 +1540,9 @@ function FileCard({
           <DocumentPreview file={file} go={go} />
 
           {/* ══════════════════════════════════════════════════════════
-              CASE 1: IMAGE / PHOTO SETTINGS (Clean, specialized, intuitive)
+              CASE 1: PHOTO SHEET SETTINGS (Passport, 4x6, 8x8 Glossy Photo Paper)
               ══════════════════════════════════════════════════════════ */}
-          {isImage && (
+          {isPhotoSheet && (
             <>
               {/* Photo Framing (Fit vs Fill) */}
               <div>
@@ -1848,6 +1851,50 @@ function FileCard({
                   </button>
                 </div>
               </div>
+
+              {/* Image Framing for dropped images */}
+              {isNormalImage && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+                    <span>IMAGE FRAMING &amp; FIT</span>
+                    <span style={{ color: '#0f172a', fontWeight: 800 }}>{(s.imageFit === 'fill' || (s as any).fit === 'fill') ? 'Full Sheet (Crop to fill)' : 'Fit to Paper (No crop)'}</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => upd({ imageFit: 'fit' } as any)}
+                      style={{
+                        ...btn,
+                        padding: '10px 8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 3,
+                        ...sel(s.imageFit !== 'fill' && (s as any).fit !== 'fill')
+                      }}
+                    >
+                      <span style={{ fontSize: 13, fontWeight: 800 }}>🖼️ Fit to Paper</span>
+                      <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>Full image · Clean margins</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => upd({ imageFit: 'fill' } as any)}
+                      style={{
+                        ...btn,
+                        padding: '10px 8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 3,
+                        ...sel(s.imageFit === 'fill' || (s as any).fit === 'fill')
+                      }}
+                    >
+                      <span style={{ fontSize: 13, fontWeight: 800 }}>📐 Full Sheet</span>
+                      <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500 }}>Fills entire paper</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Paper Size */}
               <div>

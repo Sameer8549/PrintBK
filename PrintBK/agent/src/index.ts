@@ -290,7 +290,11 @@ class PrintAgentDaemon {
 
   private async handleTestPrintJob(payload: any): Promise<void> {
     const { job, targetPrinter } = payload;
-    const printerName = targetPrinter || this.config.printerProfiles.bw || 'Default Printer';
+    const discovered = await discoverPrinters(this.config.dryRun, this.config.printerProfiles).catch(() => []);
+    let printerName = targetPrinter || this.config.printerProfiles.bw;
+    if (!printerName || printerName === 'bw' || printerName === 'colour' || printerName === 'photo' || !discovered.some(p => p.name.toLowerCase() === (printerName || '').toLowerCase())) {
+      printerName = discovered.find(p => p.isDefault)?.name || discovered[0]?.name || this.config.printerProfiles.bw || 'Default Printer';
+    }
     console.log(`[Agent] Generating test print for ${printerName}...`);
 
     const pdfBytes = await generateTestPrintPdf(printerName, { name: 'HKBK Student Point' });
@@ -433,12 +437,18 @@ class PrintAgentDaemon {
       } else {
         // Physical Print via SumatraPDF
         let pagesDoneAcc = 0;
+        const discoveredPrinters = await discoverPrinters(this.config.dryRun, this.config.printerProfiles).catch(() => []);
         for (const part of allParts) {
-          const targetPrinter = part.role === 'photo'
+          let targetPrinter = part.role === 'photo'
             ? (this.config.printerProfiles.photo || this.config.printerProfiles.colour || job.printer)
             : (part.role === 'colour'
                 ? (this.config.printerProfiles.colour || job.printer)
                 : (this.config.printerProfiles.bw || job.printer));
+
+          if (!targetPrinter || targetPrinter === 'bw' || targetPrinter === 'colour' || targetPrinter === 'photo' || targetPrinter === 'both' || !discoveredPrinters.some(p => p.name.toLowerCase() === (targetPrinter || '').toLowerCase())) {
+            const roleMatch = discoveredPrinters.find(p => p.role === part.role || p.role === 'both');
+            targetPrinter = roleMatch?.name || discoveredPrinters.find(p => p.isDefault)?.name || discoveredPrinters[0]?.name || targetPrinter || 'Default Printer';
+          }
 
           const partFile = path.join(this.config.workDir, `print_${job.id}_${part.role}.pdf`);
           fs.writeFileSync(partFile, part.pdfBytes);
@@ -538,10 +548,17 @@ class PrintAgentDaemon {
     } catch (_) {}
   }
 
-  public async triggerLocalTestPrint(printerName?: string): Promise<void> {
+  public async triggerLocalTestPrint(printerNameOrRole?: string): Promise<void> {
     try {
       const printers = await discoverPrinters(this.config.dryRun, this.config.printerProfiles);
-      const target = printerName || this.config.printerProfiles.bw || (printers[0]?.name) || 'Default Printer';
+      let target = printerNameOrRole;
+      if (!target || target === 'bw' || target === 'colour' || target === 'photo' || target === 'both') {
+        const role = target || 'bw';
+        target = this.config.printerProfiles[role] || printers.find(p => p.role === role)?.name || (printers[0]?.name) || 'Default Printer';
+      }
+      if (printers.length > 0 && !printers.some(p => p.name.toLowerCase() === (target || '').toLowerCase())) {
+        target = printers.find(p => p.isDefault)?.name || printers[0]?.name || target;
+      }
       logger.info(`[Agent] Triggering local test print on: ${target}`);
       const pdfBytes = await generateTestPrintPdf(target, { name: 'HKBK Student Point' });
       const part: PrintPart = {

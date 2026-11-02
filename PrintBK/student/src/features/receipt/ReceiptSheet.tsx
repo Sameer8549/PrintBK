@@ -110,6 +110,7 @@ function ReceiptSheet({
         <div class="pay-badge">PAYMENT: UPI INSTANT TRANSFER</div>
         <div class="pay-row"><span>Merchant Payee:</span><b>${upiName}</b></div>
         <div class="pay-row"><span>Beneficiary VPA:</span><b>${upiVpa}</b></div>
+        ${(order as any)?.utr ? `<div class="pay-row"><span>Bank UTR / Ref:</span><b style="font-family:monospace">${(order as any).utr}</b></div>` : ''}
         <div class="pay-row"><span>Amount Paid:</span><b class="paid">₹${total.toFixed(2)}</b></div>
         <div class="pay-row"><span>Transaction Status:</span><b>${paymentStatus === 'paid_verified' ? 'VERIFIED' : 'CLAIMED BY STUDENT'}</b></div>
         <div class="pay-desc">Payment claimed via UPI to ${upiVpa}. Shop staff will verify UTR and release prints.</div>
@@ -214,9 +215,9 @@ ${servicesRows}
           </div>
           <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.4 }}>
             {isCash ? (
-              <span>Please pay <b>₹${total.toFixed(2)} in cash</b> when collecting your prints at {shopName} printing desk.</span>
+              <span>Please pay <b>₹{total.toFixed(2)} in cash</b> when collecting your prints at {shopName} printing desk.</span>
             ) : (
-              <span>Paid to <b>{upiName}</b> (VPA: <code style={{ background: '#dbeafe', padding: '1px 4px', borderRadius: 3, fontWeight: 700 }}>{upiVpa}</code>). Present pickup code at counter for release.</span>
+              <span>Paid to <b>{upiName}</b> (VPA: <code style={{ background: '#dbeafe', padding: '1px 4px', borderRadius: 3, fontWeight: 700 }}>{upiVpa}</code>){(order as any)?.utr ? <> · UTR: <b style={{ fontFamily: 'monospace' }}>{(order as any).utr}</b></> : ''}. Present pickup code at counter for release.</span>
             )}
           </div>
         </div>

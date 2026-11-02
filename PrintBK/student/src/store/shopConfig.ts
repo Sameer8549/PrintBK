@@ -94,8 +94,8 @@ const DEFAULT_EXTENDED_CONFIG: ExtendedShopConfig = {
   },
   upi: {
     enabled: true,
-    payeeName: 'PrintBK HKBK',
-    upiId: 'Q098686787@ybl'
+    payeeName: 'PrintBK Store',
+    upiId: 'printbk@upi'
   },
   deleteDelayMinutes: 5,
   printerStatus: {

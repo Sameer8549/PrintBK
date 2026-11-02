@@ -1183,7 +1183,7 @@ router.post('/printers/:id/test-print', async (req, res) => {
     const printerId = req.params.id;
     const now = nowSec();
 
-    let printerName = req.body.printerName || printerId;
+    let printerName = (req.body && req.body.printerName) || printerId;
     if (zcql) {
       try {
         const rows = await zcql.executeZCQLQuery(`SELECT name FROM printers WHERE id = '${esc(printerId)}' OR name = '${esc(printerId)}' LIMIT 1`);
@@ -1223,7 +1223,7 @@ router.post('/printers/:id/print-qr', async (req, res) => {
     const printerId = req.params.id;
     const now = nowSec();
 
-    let printerName = req.body.printerName || printerId;
+    let printerName = (req.body && req.body.printerName) || printerId;
     if (zcql) {
       try {
         const rows = await zcql.executeZCQLQuery(`SELECT name FROM printers WHERE id = '${esc(printerId)}' OR name = '${esc(printerId)}' LIMIT 1`);
@@ -1260,7 +1260,7 @@ router.post('/printers/add', async (req, res) => {
   try {
     const catalystApp = getCatalystApp(req);
     const zcql = catalystApp ? catalystApp.zcql() : null;
-    const { name, role = 'both', online = true } = req.body;
+    const { name, role = 'both', online = true, ip, port, protocol } = req.body || {};
     if (!name || typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({ error: 'Printer name is required' });
     }
@@ -1286,11 +1286,14 @@ router.post('/printers/add', async (req, res) => {
         role,
         online: !!online,
         status: 'ready',
-        last_seen: now
+        last_seen: now,
+        ip: ip || null,
+        port: port || (protocol === 'lpr' ? 515 : 9100),
+        protocol: protocol || 'raw'
       });
     }
 
-    res.json({ ok: true, printer: { id: printerId, name: printerName, role, online: !!online, status: 'ready' } });
+    res.json({ ok: true, printer: { id: printerId, name: printerName, role, online: !!online, status: 'ready', ip, port, protocol } });
   } catch (err) {
     res.status(500).json({ error: 'Failed to add printer: ' + err.message });
   }

@@ -523,8 +523,8 @@ const DEFAULT_SHOP_SETTINGS = {
     cash: true,
     upi: true,
     razorpay: false,
-    upiVpa: 'Q098686787@ybl',
-    upiName: 'PrintBK HKBK'
+    upiVpa: 'printbk@upi',
+    upiName: 'PrintBK Campus Store'
   },
   shop_info: {
     name: 'HKBK Student Point',
@@ -798,8 +798,8 @@ app.get(['/config', '/shop/config'], async (req, res) => {
   const settings = await getEffectiveShopSettings(catalystApp);
 
   const rzpEnabled = Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET && process.env.RAZORPAY_ENABLED === 'true');
-  const upiId = process.env.UPI_ID || 'Q098686787@ybl';
-  const upiPayee = process.env.UPI_PAYEE_NAME || 'PrintBK HKBK';
+  const upiId = process.env.UPI_ID || settings.rates?.upiVpa || settings.payments?.upiVpa || 'printbk@upi';
+  const upiPayee = process.env.UPI_PAYEE_NAME || settings.rates?.upiName || settings.payments?.upiName || 'PrintBK Campus Reprographics';
 
   // Compute live printer status summary from memPrinters
   const now = nowSec();
@@ -1555,21 +1555,40 @@ app.post('/orders/:id/start-upi', async (req, res) => {
       return res.status(409).json({ error: `Cannot start UPI for order in status "${o.status}"` });
     }
 
-    const upiId = process.env.UPI_ID || 'Q098686787@ybl';
-    const payeeName = process.env.UPI_PAYEE_NAME || 'PrintBK HKBK';
+    let upiId = process.env.UPI_ID;
+    let payeeName = process.env.UPI_PAYEE_NAME;
+
+    // Dynamically retrieve configured shop UPI VPA and payee name
+    try {
+      if (global.__printbk_settings) {
+        upiId = upiId || global.__printbk_settings.rates?.upiVpa || global.__printbk_settings.payments?.upiVpa || global.__printbk_settings.shop_info?.upi;
+        payeeName = payeeName || global.__printbk_settings.rates?.upiName || global.__printbk_settings.payments?.upiName || global.__printbk_settings.shop_info?.payee;
+      }
+      if (!upiId && zcql) {
+        const sRows = await zcql.executeZCQLQuery("SELECT settings_json FROM shop_settings WHERE id = 'default_shop' LIMIT 1").catch(() => null);
+        if (sRows && sRows.length > 0) {
+          const cfg = JSON.parse(sRows[0].shop_settings.settings_json || '{}');
+          upiId = upiId || cfg.rates?.upiVpa || cfg.payments?.upiVpa || cfg.shop_info?.upi;
+          payeeName = payeeName || cfg.rates?.upiName || cfg.payments?.upiName || cfg.shop_info?.payee;
+        }
+      }
+    } catch (_) {}
+
+    upiId = (upiId || 'printbk@upi').trim();
+    payeeName = (payeeName || 'PrintBK Campus Reprographics').trim();
     const orderNum = o.order_number || b.orderNumber || 1001;
     const amountStr = Number(o.total).toFixed(2);
     const tr = o.id.replace(/-/g, '').slice(0, 32);
-    const note = `PrintBK Order #${orderNum}`;
+    const note = `Order #${orderNum}`;
 
-    // NPCI Canonical UPI URI with parameter encoding
-    const queryParams = `pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(amountStr)}&tn=${encodeURIComponent(note)}&tr=${encodeURIComponent(tr)}&cu=INR`;
+    // Clean NPCI Standard UPI URI
+    const queryParams = `pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(amountStr)}&tn=${encodeURIComponent(note)}&cu=INR`;
     const canonicalIntent = `upi://pay?${queryParams}`;
 
-    // Documented platform-specific URL schemes
-    const gpayUrl = `tez://upi/pay?${queryParams}`;
-    const phonepeUrl = `phonepe://pay?${queryParams}`;
-    const paytmUrl = `paytmmp://pay?${queryParams}`;
+    // Intent schemes
+    const gpayUrl = canonicalIntent;
+    const phonepeUrl = canonicalIntent;
+    const paytmUrl = canonicalIntent;
 
     const now = nowSec();
     b.events = b.events || [];

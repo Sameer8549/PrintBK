@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import QRCode from 'qrcode';
 import { Topbar, Icon, UpiLogo, GPayLogo, PhonePeLogo, PaytmLogo, BhimLogo } from '../../components/ui';
 import { Screen } from '../../lib/types';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -34,6 +35,8 @@ function PaymentState({
   const [copied, setCopied] = useState(false);
   const [failedLaunch, setFailedLaunch] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+  const [localQrDataUrl, setLocalQrDataUrl] = useState<string>('');
+  const [utrInput, setUtrInput] = useState('');
 
   // Platform detection
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
@@ -84,21 +87,36 @@ function PaymentState({
     return () => { active = false; };
   }, [id, order?.accessToken, isDesktop]);
 
+  // Generate local offline QR code whenever intentUrl is loaded
+  useEffect(() => {
+    if (!upiData?.intentUrl) return;
+    QRCode.toDataURL(upiData.intentUrl, {
+      margin: 1,
+      width: 440,
+      errorCorrectionLevel: 'M',
+      color: { dark: '#0f172a', light: '#ffffff' }
+    })
+      .then(url => setLocalQrDataUrl(url))
+      .catch(err => console.warn('Offline QR code generation warning:', err));
+  }, [upiData?.intentUrl]);
+
   // Execute automatic UPI return claim and redirect straight to receipt
-  const executeAutoClaim = async () => {
+  const executeAutoClaim = async (submittedUtr?: string) => {
     if (!id || claimedRef.current) return;
     claimedRef.current = true;
     setRedirecting(true);
 
     try {
-      const res = await api.upiReturn(id, order?.accessToken);
+      const finalUtr = submittedUtr || utrInput.trim() || undefined;
+      const res = await api.upiReturn(id, order?.accessToken, finalUtr);
       if (order) {
         updateOrder(id, {
           status: res.status || 'upi_claimed',
           payment_status: 'upi_claimed',
           orderNumber: res.orderNumber || order?.orderNumber,
-          paymentMethod: 'upi'
-        });
+          paymentMethod: 'upi',
+          utr: finalUtr
+        } as any);
       } else {
         useHistory.getState().addOrder({
           id,
@@ -236,8 +254,6 @@ function PaymentState({
       </main>
     );
   }
-
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiData.intentUrl)}`;
 
   return (
     <main className="page" style={{ height: '100dvh', maxHeight: '100dvh', overflow: 'hidden', background: '#f7f4ee', display: 'flex', flexDirection: 'column' }}>
@@ -527,6 +543,11 @@ function PaymentState({
               </a>
             </div>
 
+            {/* Security / Web Link Warning Notice */}
+            <div style={{ background: '#eff6ff', borderRadius: 12, border: '1px solid #bfdbfe', padding: '10px 14px', fontSize: 12, color: '#1e40af', lineHeight: 1.45, marginTop: 4 }}>
+              <strong>💡 If your UPI app shows a link warning:</strong> Some bank apps disable links opened from browsers for security. Simply <b>Scan the QR Code</b> or <b>Copy UPI ID ({upiData.upiId})</b> to pay directly in your app!
+            </div>
+
             {/* QR Toggle Button */}
             <button
               onClick={() => setShowQR(!showQR)}
@@ -546,8 +567,31 @@ function PaymentState({
                 gap: 8
               }}
             >
-              <span>{showQR ? '▲ Hide QR Code' : '📷 Show QR Code to Scan with Another Phone'}</span>
+              <span>{showQR ? '▲ Hide QR Code' : '📷 Show QR Code to Scan with Any UPI App'}</span>
             </button>
+
+            {/* Optional UTR / Reference ID Field */}
+            <div style={{ background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: 12, padding: 12, marginTop: 4 }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6, textTransform: 'uppercase' }}>
+                Bank UTR / Transaction Ref ID (Optional)
+              </label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  placeholder="e.g. 430123456789"
+                  value={utrInput}
+                  onChange={(e) => setUtrInput(e.target.value.replace(/[^0-9a-zA-Z]/g, '').slice(0, 22))}
+                  style={{ flex: 1, padding: '10px 12px', border: '1.5px solid #94a3b8', borderRadius: 8, fontSize: 13, fontFamily: 'monospace', fontWeight: 600, background: '#fff' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => executeAutoClaim(utrInput)}
+                  style={{ padding: '0 16px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >
+                  Confirm &rarr;
+                </button>
+              </div>
+            </div>
 
             {/* Direct Confirmation Button */}
             <button
@@ -581,11 +625,17 @@ function PaymentState({
                 <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>Scan &amp; Pay Instant</span>
               </div>
               <div style={{ background: '#fff', padding: 12, borderRadius: 16, border: '2px solid #0f172a', display: 'inline-block', boxShadow: '4px 4px 0 #cbd5e1' }}>
-                <img
-                  src={qrImageUrl}
-                  alt="UPI Payment QR Code"
-                  style={{ width: 200, height: 200, display: 'block', borderRadius: 8 }}
-                />
+                {localQrDataUrl ? (
+                  <img
+                    src={localQrDataUrl}
+                    alt="UPI Payment QR Code"
+                    style={{ width: 200, height: 200, display: 'block', borderRadius: 8 }}
+                  />
+                ) : (
+                  <div style={{ width: 200, height: 200, display: 'grid', placeItems: 'center', color: '#64748b', fontSize: 12 }}>
+                    Loading QR…
+                  </div>
+                )}
               </div>
               <p style={{ fontSize: 12, color: '#475569', margin: '12px 0 0', textAlign: 'center', fontWeight: 600 }}>
                 Scan using Google Pay, PhonePe, Paytm, BHIM, or any banking app

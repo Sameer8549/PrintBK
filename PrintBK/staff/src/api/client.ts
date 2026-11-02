@@ -306,9 +306,11 @@ export async function revokeDevice(deviceId: string) {
   return data
 }
 
-export async function testPrintPrinter(printerId: string) {
-  const res = await staffFetch(`/staff/printers/${printerId}/test-print`, {
+export async function testPrintPrinter(printerId: string, printerName?: string) {
+  const res = await staffFetch(`/staff/printers/${encodeURIComponent(printerId)}/test-print`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ printerName: printerName || printerId }),
   })
   const data = await res.json()
   if (!res.ok) {
@@ -317,9 +319,11 @@ export async function testPrintPrinter(printerId: string) {
   return data
 }
 
-export async function printQrPrinter(printerId: string) {
-  const res = await staffFetch(`/staff/printers/${printerId}/print-qr`, {
+export async function printQrPrinter(printerId: string, printerName?: string) {
+  const res = await staffFetch(`/staff/printers/${encodeURIComponent(printerId)}/print-qr`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ printerName: printerName || printerId }),
   })
   const data = await res.json()
   if (!res.ok) {
@@ -328,10 +332,11 @@ export async function printQrPrinter(printerId: string) {
   return data
 }
 
-export async function addStaffPrinter(name: string, role: string = "both") {
+export async function addStaffPrinter(name: string, role: string = "both", ip?: string, port?: number, protocol?: string) {
   const res = await staffFetch("/staff/printers/add", {
     method: "POST",
-    body: JSON.stringify({ name, role }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, role, ip, port, protocol }),
   })
   const data = await res.json()
   if (!res.ok) {

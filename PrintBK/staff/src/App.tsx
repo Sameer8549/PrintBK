@@ -506,20 +506,37 @@ function PrinterDropdownRow({
   printers = [],
   onSelect,
   onTest,
+  role = "both",
 }: {
   value: string
   printers?: LivePrinter[]
   onSelect?: (printerName: string) => void
   onTest: () => void
+  role?: "bw" | "colour" | "photo" | "both"
 }) {
-  const [addingCustom, setAddingCustom] = useState(false)
+  const [mode, setMode] = useState<"idle" | "custom" | "ip">("idle")
   const [customName, setCustomName] = useState("")
+  const [ipAddress, setIpAddress] = useState("")
+  const [ipPort, setIpPort] = useState("9100")
+  const [ipProtocol, setIpProtocol] = useState<"raw" | "lpr">("raw")
 
   const handleCustomSubmit = () => {
     if (customName.trim()) {
       onSelect?.(customName.trim())
-      setAddingCustom(false)
+      setMode("idle")
       setCustomName("")
+    }
+  }
+
+  const handleIpSubmit = () => {
+    if (ipAddress.trim()) {
+      const port = Number(ipPort) || (ipProtocol === "lpr" ? 515 : 9100)
+      const name = customName.trim() || `Network Printer (${ipAddress.trim()}:${port})`
+      onSelect?.(name)
+      addStaffPrinter(name, role, ipAddress.trim(), port, ipProtocol).catch(console.warn)
+      setMode("idle")
+      setCustomName("")
+      setIpAddress("")
     }
   }
 
@@ -530,25 +547,30 @@ function PrinterDropdownRow({
           value={value}
           onChange={(e) => {
             if (e.target.value === "__custom__") {
-              setAddingCustom(true)
+              setMode("custom")
+            } else if (e.target.value === "__ip__") {
+              setMode("ip")
             } else {
+              setMode("idle")
               onSelect?.(e.target.value)
             }
           }}
         >
           {printers.map((p) => (
-            <option key={p.id} value={p.name}>
-              {p.name} ({p.online ? "Online" : "Offline"})
+            <option key={p.id || p.name} value={p.name}>
+              {p.name} ({p.online ? "Online" : "Ready / Spooler"})
             </option>
           ))}
           {value && !printers.some((p) => p.name === value) && (
             <option value={value}>{value} (Configured)</option>
           )}
+          <option value="__ip__">🌐 Connect via IP Address (Network / LAN)…</option>
           <option value="__custom__">+ Add / Type printer name…</option>
         </select>
         <Button onClick={onTest}>TEST PRINT</Button>
       </div>
-      {addingCustom && (
+
+      {mode === "custom" && (
         <div className="custom-printer-input" style={{ display: "flex", gap: 8, marginTop: 10 }}>
           <input
             type="text"
@@ -559,11 +581,57 @@ function PrinterDropdownRow({
             autoFocus
             onKeyDown={(e) => {
               if (e.key === "Enter") handleCustomSubmit()
-              if (e.key === "Escape") setAddingCustom(false)
+              if (e.key === "Escape") setMode("idle")
             }}
           />
           <Button kind="primary" onClick={handleCustomSubmit} style={{ minHeight: 44, padding: "0 14px" }}>SAVE</Button>
-          <Button kind="ghost" onClick={() => setAddingCustom(false)} style={{ minHeight: 44, padding: "0 12px" }}>CANCEL</Button>
+          <Button kind="ghost" onClick={() => setMode("idle")} style={{ minHeight: 44, padding: "0 12px" }}>CANCEL</Button>
+        </div>
+      )}
+
+      {mode === "ip" && (
+        <div className="ip-printer-input" style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10, background: "#f8fafc", padding: 12, borderRadius: 10, border: "1.5px solid #cbd5e1" }}>
+          <strong style={{ fontSize: 12, color: "#0f172a", textTransform: "uppercase", letterSpacing: 0.5 }}>Connect Network / IP Printer</strong>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input
+              type="text"
+              placeholder="IP Address (e.g. 192.168.1.100)"
+              value={ipAddress}
+              onChange={(e) => setIpAddress(e.target.value)}
+              style={{ flex: 2, minWidth: 160, padding: "8px 12px", border: "1.5px solid #94a3b8", borderRadius: 8, fontSize: 13 }}
+              autoFocus
+            />
+            <input
+              type="text"
+              placeholder="Port (9100 RAW / 515 LPR)"
+              value={ipPort}
+              onChange={(e) => setIpPort(e.target.value)}
+              style={{ flex: 1, minWidth: 100, padding: "8px 12px", border: "1.5px solid #94a3b8", borderRadius: 8, fontSize: 13 }}
+            />
+            <select
+              value={ipProtocol}
+              onChange={(e) => setIpProtocol(e.target.value as any)}
+              style={{ padding: "8px 12px", border: "1.5px solid #94a3b8", borderRadius: 8, fontSize: 13, background: "#fff" }}
+            >
+              <option value="raw">RAW (Port 9100)</option>
+              <option value="lpr">LPR / LPD (Port 515)</option>
+            </select>
+          </div>
+          <input
+            type="text"
+            placeholder="Display name (optional, e.g. HP LaserJet 1020 - Counter)"
+            value={customName}
+            onChange={(e) => setCustomName(e.target.value)}
+            style={{ padding: "8px 12px", border: "1.5px solid #94a3b8", borderRadius: 8, fontSize: 13 }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleIpSubmit()
+              if (e.key === "Escape") setMode("idle")
+            }}
+          />
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <Button kind="ghost" onClick={() => setMode("idle")} style={{ minHeight: 36, padding: "0 12px" }}>CANCEL</Button>
+            <Button kind="primary" onClick={handleIpSubmit} style={{ minHeight: 36, padding: "0 16px" }}>CONNECT IP PRINTER</Button>
+          </div>
         </div>
       )}
     </div>
@@ -1110,6 +1178,48 @@ function PrinterSettingsPanel({
   const [selectedBw, setSelectedBw] = useState<string>(configuredBw)
   const [selectedColour, setSelectedColour] = useState<string>(configuredColour)
   const [selectedPhoto, setSelectedPhoto] = useState<string>(configuredPhoto)
+  const [localSystemPrinters, setLocalSystemPrinters] = useState<LivePrinter[]>([])
+  const [scanningSystem, setScanningSystem] = useState(false)
+
+  const scanSystemPrinters = async () => {
+    setScanningSystem(true)
+    try {
+      if (typeof window !== "undefined" && (window as any).printbkCounter?.getDiscoveredPrinters) {
+        const sys = await (window as any).printbkCounter.getDiscoveredPrinters()
+        if (Array.isArray(sys) && sys.length > 0) {
+          const mapped: LivePrinter[] = sys.map((p: any) => ({
+            id: p.name,
+            name: p.name,
+            role: p.role || "both",
+            online: p.online !== false,
+            status: p.status || "ready",
+            paper_info: p.paper_info || { A4: true, Legal: true, A3: false },
+          }))
+          setLocalSystemPrinters(mapped)
+        }
+      }
+    } catch (e) {
+      console.warn("Scan system printers warning:", e)
+    } finally {
+      setScanningSystem(false)
+    }
+  }
+
+  useEffect(() => {
+    scanSystemPrinters()
+  }, [])
+
+  // Combine server live feed printers with detected local Windows printers
+  const mergedPrintersMap = new Map<string, LivePrinter>()
+  for (const p of printers) {
+    if (p && p.name) mergedPrintersMap.set(p.name, p)
+  }
+  for (const p of localSystemPrinters) {
+    if (p && p.name && !mergedPrintersMap.has(p.name)) {
+      mergedPrintersMap.set(p.name, p)
+    }
+  }
+  const allPrinters = Array.from(mergedPrintersMap.values())
 
   useEffect(() => {
     if (configuredBw && !selectedBw) setSelectedBw(configuredBw)
@@ -1117,9 +1227,9 @@ function PrinterSettingsPanel({
     if (configuredPhoto && !selectedPhoto) setSelectedPhoto(configuredPhoto)
   }, [configuredBw, configuredColour, configuredPhoto])
 
-  const bwPrinter = printers.find((p) => p.name === selectedBw) || printers.find((p) => p.role === "bw") || printers[0]
-  const colourPrinter = printers.find((p) => p.name === selectedColour) || printers.find((p) => p.role === "colour") || printers[1] || bwPrinter
-  const photoPrinter = printers.find((p) => p.name === selectedPhoto) || printers.find((p) => p.role === "photo") || colourPrinter
+  const bwPrinter = allPrinters.find((p) => p.name === selectedBw) || allPrinters.find((p) => p.role === "bw") || allPrinters[0]
+  const colourPrinter = allPrinters.find((p) => p.name === selectedColour) || allPrinters.find((p) => p.role === "colour") || allPrinters[1] || bwPrinter
+  const photoPrinter = allPrinters.find((p) => p.name === selectedPhoto) || allPrinters.find((p) => p.role === "photo") || colourPrinter
 
   const handleAssignPrinter = async (role: "bw" | "colour" | "photo", name: string) => {
     if (role === "bw") setSelectedBw(name)
@@ -1142,15 +1252,23 @@ function PrinterSettingsPanel({
     }
   }
 
-  const handleTestPrint = async (printerIdOrName?: string) => {
-    const target = printerIdOrName || (printers[0]?.id || printers[0]?.name)
+  const handleTestPrint = async (printerIdOrName?: string, role: "bw" | "colour" | "photo" = "bw") => {
+    const target = printerIdOrName || (allPrinters[0]?.name || allPrinters[0]?.id)
     if (!target) {
       alert("No printer available to test. Please add or connect a printer first.")
       return
     }
     try {
       setTestStatus((prev) => ({ ...prev, [target]: "Sending test print…" }))
-      await testPrintPrinter(target)
+      // If running inside desktop counter app (Electron bridge):
+      if (typeof window !== "undefined" && (window as any).printbkCounter?.triggerTestPrint) {
+        const desktopRes = await (window as any).printbkCounter.triggerTestPrint(role)
+        if (desktopRes && (desktopRes.success || desktopRes.ok)) {
+          setTestStatus((prev) => ({ ...prev, [target]: "Sent to local printer queue successfully" }))
+          return
+        }
+      }
+      await testPrintPrinter(target, target)
       setTestStatus((prev) => ({ ...prev, [target]: "Sent to printer successfully" }))
     } catch (err: any) {
       setTestStatus((prev) => ({ ...prev, [target]: err.message || "Test print failed" }))
@@ -1341,17 +1459,25 @@ function PrinterSettingsPanel({
               </div>
 
               <div className="printer-discovery">
-                <div><i className="status-dot" /><span>{printers.length > 0 ? `${printers.length} printer${printers.length > 1 ? "s" : ""} detected` : "No printers reported yet"}</span></div>
-                <button type="button" onClick={onRefreshLive}>REFRESH</button>
+                <div><i className="status-dot" /><span>{allPrinters.length > 0 ? `${allPrinters.length} printer${allPrinters.length > 1 ? "s" : ""} detected` : "No printers reported yet"}</span></div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button type="button" onClick={() => { onRefreshLive(); scanSystemPrinters(); }}>{scanningSystem ? "SCANNING…" : "REFRESH"}</button>
+                  {typeof window !== "undefined" && (window as any).printbkCounter?.openWindowsPrinterSettings && (
+                    <button type="button" onClick={() => (window as any).printbkCounter.openWindowsPrinterSettings()} style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 11, fontWeight: 700, padding: "4px 8px", cursor: "pointer" }}>
+                      WINDOWS PRINTERS
+                    </button>
+                  )}
+                </div>
               </div>
 
               <section className="setting-card printer-choice">
-                <div className="setting-card-title"><div><span>Black &amp; White printer</span><strong><i className="status-dot" /> {bwPrinter ? (bwPrinter.online ? "Online" : "Offline") : selectedBw ? "Configured" : "None"}</strong></div><Icon name="printer" size={28} /></div>
+                <div className="setting-card-title"><div><span>Black &amp; White printer</span><strong><i className="status-dot" /> {bwPrinter ? (bwPrinter.online ? "Online" : "Ready / Spooler") : selectedBw ? "Configured" : "None"}</strong></div><Icon name="printer" size={28} /></div>
                 <PrinterDropdownRow
                   value={selectedBw || bwPrinter?.name || "No B&W printer"}
-                  printers={printers}
+                  printers={allPrinters}
+                  role="bw"
                   onSelect={(name) => handleAssignPrinter("bw", name)}
-                  onTest={() => handleTestPrint(bwPrinter?.id || selectedBw || bwPrinter?.name)}
+                  onTest={() => handleTestPrint(bwPrinter?.id || selectedBw || bwPrinter?.name, "bw")}
                 />
                 {(bwPrinter || selectedBw) && testStatus[bwPrinter?.id || selectedBw || ""] && (
                   <div className="test-result success"><Icon name="check" />{testStatus[bwPrinter?.id || selectedBw || ""]}</div>
@@ -1359,12 +1485,13 @@ function PrinterSettingsPanel({
               </section>
 
               <section className="setting-card printer-choice">
-                <div className="setting-card-title"><div><span>Colour printer</span><strong><i className="status-dot" /> {colourPrinter ? (colourPrinter.online ? "Online" : "Offline") : selectedColour ? "Configured" : "None"}</strong></div><Icon name="colour" size={28} /></div>
+                <div className="setting-card-title"><div><span>Colour printer</span><strong><i className="status-dot" /> {colourPrinter ? (colourPrinter.online ? "Online" : "Ready / Spooler") : selectedColour ? "Configured" : "None"}</strong></div><Icon name="colour" size={28} /></div>
                 <PrinterDropdownRow
                   value={selectedColour || colourPrinter?.name || "No colour printer"}
-                  printers={printers}
+                  printers={allPrinters}
+                  role="colour"
                   onSelect={(name) => handleAssignPrinter("colour", name)}
-                  onTest={() => handleTestPrint(colourPrinter?.id || selectedColour || colourPrinter?.name)}
+                  onTest={() => handleTestPrint(colourPrinter?.id || selectedColour || colourPrinter?.name, "colour")}
                 />
                 {(colourPrinter || selectedColour) && testStatus[colourPrinter?.id || selectedColour || ""] && (
                   <div className="test-result success"><Icon name="check" />{testStatus[colourPrinter?.id || selectedColour || ""]}</div>
@@ -1372,12 +1499,13 @@ function PrinterSettingsPanel({
               </section>
 
               <section className="setting-card printer-choice">
-                <div className="setting-card-title"><div><span>Photo printer</span><strong><i className="status-dot" /> {photoPrinter ? (photoPrinter.online ? "Online" : "Offline") : selectedPhoto ? "Configured" : "None"}</strong></div><Icon name="photo" size={28} /></div>
+                <div className="setting-card-title"><div><span>Photo printer</span><strong><i className="status-dot" /> {photoPrinter ? (photoPrinter.online ? "Online" : "Ready / Spooler") : selectedPhoto ? "Configured" : "None"}</strong></div><Icon name="photo" size={28} /></div>
                 <PrinterDropdownRow
                   value={selectedPhoto || photoPrinter?.name || "No photo printer"}
-                  printers={printers}
+                  printers={allPrinters}
+                  role="photo"
                   onSelect={(name) => handleAssignPrinter("photo", name)}
-                  onTest={() => handleTestPrint(photoPrinter?.id || selectedPhoto || photoPrinter?.name)}
+                  onTest={() => handleTestPrint(photoPrinter?.id || selectedPhoto || photoPrinter?.name, "photo")}
                 />
                 {(photoPrinter || selectedPhoto) && testStatus[photoPrinter?.id || selectedPhoto || ""] && (
                   <div className="test-result success"><Icon name="check" />{testStatus[photoPrinter?.id || selectedPhoto || ""]}</div>
