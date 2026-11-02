@@ -19,7 +19,10 @@ const httpAgent = new http.Agent({
   timeout: 10000
 });
 
-function agentFetch(url: string, options: any = {}) {
+function agentFetch(url: string, options: any = {}): Promise<any> {
+  if (typeof globalThis.fetch === 'function') {
+    return globalThis.fetch(url, options);
+  }
   const isHttps = url.startsWith('https:');
   return fetch(url, {
     ...options,
@@ -71,7 +74,7 @@ class PrintAgentDaemon {
     return {
       'Content-Type': 'application/json',
       'X-Agent-Token': this.config.agentToken,
-      'Authorization': `Bearer ${this.config.agentToken}`
+      'X-Agent-Device-Token': this.config.agentToken
     };
   }
 
@@ -292,67 +295,82 @@ class PrintAgentDaemon {
     const { job, targetPrinter } = payload;
     const discovered = await discoverPrinters(this.config.dryRun, this.config.printerProfiles).catch(() => []);
     let printerName = targetPrinter || this.config.printerProfiles.bw;
-    if (!printerName || printerName === 'bw' || printerName === 'colour' || printerName === 'photo' || !discovered.some(p => p.name.toLowerCase() === (printerName || '').toLowerCase())) {
-      printerName = discovered.find(p => p.isDefault)?.name || discovered[0]?.name || this.config.printerProfiles.bw || 'Default Printer';
+    if (!printerName || printerName === 'bw' || printerName === 'colour' || printerName === 'photo' || printerName.includes('-') || !discovered.some(p => p.name.toLowerCase() === (printerName || '').toLowerCase())) {
+      printerName = discovered.find(p => p.isDefault)?.name || discovered[0]?.name || this.config.printerProfiles.bw || '';
     }
-    console.log(`[Agent] Generating test print for ${printerName}...`);
+    console.log(`[Agent] Generating test print for ${printerName || 'Default Printer'}...`);
 
-    const pdfBytes = await generateTestPrintPdf(printerName, { name: 'HKBK Student Point' });
-    const part: PrintPart = {
-      role: 'both',
-      pdfBytes,
-      pageCount: 1,
-      pagesList: [1]
-    };
+    try {
+      const pdfBytes = await generateTestPrintPdf(printerName || 'Default Printer', { name: 'HKBK Student Point' });
+      const part: PrintPart = {
+        role: 'both',
+        pdfBytes,
+        pageCount: 1,
+        pagesList: [1]
+      };
 
-    if (this.config.dryRun) {
-      await executeDryRunPrint(job.id, printerName, { kind: 'test_print' }, [part], this.config.dryRunDir, async (p, t) => {
-        await this.reportProgress(job.id, p, t);
-      });
-    } else {
-      const tempPdf = path.join(this.config.workDir, `test_print_${job.id}.pdf`);
-      fs.writeFileSync(tempPdf, pdfBytes);
-      this.activeJobTempFiles.push(tempPdf);
+      if (this.config.dryRun) {
+        await executeDryRunPrint(job.id, printerName, { kind: 'test_print' }, [part], this.config.dryRunDir, async (p, t) => {
+          await this.reportProgress(job.id, p, t);
+        });
+      } else {
+        const tempPdf = path.join(this.config.workDir, `test_print_${job.id}.pdf`);
+        fs.writeFileSync(tempPdf, pdfBytes);
+        this.activeJobTempFiles.push(tempPdf);
 
-      await this.reportProgress(job.id, 1, 1);
-      await executeSumatraPrint(tempPdf, printerName, { copies: 1, paper: 'A4' }, this.config.sumatraPath);
-      cleanJobFiles([tempPdf]);
+        await this.reportProgress(job.id, 1, 1);
+        await executeSumatraPrint(tempPdf, printerName, { copies: 1, paper: 'A4' }, this.config.sumatraPath);
+        cleanJobFiles([tempPdf]);
+      }
+
+      await this.reportComplete(job.id, 1);
+      console.log(`[Agent] Test print completed successfully.`);
+    } catch (err: any) {
+      console.error(`[Agent] Test print failed: ${err.message}`);
+      await this.reportFailure(job.id, 'PRINTER_ERROR', err.message);
     }
-
-    await this.reportComplete(job.id, 1);
-    console.log(`[Agent] Test print completed successfully.`);
   }
 
   private async handlePrintQrJob(payload: any): Promise<void> {
     const { job, targetPrinter } = payload;
-    const printerName = targetPrinter || this.config.printerProfiles.colour || 'Default Printer';
+    const discovered = await discoverPrinters(this.config.dryRun, this.config.printerProfiles).catch(() => []);
+    let printerName = targetPrinter || this.config.printerProfiles.colour;
+    if (!printerName || printerName === 'bw' || printerName === 'colour' || printerName === 'photo' || printerName.includes('-') || !discovered.some(p => p.name.toLowerCase() === (printerName || '').toLowerCase())) {
+      printerName = discovered.find(p => p.role === 'colour' || p.role === 'both')?.name || discovered.find(p => p.isDefault)?.name || discovered[0]?.name || '';
+    }
     const qrUrl = `${this.config.apiBase.replace('/server/api', '')}/app/student`;
 
-    console.log(`[Agent] Generating Print Your QR sign for ${printerName}...`);
-    const pdfBytes = await generateQrPrintPdf(qrUrl, this.shopSettings || { name: 'HKBK Student Point' });
-    const part: PrintPart = {
-      role: 'colour',
-      pdfBytes,
-      pageCount: 1,
-      pagesList: [1]
-    };
+    console.log(`[Agent] Generating Print Your QR sign for ${printerName || 'Default Printer'}...`);
 
-    if (this.config.dryRun) {
-      await executeDryRunPrint(job.id, printerName, { kind: 'print_qr' }, [part], this.config.dryRunDir, async (p, t) => {
-        await this.reportProgress(job.id, p, t);
-      });
-    } else {
-      const tempPdf = path.join(this.config.workDir, `qr_sign_${job.id}.pdf`);
-      fs.writeFileSync(tempPdf, pdfBytes);
-      this.activeJobTempFiles.push(tempPdf);
+    try {
+      const pdfBytes = await generateQrPrintPdf(qrUrl, this.shopSettings || { name: 'HKBK Student Point' });
+      const part: PrintPart = {
+        role: 'colour',
+        pdfBytes,
+        pageCount: 1,
+        pagesList: [1]
+      };
 
-      await this.reportProgress(job.id, 1, 1);
-      await executeSumatraPrint(tempPdf, printerName, { copies: 1, paper: 'A4' }, this.config.sumatraPath);
-      cleanJobFiles([tempPdf]);
+      if (this.config.dryRun) {
+        await executeDryRunPrint(job.id, printerName, { kind: 'print_qr' }, [part], this.config.dryRunDir, async (p, t) => {
+          await this.reportProgress(job.id, p, t);
+        });
+      } else {
+        const tempPdf = path.join(this.config.workDir, `qr_sign_${job.id}.pdf`);
+        fs.writeFileSync(tempPdf, pdfBytes);
+        this.activeJobTempFiles.push(tempPdf);
+
+        await this.reportProgress(job.id, 1, 1);
+        await executeSumatraPrint(tempPdf, printerName, { copies: 1, paper: 'A4' }, this.config.sumatraPath);
+        cleanJobFiles([tempPdf]);
+      }
+
+      await this.reportComplete(job.id, 1);
+      console.log(`[Agent] Print QR completed successfully.`);
+    } catch (err: any) {
+      console.error(`[Agent] Print QR failed: ${err.message}`);
+      await this.reportFailure(job.id, 'PRINTER_ERROR', err.message);
     }
-
-    await this.reportComplete(job.id, 1);
-    console.log(`[Agent] Print QR completed successfully.`);
   }
 
   private async handleEarlyPrepareJob(payload: any): Promise<void> {
@@ -508,7 +526,8 @@ class PrintAgentDaemon {
 
       const outName = `${item.id}_${fileId}.bin`;
       const outPath = path.join(this.config.workDir, outName);
-      const buffer = await res.buffer();
+      const arrayBuf = typeof (res as any).arrayBuffer === 'function' ? await (res as any).arrayBuffer() : await (res as any).buffer();
+      const buffer = Buffer.from(arrayBuf);
       fs.writeFileSync(outPath, buffer);
       downloaded.push(outPath);
     }

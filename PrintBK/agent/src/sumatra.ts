@@ -99,13 +99,22 @@ export async function executeSumatraPrint(
   }
 
   const printSettings = buildSumatraSettings(settings);
-  // Example: SumatraPDF.exe -print-to "EPSON L3150" -print-settings "2x,duplexlong,paper=A4,fit" -silent "C:\temp\doc.pdf"
-  const command = `"${bin}" -print-to "${printerName}" -print-settings "${printSettings}" -silent "${filePath}"`;
+  const isDefaultTarget = !printerName || printerName === 'Default Printer' || printerName.includes('-');
+  const primaryTarget = isDefaultTarget ? '-print-to-default' : `-print-to "${printerName}"`;
+  const command = `"${bin}" ${primaryTarget} -print-settings "${printSettings}" -silent "${filePath}"`;
 
   try {
     const { stdout, stderr } = await execAsync(command, { timeout: 60000 });
     return { success: true, stdout, stderr };
   } catch (err: any) {
+    // If targeted print failed (e.g. invalid printer name or UUID), retry with default printer
+    if (primaryTarget !== '-print-to-default') {
+      try {
+        const fallbackCmd = `"${bin}" -print-to-default -print-settings "${printSettings}" -silent "${filePath}"`;
+        const { stdout, stderr } = await execAsync(fallbackCmd, { timeout: 60000 });
+        return { success: true, stdout, stderr };
+      } catch (_) {}
+    }
     throw new Error(`SumatraPDF execution failed: ${err.message}`);
   }
 }

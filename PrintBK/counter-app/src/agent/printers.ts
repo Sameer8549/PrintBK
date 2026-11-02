@@ -15,16 +15,74 @@ export interface DiscoveredPrinter {
   isDefault?: boolean;
 }
 
-export async function discoverPrinters(dryRun = false, fallbackProfiles?: Record<string, string>): Promise<DiscoveredPrinter[]> {
+let cachedPrinters: DiscoveredPrinter[] = [];
+let lastDiscoverTime = 0;
+
+export async function discoverPrinters(dryRun = false, fallbackProfiles?: Record<string, string>, forceRefresh = false): Promise<DiscoveredPrinter[]> {
   const isWindows = os.platform() === 'win32';
+  const now = Date.now();
+
+  if (!forceRefresh && cachedPrinters.length > 0 && (now - lastDiscoverTime < 30000)) {
+    return cachedPrinters;
+  }
 
   if (!dryRun && isWindows) {
     try {
-      const { stdout } = await execFileAsync('powershell', [
+      // 1. Ultra-fast direct Windows Registry query (10-30ms)
+      const { stdout } = await execAsync('reg query "HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Devices"', { timeout: 4000 });
+      let defaultPrinter = '';
+      try {
+        const defRes = await execAsync('reg query "HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Windows" /v Device', { timeout: 2000 });
+        const match = defRes.stdout.match(/REG_SZ\s+([^,]+)/);
+        if (match) defaultPrinter = match[1].trim();
+      } catch (_) {}
+
+      const lines = stdout.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const printers: DiscoveredPrinter[] = [];
+
+      for (const line of lines) {
+        if (!line.includes('REG_SZ')) continue;
+        const parts = line.split('REG_SZ');
+        const name = parts[0].trim();
+        if (!name) continue;
+
+        const lower = name.toLowerCase();
+        let role: 'bw' | 'colour' | 'photo' | 'both' = 'both';
+        if (lower.includes('photo') || lower.includes('l805') || lower.includes('g570') || lower.includes('pixma')) {
+          role = 'photo';
+        } else if (lower.includes('color') || lower.includes('colour') || lower.includes('l31') || lower.includes('ecotank')) {
+          role = 'colour';
+        } else if (lower.includes('laserjet') || lower.includes('m1005') || lower.includes('1020') || lower.includes('mono')) {
+          role = 'bw';
+        }
+
+        printers.push({
+          name,
+          role,
+          online: true,
+          status: 'ready',
+          paper_info: { A4: true, Legal: true, A3: lower.includes('a3') },
+          tray_info: { 'Tray 1': true },
+          isDefault: defaultPrinter ? name.toLowerCase() === defaultPrinter.toLowerCase() : (printers.length === 0)
+        });
+      }
+
+      if (printers.length > 0) {
+        cachedPrinters = printers;
+        lastDiscoverTime = Date.now();
+        return printers;
+      }
+    } catch (_) {}
+
+    try {
+      const { stdout } = await execFileAsync('powershell.exe', [
         '-NoProfile',
+        '-NonInteractive',
+        '-InputFormat',
+        'None',
         '-Command',
         'Get-CimInstance -ClassName Win32_Printer | Select-Object Name, Default, PrinterStatus, WorkOffline, PortName | ConvertTo-Json -Compress'
-      ], { timeout: 12000 });
+      ], { timeout: 15000 });
       if (stdout && stdout.trim()) {
         const parsed = JSON.parse(stdout.trim());
         const list = Array.isArray(parsed) ? parsed : [parsed];
@@ -33,10 +91,8 @@ export async function discoverPrinters(dryRun = false, fallbackProfiles?: Record
           const name = String(item.Name || '').trim();
           const isOffline = item.WorkOffline === true;
           const statusVal = Number(item.PrinterStatus || 3);
-          // 3 = Idle/Ready, 4 = Printing, 5 = Warmup, 1 = Other, 2 = Unknown
           let statusText = isOffline ? 'offline' : (statusVal === 3 || statusVal === 4 ? 'ready' : 'busy');
           
-          // Role heuristics from name
           const lower = name.toLowerCase();
           let role: 'bw' | 'colour' | 'photo' | 'both' = 'both';
           if (lower.includes('photo') || lower.includes('l805') || lower.includes('g570') || lower.includes('pixma')) {
@@ -59,6 +115,8 @@ export async function discoverPrinters(dryRun = false, fallbackProfiles?: Record
         });
 
         if (printers.length > 0) {
+          cachedPrinters = printers;
+          lastDiscoverTime = Date.now();
           return printers;
         }
       }
