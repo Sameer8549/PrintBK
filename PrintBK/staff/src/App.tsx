@@ -3036,7 +3036,9 @@ export default function App() {
 
   const jobs: Job[] = useMemo(() => {
     if (overrideJobs !== null) return overrideJobs
-    return liveItems.map(mapLiveItemToJob)
+    return liveItems
+      .filter((item) => item.status !== "printed" && item.status !== "done")
+      .map(mapLiveItemToJob)
   }, [overrideJobs, liveItems])
 
   const [selected, setSelected] = useState<string>("")
@@ -3053,8 +3055,12 @@ export default function App() {
   const previousServices = useRef(0)
 
   useEffect(() => {
-    if (jobs.length > 0 && !selected) {
-      setSelected(jobs[0].key)
+    if (jobs.length > 0) {
+      if (!selected || !jobs.some((job) => job.key === selected)) {
+        setSelected(jobs[0].key)
+      }
+    } else {
+      setSelected("")
     }
   }, [jobs, selected])
 

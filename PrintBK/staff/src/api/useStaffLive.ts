@@ -168,16 +168,15 @@ export function useStaffLive(): UseStaffLiveReturn {
     } finally {
       isPollingRef.current = false
 
-      // Adaptive polling: 1s when active orders exist, backed off to 3s when empty
-      const hasActiveOrders = items.length > 0
-      const delay = hasActiveOrders ? 1000 : 3000
+      // Fast polling: 1000ms ensures orders appear within ~1s without lag
+      const delay = 1000
 
       if (timeoutIdRef.current) {
         window.clearTimeout(timeoutIdRef.current)
       }
       timeoutIdRef.current = window.setTimeout(poll, delay)
     }
-  }, [items.length])
+  }, [])
 
   // Instant refresh callback
   const refresh = useCallback(async () => {

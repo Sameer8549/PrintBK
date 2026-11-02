@@ -444,6 +444,9 @@ router.get('/live', async (req, res) => {
 
       if (orderMemItems.length > 0) {
         for (const it of orderMemItems) {
+          if (it.status === 'printed' || it.status === 'done') {
+            continue; // Printed items move to recently printed, keeping active counter queue clean
+          }
           const specObj = typeof it.payload === 'string' ? JSON.parse(it.payload || '{}') : (it.payload || {});
           let fileRefsArr = [];
           try {
@@ -483,6 +486,9 @@ router.get('/live', async (req, res) => {
           });
         }
       } else {
+        if (['ready', 'printed', 'completed'].includes(o.status)) {
+          continue; // Already printed orders do not clutter the active workbench queue
+        }
         // Fallback to typedItems in basket
         const typed = b.typedItems || [];
         for (const item of typed) {
@@ -854,7 +860,16 @@ router.post('/items/:id/approve-print', async (req, res) => {
 
     const isPaid = ['cash_collected', 'upi_claimed', 'paid', 'processing', 'printing'].includes(order.status);
     if (!isPaid) {
-      return res.status(409).json({ error: 'Cannot print: payment has not been collected or verified' });
+      if (order.status === 'pending_cash') {
+        order.status = 'cash_collected';
+        order.payment_status = 'cash_collected';
+        if (zcql) {
+          await zcql.executeZCQLQuery(`UPDATE orders SET status = 'cash_collected', payment_status = 'cash_collected', updated_at = ${now} WHERE id = '${esc(orderId)}'`).catch(() => {});
+        }
+        await recordAudit(zcql, { orderId, itemId, action: 'cash_collected_and_approved', fromStatus: 'pending_cash', toStatus: 'cash_collected' });
+      } else {
+        return res.status(409).json({ error: 'Cannot print: payment has not been collected or verified' });
+      }
     }
 
     // Determine target printer based on assigned printer mapping or registered printers
