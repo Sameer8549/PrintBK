@@ -990,7 +990,7 @@ router.post('/items/:id/approve-print', async (req, res) => {
 });
 
 // C. Retry Print Item (Allowed when failed)
-router.post('/items/:id/retry-print', async (req, res) => {
+router.post(['/items/:id/retry-print', '/items/:id/retry'], async (req, res) => {
   try {
     const catalystApp = getCatalystApp(req);
     const zcql = catalystApp ? catalystApp.zcql() : null;
