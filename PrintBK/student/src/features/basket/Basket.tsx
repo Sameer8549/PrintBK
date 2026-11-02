@@ -114,7 +114,8 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
   const isPdf = fileName.endsWith('.pdf');
   const isPpt = fileName.endsWith('.pptx') || fileName.endsWith('.ppt') || fileName.endsWith('.odp');
   const isDoc = fileName.endsWith('.docx') || fileName.endsWith('.doc') || fileName.endsWith('.odt');
-  const isImage = Boolean(raw?.type?.startsWith('image/')) || /\.(jpe?g|png|webp|gif)$/i.test(fileName) || Boolean((file as any).isPhotoSheet);
+  const isPhotoSheet = Boolean((file as any).isPhotoSheet);
+  const isImage = Boolean(raw?.type?.startsWith('image/')) || /\.(jpe?g|png|webp|gif)$/i.test(fileName) || isPhotoSheet;
 
   // 1. Check Image DPI for printing quality
   useEffect(() => {
