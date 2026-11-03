@@ -74,9 +74,24 @@ function PrintPreview({
     });
   }, [activeFile]);
 
-  const sheets = layoutResult.sheets;
-  const currentSheet: SheetLayout | undefined = sheets[currentSheetIdx] || sheets[0];
-  const totalSheets = sheets.length;
+  const sheets = layoutResult.sheets || [];
+  const totalSheets = Math.max(1, sheets.length);
+  const safeSheetIdx = Math.min(Math.max(0, currentSheetIdx), totalSheets - 1);
+  const currentSheet: SheetLayout = sheets[safeSheetIdx] || sheets[0] || {
+    sheetNumber: 1,
+    side: 'front',
+    width: 210,
+    height: 297,
+    orientation: 'portrait',
+    pages: []
+  };
+
+  // Keep currentSheetIdx clamped if sheets change or file changes
+  useEffect(() => {
+    if (sheets.length > 0 && currentSheetIdx >= sheets.length) {
+      setCurrentSheetIdx(Math.max(0, sheets.length - 1));
+    }
+  }, [sheets.length, currentSheetIdx, selectedFileIdx]);
 
   // Handle pager navigation
   const prevSheet = () => setCurrentSheetIdx(i => Math.max(0, i - 1));
@@ -92,15 +107,16 @@ function PrintPreview({
     );
   }
 
-  const isPortrait = currentSheet?.orientation === 'portrait';
-  // Aspect ratio for physical sheet (e.g. A4 = 210/297)
-  const sheetAspect = isPortrait ? (currentSheet.width / currentSheet.height) : (currentSheet.width / currentSheet.height);
+  const isPortrait = (currentSheet?.orientation || 'portrait') === 'portrait';
+  const sWidth = currentSheet?.width || 210;
+  const sHeight = currentSheet?.height || 297;
+  const sheetAspect = isPortrait ? (sWidth / sHeight) : (sWidth / sHeight);
 
   return (
     <main className="page preview-page" style={{ background: '#f7f4ee', minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
       <Topbar title="Print Preview" back onBack={() => go('basket')} />
 
-      <div style={{ flex: 1, padding: '16px 20px 100px', maxWidth: 480, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+      <div style={{ flex: 1, padding: '16px 20px calc(140px + env(safe-area-inset-bottom, 0px))', maxWidth: 480, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
         {/* File selector if multiple files */}
         {files.length > 1 && (
           <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 10, marginBottom: 10 }}>
@@ -226,12 +242,14 @@ function PrintPreview({
             </div>
           )}
 
-          {currentSheet && currentSheet.pages.map((p, idx) => {
+          {currentSheet && currentSheet.pages && currentSheet.pages.map((p, idx) => {
             // Percent coordinates relative to sheet size
-            const leftPct = (p.x / currentSheet.width) * 100;
-            const topPct = (p.y / currentSheet.height) * 100;
-            const widthPct = (p.width / currentSheet.width) * 100;
-            const heightPct = (p.height / currentSheet.height) * 100;
+            const sW = currentSheet.width || 210;
+            const sH = currentSheet.height || 297;
+            const leftPct = (p.x / sW) * 100;
+            const topPct = (p.y / sH) * 100;
+            const widthPct = (p.width / sW) * 100;
+            const heightPct = (p.height / sH) * 100;
 
             if (p.isHandoutNoteLine) {
               return (
@@ -388,7 +406,17 @@ function PrintPreview({
       </div>
 
       {/* Bottom Button */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #e2e8f0', padding: '12px 20px 24px' }}>
+      <div style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: '#fff',
+        borderTop: '1px solid #e2e8f0',
+        padding: '12px 20px calc(24px + env(safe-area-inset-bottom, 0px))',
+        zIndex: 40,
+        boxShadow: '0 -4px 16px rgba(0,0,0,0.06)'
+      }}>
         <button
           className="primary full"
           style={{ width: '100%', padding: 15, fontSize: 16, fontWeight: 700, borderRadius: 14 }}

@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { priceOrder, defaultShopConfig, PriceBreakdown, PrintFile, ServiceLine } from '@printbk/shared';
 import { countPages } from '../lib/pdfPages';
 import { useShopConfig } from './shopConfig';
+import { saveFileBlob, deleteFileBlob, clearAllFileBlobs, ensureFileInMemory } from '../lib/fileStorage';
 
 // Re-export PrintFile so other files can import from here
 export type { PrintFile };
@@ -34,6 +35,7 @@ export const useBasket = create<BasketState>()(
       addFile: (file) => set((state) => ({ files: [...state.files, file], activeFileId: file.id })),
       removeFile: (id) => {
         try { rawFileMap.delete(id); } catch (_) {}
+        deleteFileBlob(id).catch(() => {});
         set((state) => {
           const remaining = state.files.filter(f => f.id !== id);
           const remainingServices = state.services.filter(s => s.attachTo !== id);
@@ -74,9 +76,22 @@ export const useBasket = create<BasketState>()(
       }),
       addService: (service) => set((state) => ({ services: [...state.services, service] })),
       removeService: (id) => set((state) => ({ services: state.services.filter(s => s.id !== id) })),
-      clear: () => set({ files: [], services: [], activeFileId: null, isProcessing: false }),
+      clear: () => {
+        try { rawFileMap.clear(); } catch (_) {}
+        clearAllFileBlobs().catch(() => {});
+        set({ files: [], services: [], activeFileId: null, isProcessing: false });
+      },
     }),
-    { name: 'printbk-basket-v4' }
+    {
+      name: 'printbk-basket-v4',
+      onRehydrateStorage: () => (state) => {
+        if (state?.files && state.files.length > 0) {
+          for (const f of state.files) {
+            ensureFileInMemory(f, rawFileMap).catch(() => {});
+          }
+        }
+      }
+    }
   )
 );
 
@@ -105,8 +120,14 @@ export function fileFromRaw(raw: File): PrintFile {
     ? crypto.randomUUID()
     : 'f-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
 
-  // Cache File object in memory
+  // Cache File object in memory & persist to IndexedDB
   rawFileMap.set(id, raw);
+  saveFileBlob(id, raw).catch(err => {
+    console.warn(`[Basket] Failed to cache file in IndexedDB:`, err);
+  });
+  if (typeof window !== 'undefined') {
+    (window as any).__PRINTBK_RAW_FILES__ = rawFileMap;
+  }
 
   const isImg = raw.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(raw.name);
 

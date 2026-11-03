@@ -99,7 +99,7 @@ function Checkout({ go, setSheet, services }: {
   return (
     <main className="page" style={{ display: 'flex', flexDirection: 'column', background: 'var(--color-bg,#f7f4ee)', height: '100dvh', maxHeight: '100dvh', overflow: 'hidden' }}>
       <Topbar title="Checkout" back onBack={() => go('basket')} />
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 140px', maxWidth: 440, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px calc(140px + env(safe-area-inset-bottom, 0px))', maxWidth: 440, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
         
         {/* Order Summary Hero Card */}
         <div style={{
@@ -377,7 +377,7 @@ function Checkout({ go, setSheet, services }: {
         right: 0,
         background: '#ffffff',
         borderTop: '1.5px solid #e2e8f0',
-        padding: '14px 20px 24px',
+        padding: '14px 20px calc(24px + env(safe-area-inset-bottom, 0px))',
         boxShadow: '0 -4px 16px rgba(0,0,0,0.06)',
         display: 'flex',
         justifyContent: 'center',

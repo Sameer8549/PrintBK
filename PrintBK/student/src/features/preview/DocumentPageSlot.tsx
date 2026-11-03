@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PrintFile } from '@printbk/shared';
 import { rawFileMap } from '../../store/basket';
+import { ensureFileInMemory } from '../../lib/fileStorage';
 
 export async function getPdfJsLib(): Promise<any> {
   if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
@@ -46,8 +47,25 @@ export function DocumentPageSlot({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [rendered, setRendered] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [resolvedFile, setResolvedFile] = useState<File | null>(() => rawFileMap.get(file.id) || null);
 
-  const raw = rawFileMap.get(file.id);
+  // Auto-restore file from IndexedDB / Cloud if raw is missing
+  useEffect(() => {
+    let active = true;
+    const fromMap = rawFileMap.get(file.id);
+    if (fromMap) {
+      if (resolvedFile !== fromMap) setResolvedFile(fromMap);
+      return;
+    }
+    ensureFileInMemory(file, rawFileMap).then((f) => {
+      if (active && f) {
+        setResolvedFile(f);
+      }
+    });
+    return () => { active = false; };
+  }, [file.id, resolvedFile]);
+
+  const raw = resolvedFile || rawFileMap.get(file.id);
   const fileName = (raw?.name || file.name || '').toLowerCase();
   const isPdf = fileName.endsWith('.pdf');
   const isImage = raw?.type?.startsWith('image/') || /\.(jpe?g|png|webp|gif)$/i.test(fileName) || (file as any).isPhotoSheet;

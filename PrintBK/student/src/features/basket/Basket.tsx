@@ -8,6 +8,7 @@ import { browseAndAddFiles } from '../../lib/filePicker';
 import { api } from '../../services/api';
 import { type PrintFile, parsePageRange } from '@printbk/shared';
 import { DocumentPageSlot, getPdfJsLib } from '../preview/DocumentPageSlot';
+import { ensureFileInMemory } from '../../lib/fileStorage';
 
 
 /* ─── Option helper functions ─────────────────────── */
@@ -72,6 +73,7 @@ function withTimeout<T>(promise: Promise<T>, ms = 15000, fallbackMessage = 'Prev
 
 /* ─── Actual Document Preview (PDF Canvas / Image / PPTX / DOCX / Slider) ── */
 function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) => void }) {
+  const [resolvedFile, setResolvedFile] = useState<File | null>(() => rawFileMap.get(file.id) || null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(file.pages || 1);
   const [loading, setLoading] = useState(false);
@@ -81,6 +83,23 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
   const [officeSecurityError, setOfficeSecurityError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
+  const [rendered, setRendered] = useState(false);
+
+  // Auto-restore file from IndexedDB / Cloud if raw is missing (e.g. after reload or tab exit)
+  useEffect(() => {
+    let active = true;
+    const fromMap = rawFileMap.get(file.id);
+    if (fromMap) {
+      if (resolvedFile !== fromMap) setResolvedFile(fromMap);
+      return;
+    }
+    ensureFileInMemory(file, rawFileMap).then((f) => {
+      if (active && f) {
+        setResolvedFile(f);
+      }
+    });
+    return () => { active = false; };
+  }, [file.id, resolvedFile]);
 
   useEffect(() => {
     if (file.pages && file.pages !== totalPages) {
@@ -95,7 +114,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
   const pptxViewerRef = useRef<any>(null);
   const [hasPptxRendered, setHasPptxRendered] = useState(false);
 
-  const raw = rawFileMap.get(file.id);
+  const raw = resolvedFile || rawFileMap.get(file.id);
   const s = file.settings || ({} as any);
   const isCustom = s.colorMode === 'custom' || s.colorPlan?.mode === 'custom';
   const customColorPages = s.colorPlan?.colorPages || [];
@@ -194,7 +213,8 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
 
     async function renderPage() {
       try {
-        const pageObj = await pdfDoc.getPage(page);
+        const safePage = Math.min(Math.max(1, page), pdfDoc.numPages || 1);
+        const pageObj = await pdfDoc.getPage(safePage);
         const canvas = canvasRef.current;
         if (!canvas) return;
 
@@ -209,6 +229,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
 
         renderTask = pageObj.render({ canvasContext: ctx, viewport });
         await renderTask.promise;
+        setRendered(true);
 
         try {
           const imgData = ctx.getImageData(0, 0, Math.min(canvas.width, 100), Math.min(canvas.height, 100)).data;
@@ -981,7 +1002,7 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
                   maxHeight: '100%',
                   width: '100%',
                   height: 'auto',
-                  display: 'block',
+                  display: rendered ? 'block' : 'none',
                   objectFit: 'contain',
                   imageRendering: 'auto',
                   filter: filterStyle,
@@ -989,6 +1010,33 @@ function DocumentPreview({ file, go }: { file: PrintFile; go?: (screen: Screen) 
                   transition: 'transform 0.2s ease'
                 }}
               />
+            )}
+            {isPdf && !rendered && (
+              <div style={{
+                width: '88%',
+                height: '88%',
+                background: isBW ? '#f8fafc' : 'linear-gradient(135deg, #f0fdf4 0%, #dbeafe 100%)',
+                borderRadius: 6,
+                border: '1px solid #cbd5e1',
+                padding: '12px',
+                boxSizing: 'border-box',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                filter: filterStyle
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 9, fontWeight: 800, color: '#475569' }}>PAGE {page}</span>
+                  <span style={{ fontSize: 8, background: '#e2e8f0', padding: '1px 5px', borderRadius: 3, fontWeight: 700 }}>
+                    {isBW ? 'B&W' : 'Colour'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: 20 }}>📄</span>
+                  <span style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>Loading preview…</span>
+                </div>
+                <div style={{ fontSize: 8, color: '#94a3b8', textAlign: 'right' }}>{file.name}</div>
+              </div>
             )}
 
             {/* 2. Real Image Preview */}
@@ -1305,14 +1353,20 @@ function FileCard({
   file,
   onUpdate,
   onRemove,
-  go
+  go,
+  isOpen,
+  onToggleOpen
 }: {
   file: PrintFile;
   onUpdate: (f: PrintFile) => void;
   onRemove: () => void;
   go?: (screen: Screen) => void;
+  isOpen?: boolean;
+  onToggleOpen?: () => void;
 }) {
-  const [open, setOpen] = useState(true);
+  const [localOpen, setLocalOpen] = useState(true);
+  const open = isOpen !== undefined ? isOpen : localOpen;
+  const handleToggle = onToggleOpen || (() => setLocalOpen(o => !o));
   const s = file.settings;
   const upd = (patch: Partial<typeof s>) => onUpdate({ ...file, settings: { ...s, ...patch } });
 
@@ -1435,7 +1489,10 @@ function FileCard({
   return (
     <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #e2e8f0', marginBottom: 10, position: 'relative', overflow: open ? 'visible' : 'hidden' }}>
       {/* ── Header row: Clean single Edit toggle, formula, savings chip ── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px' }}>
+      <div
+        onClick={() => !open && handleToggle()}
+        style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', cursor: !open ? 'pointer' : 'default' }}
+      >
         <div style={{ display: 'grid', placeItems: 'center', marginTop: 2 }}>
           <Icon name={isPhotoSheet ? "camera" : "file"} size={22} />
         </div>
@@ -1523,13 +1580,37 @@ function FileCard({
             </div>
           )}
         </div>
-        <button
-          onClick={() => setOpen(o => !o)}
-          aria-label={open ? "Close settings" : "Edit document settings"}
-          style={{ ...btn, padding: '8px 14px', background: open ? '#f1f5f9' : '#0b1020', color: open ? '#475569' : '#fff', border: 'none', flexShrink: 0, fontWeight: 700, borderRadius: 10, minHeight: 44 }}
-        >
-          {open ? 'Done' : 'Edit'}
-        </button>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleToggle(); }}
+            aria-label={open ? "Close settings" : "Edit document settings"}
+            style={{ ...btn, padding: '8px 14px', background: open ? '#f1f5f9' : '#0b1020', color: open ? '#475569' : '#fff', border: 'none', flexShrink: 0, fontWeight: 700, borderRadius: 10, minHeight: 44 }}
+          >
+            {open ? 'Done' : 'Edit'}
+          </button>
+          {!open && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRemove(); }}
+              aria-label="Remove document"
+              title="Remove document"
+              style={{
+                background: '#f8fafc',
+                border: '1.5px solid #e2e8f0',
+                borderRadius: 10,
+                color: '#ef4444',
+                fontSize: 18,
+                fontWeight: 700,
+                width: 38,
+                height: 44,
+                cursor: 'pointer',
+                display: 'grid',
+                placeItems: 'center'
+              }}
+            >
+              ×
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Edit panel ── */}
@@ -2224,7 +2305,7 @@ function FileCard({
 function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (sheet: Sheet) => void }) {
   const basket = useBasket();
   const pricing = usePricing();
-  const { files, services, removeFile, removeService, addFile, updateFile } = basket;
+  const { files, services, activeFileId, removeFile, removeService, addFile, updateFile } = basket;
 
   const handleAddMore = () => {
     browseAndAddFiles(go, addFile);
@@ -2261,25 +2342,53 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
 
   const totalPages = files.reduce((s, f) => s + f.pages * (f.settings.copies ?? 1), 0);
 
+  // Track which file is expanded (accordion when multiple files exist)
+  const [expandedFileId, setExpandedFileId] = useState<string | null>(() => {
+    return activeFileId || files[files.length - 1]?.id || null;
+  });
+
+  // Keep expandedFileId valid if files change
+  useEffect(() => {
+    if (files.length > 0) {
+      if (!expandedFileId || !files.some(f => f.id === expandedFileId)) {
+        setExpandedFileId(files[files.length - 1].id);
+      }
+    } else {
+      setExpandedFileId(null);
+    }
+  }, [files, expandedFileId]);
+
   return (
     <main className="page" style={{ display: 'flex', flexDirection: 'column', background: '#f7f4ee', height: '100dvh', maxHeight: '100dvh', overflow: 'hidden' }}>
       <Topbar title={`Basket · ${files.length + services.length} item${files.length + services.length !== 1 ? 's' : ''}`} back onBack={() => go('entry')} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 240px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px calc(240px + env(safe-area-inset-bottom, 0px))' }}>
         {/* Files */}
         {files.length > 0 && (
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: '#718096', margin: '4px 2px 8px' }}>FILES</div>
-            {files.map((f, idx) => (
-              <div key={f.id} ref={idx === files.length - 1 ? lastFileRef : undefined}>
-                <FileCard
-                  file={f}
-                  onUpdate={updated => updateFile(updated.id, updated)}
-                  onRemove={() => removeFile(f.id)}
-                  go={go}
-                />
-              </div>
-            ))}
+            {files.map((f, idx) => {
+              const isThisCardOpen = files.length === 1 ? true : (expandedFileId === f.id);
+              return (
+                <div key={f.id} ref={idx === files.length - 1 ? lastFileRef : undefined}>
+                  <FileCard
+                    file={f}
+                    onUpdate={updated => updateFile(updated.id, updated)}
+                    onRemove={() => removeFile(f.id)}
+                    go={go}
+                    isOpen={isThisCardOpen}
+                    onToggleOpen={() => {
+                      if (isThisCardOpen) {
+                        setExpandedFileId(null);
+                      } else {
+                        setExpandedFileId(f.id);
+                        useBasket.getState().setActiveFileId(f.id);
+                      }
+                    }}
+                  />
+                </div>
+              );
+            })}
             <button
               onClick={handleAddMore}
               style={{
@@ -2371,7 +2480,7 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
         right: 0,
         background: '#ffffff',
         borderTop: '1.5px solid #cbd5e1',
-        padding: '14px 20px 28px',
+        padding: '14px 20px calc(24px + env(safe-area-inset-bottom, 0px))',
         boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.08)',
         zIndex: 50
       }}>

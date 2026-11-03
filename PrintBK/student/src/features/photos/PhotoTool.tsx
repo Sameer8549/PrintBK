@@ -6,6 +6,7 @@ import { useBasket, fileFromRaw, rawFileMap, type PrintFile } from '../../store/
 import { useShopConfig } from '../../store/shopConfig';
 import { api } from '../../services/api';
 import { generateUltraHdPhotoSheet } from '../../lib/photoSheet';
+import { saveFileBlob } from '../../lib/fileStorage';
 
 function PhotoTool({
   go,
@@ -528,6 +529,7 @@ function PhotoTool({
 
               if (targetFile) {
                 rawFileMap.set(fileId, targetFile);
+                saveFileBlob(fileId, targetFile).catch(() => {});
                 try {
                   const uploadRes = await api.uploadFile(targetFile);
                   if (uploadRes?.cloudId) {
