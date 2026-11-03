@@ -1171,6 +1171,19 @@ function PrinterSettingsPanel({
     return () => { mounted = false }
   }, [])
 
+  // Sync services and version in real-time from live feed across workstations
+  useEffect(() => {
+    if (shop.services) {
+      setServices((prev) => ({ ...prev, ...shop.services }))
+    }
+  }, [shop.services])
+
+  useEffect(() => {
+    if (shop.version && shop.version > version) {
+      setVersion(shop.version)
+    }
+  }, [shop.version])
+
   const configuredBw = (shop as any)?.printer_mapping?.bw || (shop as any)?.shop_info?.printer_mapping?.bw || ""
   const configuredColour = (shop as any)?.printer_mapping?.colour || (shop as any)?.shop_info?.printer_mapping?.colour || ""
   const configuredPhoto = (shop as any)?.printer_mapping?.photo || (shop as any)?.shop_info?.printer_mapping?.photo || ""

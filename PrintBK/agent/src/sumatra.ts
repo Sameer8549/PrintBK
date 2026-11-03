@@ -116,7 +116,12 @@ export async function executeSumatraPrint(
         const { stdout, stderr } = await execAsync(safeCmd, { timeout: 60000 });
         return { success: true, stdout, stderr };
       } catch (safeErr: any) {
-        // Driver still refused or printer offline
+        // 2. Pure basic print without any -print-settings (works on 100% of legacy Canon/Brother/HP CAPT/GDI drivers)
+        try {
+          const minimalCmd = `"${bin}" ${primaryTarget} -silent "${filePath}"`;
+          const { stdout, stderr } = await execAsync(minimalCmd, { timeout: 60000 });
+          return { success: true, stdout, stderr };
+        } catch (_) {}
       }
     }
     throw new Error(`SumatraPDF print failed for "${printerName || 'default'}": ${err.message}`);

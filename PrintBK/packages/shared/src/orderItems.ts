@@ -40,7 +40,8 @@ export function basketToOrderItems(basket: Basket, cfg?: ShopConfig): OrderItem[
     const isPhoto = Boolean(
       (file as any).isPhotoSheet ||
       (file as any).photoLayout ||
-      s.paper === 'Glossy' ||
+      // paper check removed — photo items identified by isPhotoSheet/photoLayout flags
+      // s.paper === 'Glossy' ||
       (s as any).photoSize ||
       /\.(jpe?g|png|webp|gif|bmp)$/i.test(file.name)
     );
@@ -73,10 +74,10 @@ export function basketToOrderItems(basket: Basket, cfg?: ShopConfig): OrderItem[
         photoLayout: layoutKey,
         preset: layoutKey,
         photoCount: 1,
-        sheetLayout: `Glossy · ${layoutKey}`,
+        sheetLayout: `Photo Print · ${layoutKey}`,
         colourMode: colorMode === 'bw' ? 'Monochrome B&W' : 'Natural Colour',
         colorMode: colorMode === 'bw' ? 'bw' : 'colour',
-        printInstructions: `Glossy Photo Paper, ${layoutKey}, ${colorMode === 'bw' ? 'B&W' : 'Colour'}, ${copies} ${copies > 1 ? 'copies' : 'copy'}`
+        printInstructions: `Photo Print · ${layoutKey} · ${colorMode === 'bw' ? 'B&W' : 'Colour'} · ${copies} ${copies > 1 ? 'copies' : 'copy'}`
       };
 
       const item: OrderItem = {

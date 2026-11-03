@@ -6,7 +6,6 @@ const path = require('path');
 module.exports = {
   appId: 'com.printbk.counter',
   productName: 'PrintBK Counter',
-  asar: false,
   directories: {
     output: path.resolve(__dirname, 'dist/installer'),
     buildResources: path.resolve(__dirname, 'public')

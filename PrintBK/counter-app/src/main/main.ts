@@ -454,15 +454,45 @@ function showMainWindow() {
     });
   }
 
-  // Load staff app URL with offline fallback
-  mainWindow.loadURL(appConfig.staffAppUrl).catch(() => {
-    mainWindow?.loadFile(path.resolve(__dirname, '../ui/offline.html'));
-  });
+  // Load staff app URL with resilient retry and offline fallback
+  let loadAttempts = 0;
+  const loadStaffAppWithRetry = async () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const targetUrl = store.get().staffAppUrl || appConfig.staffAppUrl;
+    try {
+      console.log(`[Navigation] Loading staff app URL: ${targetUrl}`);
+      await mainWindow.loadURL(targetUrl);
+    } catch (loadErr: any) {
+      loadAttempts++;
+      if (loadAttempts < 3) {
+        console.warn(`[Navigation] Initial load failed (${loadErr?.message}), retrying in 2s (attempt ${loadAttempts}/3)...`);
+        setTimeout(loadStaffAppWithRetry, 2000);
+      } else {
+        console.warn(`[Navigation] Initial load failed after 3 attempts, showing offline.html`);
+        mainWindow?.loadFile(path.resolve(__dirname, '../ui/offline.html'));
+      }
+    }
+  };
 
-  mainWindow.webContents.on('did-fail-load', (_event, errorCode) => {
-    // If not aborted, show offline page
-    if (errorCode !== -3) {
-      mainWindow?.loadFile(path.resolve(__dirname, '../ui/offline.html'));
+  loadStaffAppWithRetry();
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    // Only fail-load on main frame navigation should ever consider showing offline screen.
+    // Sub-resources, images, or iframes must NEVER trigger the offline view.
+    if (isMainFrame && errorCode !== -3 && validatedURL && !validatedURL.startsWith('file://')) {
+      console.warn(`[Navigation] Main frame did-fail-load: ${errorCode} ${errorDescription} on ${validatedURL}`);
+      // Retry once after 2.5s before falling back to offline screen
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          const currentUrl = mainWindow.webContents.getURL();
+          if (currentUrl && currentUrl.startsWith('http')) {
+            console.log('[Navigation] Retrying main frame reload after transient glitch...');
+            mainWindow.webContents.reload();
+          } else {
+            mainWindow?.loadFile(path.resolve(__dirname, '../ui/offline.html'));
+          }
+        }
+      }, 2500);
     }
   });
 
@@ -758,6 +788,19 @@ ipcMain.handle('counter:check-update', async () => {
   return { updateAvailable: false };
 });
 
+ipcMain.handle('counter:reload-staff', async () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const creds = store.get();
+    const targetUrl = creds.staffAppUrl || appConfig.staffAppUrl;
+    console.log(`[Navigation] Manual reload requested for: ${targetUrl}`);
+    mainWindow.loadURL(targetUrl).catch((err) => {
+      console.warn(`[Navigation] Reload failed (${err.message}), showing offline.html`);
+      mainWindow?.loadFile(path.resolve(__dirname, '../ui/offline.html'));
+    });
+  }
+  return { ok: true };
+});
+
 ipcMain.handle('counter:finish-wizard', async (_event, config) => {
   if (config) {
     store.set({
@@ -768,6 +811,22 @@ ipcMain.handle('counter:finish-wizard', async (_event, config) => {
       openAtLogin: config.openAtLogin !== false
     });
     configureAutoStart(config.openAtLogin !== false);
+
+    // Save printer config to agent-config.json
+    try {
+      const appDataDir = process.env.APPDATA ? path.join(process.env.APPDATA, 'PrintBK') : path.join(os.homedir(), 'AppData', 'Roaming', 'PrintBK');
+      const agentConfigPath = path.join(appDataDir, 'agent-config.json');
+      fs.writeFileSync(agentConfigPath, JSON.stringify({
+        printerProfiles: {
+          bw: config.bwPrinter || '',
+          colour: config.colourPrinter || '',
+          photo: config.photoPrinter || config.colourPrinter || ''
+        }
+      }, null, 2), 'utf8');
+    } catch (_) {}
+
+    // Immediately start or update supervisor with the newly selected B/W and Colour printers
+    startAgentSupervisor();
   }
   showMainWindow();
   if (wizardWindow && !wizardWindow.isDestroyed()) {
@@ -799,7 +858,11 @@ function startAgentSupervisor() {
   const targetApiBase = creds.apiBase || appConfig.apiBase;
 
   if (supervisor) {
-    supervisor.updateCredentials(creds.agentToken, creds.deviceLabel, targetApiBase);
+    supervisor.updateCredentials(creds.agentToken, creds.deviceLabel, targetApiBase, {
+      bw: creds.bwPrinter,
+      colour: creds.colourPrinter,
+      photo: creds.photoPrinter
+    });
     return;
   }
 
@@ -810,7 +873,10 @@ function startAgentSupervisor() {
     deviceLabel: creds.deviceLabel || 'Shop Counter PC',
     sumatraPath: resolvedSumatra || undefined,
     libreOfficePath: resolvedConverter || undefined,
-    dryRun: process.env.DRY_RUN === 'true'
+    dryRun: process.env.DRY_RUN === 'true',
+    bwPrinter: creds.bwPrinter,
+    colourPrinter: creds.colourPrinter,
+    photoPrinter: creds.photoPrinter
   });
 
   supervisor.on('status-changed', (newStatus: AgentStatus) => {

@@ -1408,12 +1408,10 @@ function FileCard({
   }, [isColourAvail, isBwAvail, s.colorMode]);
 
   useEffect(() => {
-    if (isPhotoSheet && s.paper !== 'Glossy') {
-      upd({ paper: 'Glossy' } as any);
-    } else if (!isPhotoSheet && s.paper === 'Glossy') {
+    if (s.paper === 'Glossy') {
       upd({ paper: 'A4' } as any);
     }
-  }, [isPhotoSheet, s.paper]);
+  }, [s.paper]);
 
   const cfgRates = (cfg?.rates as any) || {};
   const bwRate = cfgRates.bw ?? 1.50;
@@ -1446,7 +1444,7 @@ function FileCard({
           <div style={{ fontSize: 12, color: '#475569', fontWeight: 600, marginTop: 2 }}>
             {isPhotoSheet ? (
               <span>
-                Photo Print · {(s as any).photoSize === '8x8' ? '8×8 Square' : (s as any).photoSize === '4x6' ? '4×6 Photo' : 'Passport / A4 Sheet'} Glossy · {s.colorMode === 'bw' ? 'B&W' : 'Colour'} · ×{s.copies}
+                Photo Print · {(s as any).photoSize === '8x8' ? '8×8 Square' : (s as any).photoSize === '4x6' ? '4×6 Photo' : 'Passport / A4 Sheet'} · {s.colorMode === 'bw' ? 'B&W' : 'Colour'} · ×{s.copies}
               </span>
             ) : isSinglePageDoc ? (
               <span>
@@ -1689,13 +1687,13 @@ function FileCard({
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
                   <span>PHOTO PAPER &amp; PRINT SIZE</span>
                   <span style={{ color: '#0f172a', fontWeight: 800 }}>
-                    {(s as any).photoSize === '8x8' ? '8×8 Square (Glossy Photo Paper)' : (s as any).photoSize === '4x6' ? '4×6 Photo (Glossy Photo Paper)' : 'Full Sheet Glossy Photo Paper (210 GSM)'}
+                    {(s as any).photoSize === '8x8' ? '8×8 Square (Photo Print)' : (s as any).photoSize === '4x6' ? '4×6 Photo (Photo Print)' : 'Full Sheet Photo Print (210 GSM)'}
                   </span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                   <button
                     type="button"
-                    onClick={() => upd({ paper: 'Glossy', photoSize: 'A4' } as any)}
+                    onClick={() => upd({ paper: 'A4', photoSize: 'A4' } as any)}
                     style={{
                       ...btn,
                       padding: '8px 4px',
@@ -1707,11 +1705,11 @@ function FileCard({
                     }}
                   >
                     <span style={{ fontSize: 12, fontWeight: 700 }}>✨ Full Sheet</span>
-                    <span style={{ fontSize: 9, opacity: 0.75 }}>A4 Glossy (210 GSM)</span>
+                    <span style={{ fontSize: 9, opacity: 0.75 }}>A4 Photo Sheet (210 GSM)</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => upd({ paper: 'Glossy', photoSize: '4x6' } as any)}
+                    onClick={() => upd({ paper: 'A4', photoSize: '4x6' } as any)}
                     style={{
                       ...btn,
                       padding: '8px 4px',
@@ -1723,11 +1721,11 @@ function FileCard({
                     }}
                   >
                     <span style={{ fontSize: 12, fontWeight: 700 }}>🖼️ 4×6 Photo</span>
-                    <span style={{ fontSize: 9, opacity: 0.75 }}>10×15 cm Glossy</span>
+                    <span style={{ fontSize: 9, opacity: 0.75 }}>10×15 cm Photo Print</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => upd({ paper: 'Glossy', photoSize: '8x8' } as any)}
+                    onClick={() => upd({ paper: 'A4', photoSize: '8x8' } as any)}
                     style={{
                       ...btn,
                       padding: '8px 4px',
@@ -1739,12 +1737,12 @@ function FileCard({
                     }}
                   >
                     <span style={{ fontSize: 12, fontWeight: 700 }}>🔲 8×8 Square</span>
-                    <span style={{ fontSize: 9, opacity: 0.75 }}>20×20 cm Glossy</span>
+                    <span style={{ fontSize: 9, opacity: 0.75 }}>20×20 cm Photo Print</span>
                   </button>
                 </div>
                 <div style={{ marginTop: 8, padding: '6px 10px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#166534' }}>
                   <span>📸</span>
-                  <span>Photos are strictly printed on 210 GSM glossy photo paper for true photographic quality.</span>
+                  <span>Photos are strictly printed on 210 GSM photo paper for true photographic quality.</span>
                 </div>
               </div>
 
@@ -2314,16 +2312,52 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
           return (
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: '#718096', margin: '12px 2px 8px' }}>SERVICES</div>
-              {visibleServices.map(s => (
-                <div key={s.id} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #e2e8f0', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{s.name}</div>
-                    {s.detail && <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>{s.detail}</div>}
+              {visibleServices.map(s => {
+                const svcText = `${s.type || ''} ${s.name || ''} ${s.detail || ''}`.toLowerCase();
+                const svcKey = svcText.includes('staple') ? 'binding_staple' :
+                               svcText.includes('comb') ? 'binding_comb' :
+                               svcText.includes('soft') ? 'binding_soft' :
+                               svcText.includes('hard') ? 'binding_hard' :
+                               svcText.includes('spiral') ? 'binding_spiral' :
+                               svcText.includes('lamination') ? 'lamination' :
+                               svcText.includes('scan') ? 'scanning' :
+                               svcText.includes('photocopy') || svcText.includes('copy') ? 'photocopy' :
+                               svcText.includes('typing') || svcText.includes('format') ? 'typing' :
+                               svcText.includes('something_else') || svcText.includes('custom') ? 'custom' : '';
+
+                const sConf = svcKey ? (cfg.services?.[svcKey] || (svcKey === 'binding_staple' ? cfg.services?.staple : undefined)) : undefined;
+                const isUnavailable = sConf?.available === false;
+
+                return (
+                  <div key={s.id} style={{
+                    background: isUnavailable ? '#fef2f2' : '#fff',
+                    borderRadius: 14,
+                    border: `1.5px solid ${isUnavailable ? '#f87171' : '#e2e8f0'}`,
+                    padding: '12px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    marginBottom: 8
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: isUnavailable ? '#991b1b' : '#0f172a' }}>
+                        {s.name}
+                      </div>
+                      {isUnavailable ? (
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#dc2626', marginTop: 2 }}>
+                          ⚠️ Paused at counter: {sConf?.reason || 'Unavailable today'}
+                        </div>
+                      ) : (
+                        s.detail && <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>{s.detail}</div>
+                      )}
+                    </div>
+                    <span style={{ fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap', color: isUnavailable ? '#991b1b' : '#0f172a' }}>
+                      {s.price == null ? 'Quote' : `₹${s.price}`}
+                    </span>
+                    <button onClick={() => removeService(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e53e3e', fontSize: 22, lineHeight: 1, padding: '0 2px' }}>×</button>
                   </div>
-                  <span style={{ fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap' }}>{s.price == null ? 'Quote' : `₹${s.price}`}</span>
-                  <button onClick={() => removeService(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e53e3e', fontSize: 22, lineHeight: 1, padding: '0 2px' }}>×</button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           );
         })()}
@@ -2353,13 +2387,54 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
             <div style={{ fontSize: 30, fontWeight: 900, color: '#0f172a', letterSpacing: -1 }}>₹{pricing.total.toFixed(2)}</div>
           </div>
         </div>
-        <button
-          className="primary full"
-          style={{ width: '100%', maxWidth: 600, margin: '0 auto', display: 'block', padding: 16, fontSize: 17, fontWeight: 800, borderRadius: 14, letterSpacing: 0.2 }}
-          onClick={() => go('checkout')}
-        >
-          Proceed to Checkout →
-        </button>
+        {(() => {
+          const hasUnavailableServices = services.some(s => {
+            const svcText = `${s.type || ''} ${s.name || ''} ${s.detail || ''}`.toLowerCase();
+            const svcKey = svcText.includes('staple') ? 'binding_staple' :
+                           svcText.includes('comb') ? 'binding_comb' :
+                           svcText.includes('soft') ? 'binding_soft' :
+                           svcText.includes('hard') ? 'binding_hard' :
+                           svcText.includes('spiral') ? 'binding_spiral' :
+                           svcText.includes('lamination') ? 'lamination' :
+                           svcText.includes('scan') ? 'scanning' :
+                           svcText.includes('photocopy') || svcText.includes('copy') ? 'photocopy' :
+                           svcText.includes('typing') || svcText.includes('format') ? 'typing' :
+                           svcText.includes('something_else') || svcText.includes('custom') ? 'custom' : '';
+            if (!svcKey) return false;
+            const sConf = cfg.services?.[svcKey] || (svcKey === 'binding_staple' ? cfg.services?.staple : undefined);
+            return sConf?.available === false;
+          });
+
+          return (
+            <>
+              {hasUnavailableServices && (
+                <div style={{ maxWidth: 600, margin: '0 auto 8px', fontSize: 12, fontWeight: 700, color: '#dc2626', textAlign: 'center' }}>
+                  Please remove paused services above to proceed.
+                </div>
+              )}
+              <button
+                className="primary full"
+                disabled={hasUnavailableServices}
+                style={{
+                  width: '100%',
+                  maxWidth: 600,
+                  margin: '0 auto',
+                  display: 'block',
+                  padding: 16,
+                  fontSize: 17,
+                  fontWeight: 800,
+                  borderRadius: 14,
+                  letterSpacing: 0.2,
+                  opacity: hasUnavailableServices ? 0.6 : 1,
+                  cursor: hasUnavailableServices ? 'not-allowed' : 'pointer'
+                }}
+                onClick={() => !hasUnavailableServices && go('checkout')}
+              >
+                {hasUnavailableServices ? 'Remove Paused Services to Continue' : 'Proceed to Checkout →'}
+              </button>
+            </>
+          );
+        })()}
       </div>
     </main>
   );

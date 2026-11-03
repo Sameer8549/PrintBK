@@ -27,7 +27,8 @@ function basketToOrderItems(basket, cfg) {
             : undefined;
         const isPhoto = Boolean(file.isPhotoSheet ||
             file.photoLayout ||
-            s.paper === 'Glossy' ||
+            // paper check removed — photo items identified by isPhotoSheet/photoLayout flags
+            // s.paper === 'Glossy' ||
             s.photoSize ||
             /\.(jpe?g|png|webp|gif|bmp)$/i.test(file.name));
         if (isPhoto) {
@@ -55,10 +56,10 @@ function basketToOrderItems(basket, cfg) {
                 photoLayout: layoutKey,
                 preset: layoutKey,
                 photoCount: 1,
-                sheetLayout: `Glossy · ${layoutKey}`,
+                sheetLayout: `Photo Print · ${layoutKey}`,
                 colourMode: colorMode === 'bw' ? 'Monochrome B&W' : 'Natural Colour',
                 colorMode: colorMode === 'bw' ? 'bw' : 'colour',
-                printInstructions: `Glossy Photo Paper, ${layoutKey}, ${colorMode === 'bw' ? 'B&W' : 'Colour'}, ${copies} ${copies > 1 ? 'copies' : 'copy'}`
+                printInstructions: `Photo Print · ${layoutKey} · ${colorMode === 'bw' ? 'B&W' : 'Colour'} · ${copies} ${copies > 1 ? 'copies' : 'copy'}`
             };
             const item = {
                 id: `photo-${file.id}`,

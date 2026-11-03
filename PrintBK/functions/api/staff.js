@@ -116,8 +116,28 @@ async function authenticateStaff(req, res, next) {
     return next();
   }
 
-  // 2. Look up token in staff_devices table
+  // 2. Look up token in staff_devices table with in-memory caching to save ZCQL costs
   const tokenHash = crypto.createHash('sha256').update(deviceToken).digest('hex');
+  const now = nowSec();
+  const cachedStaff = memStaffDevices.get(tokenHash);
+  if (cachedStaff && (now - (cachedStaff.cachedAt || 0) < 300)) {
+    if (cachedStaff.revoked === true || String(cachedStaff.revoked) === 'true') {
+      return res.status(403).json({ error: 'Device access has been revoked' });
+    }
+    if (now - (cachedStaff.last_seen_at || 0) > 60) {
+      cachedStaff.last_seen_at = now;
+      const catalystApp = getCatalystApp(req);
+      const zcql = catalystApp ? catalystApp.zcql() : null;
+      if (zcql) {
+        zcql.executeZCQLQuery(
+          `UPDATE staff_devices SET last_seen_at = ${now} WHERE token_hash = '${tokenHash}'`
+        ).catch(() => {});
+      }
+    }
+    req.staffDevice = { id: String(cachedStaff.id || tokenHash.slice(0, 8)), label: cachedStaff.label || 'Counter PC' };
+    return next();
+  }
+
   try {
     const catalystApp = getCatalystApp(req);
     const zcql = catalystApp ? catalystApp.zcql() : null;
@@ -129,12 +149,20 @@ async function authenticateStaff(req, res, next) {
 
       if (rows && rows.length > 0) {
         const dev = rows[0].staff_devices;
-        if (dev.revoked === true || String(dev.revoked) === 'true') {
+        const isRevoked = dev.revoked === true || String(dev.revoked) === 'true';
+        memStaffDevices.set(tokenHash, {
+          id: String(dev.ROWID || tokenHash.slice(0, 8)),
+          label: dev.label || 'Counter PC',
+          revoked: isRevoked,
+          cachedAt: now,
+          last_seen_at: now
+        });
+
+        if (isRevoked) {
           return res.status(403).json({ error: 'Device access has been revoked' });
         }
 
         // Update last seen asynchronously
-        const now = nowSec();
         zcql.executeZCQLQuery(
           `UPDATE staff_devices SET last_seen_at = ${now} WHERE token_hash = '${tokenHash}'`
         ).catch(() => {});
@@ -867,48 +895,25 @@ router.post('/items/:id/approve-print', async (req, res) => {
           await zcql.executeZCQLQuery(`UPDATE orders SET status = 'cash_collected', payment_status = 'cash_collected', updated_at = ${now} WHERE id = '${esc(orderId)}'`).catch(() => {});
         }
         await recordAudit(zcql, { orderId, itemId, action: 'cash_collected_and_approved', fromStatus: 'pending_cash', toStatus: 'cash_collected' });
+      } else if (order.status === 'upi_started' || order.status === 'pending_payment') {
+        order.status = 'upi_claimed';
+        order.payment_status = 'upi_claimed';
+        if (zcql) {
+          await zcql.executeZCQLQuery(`UPDATE orders SET status = 'upi_claimed', payment_status = 'upi_claimed', updated_at = ${now} WHERE id = '${esc(orderId)}'`).catch(() => {});
+        }
+        await recordAudit(zcql, { orderId, itemId, action: 'upi_verified_and_approved', fromStatus: order.status, toStatus: 'upi_claimed' });
       } else {
         return res.status(409).json({ error: 'Cannot print: payment has not been collected or verified' });
       }
     }
 
-    // Determine target printer based on assigned printer mapping or registered printers
-    let targetPrinter = '';
-    if (zcql) {
-      try {
-        const sRows = await zcql.executeZCQLQuery(`SELECT shop_info FROM shop_settings WHERE id = 'default' LIMIT 1`);
-        if (sRows && sRows.length > 0) {
-          const sInfo = typeof sRows[0].shop_settings.shop_info === 'string' ? JSON.parse(sRows[0].shop_settings.shop_info || '{}') : (sRows[0].shop_settings.shop_info || {});
-          if (sInfo.printer_mapping) {
-            targetPrinter = kind.includes('colour') ? sInfo.printer_mapping.colour : sInfo.printer_mapping.bw;
-          }
-        }
-      } catch (_) {}
-    }
-    if (!targetPrinter && zcql) {
-      try {
-        const pRows = await zcql.executeZCQLQuery(`SELECT name, role FROM printers WHERE role = '${kind.includes('colour') ? 'colour' : 'bw'}' OR role = 'both' ORDER BY online DESC LIMIT 1`);
-        if (pRows && pRows.length > 0) targetPrinter = pRows[0].printers.name;
-      } catch (_) {}
-    }
-    if (!targetPrinter && global.__printbk_printers) {
-      for (const [pName, p] of global.__printbk_printers) {
-        if ((kind.includes('colour') && (p.role === 'colour' || p.role === 'both')) || (!kind.includes('colour') && (p.role === 'bw' || p.role === 'both'))) {
-          targetPrinter = p.name || pName;
-          break;
-        }
-      }
-    }
-    if (!targetPrinter) {
-      targetPrinter = kind.includes('colour') ? 'Colour Printer' : 'B&W Printer';
-    }
-
-    // Ensure item record exists for print agent dispatch
+    // Ensure item record exists for print agent dispatch and identify item kind
     if (!itemRecord && order) {
       let b = {};
       try { b = typeof order.basket === 'string' ? JSON.parse(order.basket || '{}') : (order.basket || {}); } catch (_) {}
       const matched = (b.typedItems || []).find(it => it.id === itemId);
       if (matched) {
+        kind = matched.type || kind;
         itemRecord = {
           id: itemId,
           order_id: orderId,
@@ -917,7 +922,7 @@ router.post('/items/:id/approve-print', async (req, res) => {
           status: 'sending',
           payload: JSON.stringify(matched.specifications || {}),
           file_refs: JSON.stringify(matched.specifications?.fileId ? [matched.specifications.fileId] : []),
-          printer_role: kind.includes('colour') ? 'colour' : 'bw'
+          printer_role: matched.type?.includes('photo') ? 'photo' : (matched.type?.includes('colour') ? 'colour' : 'bw')
         };
         memOrderItems.set(itemId, itemRecord);
         if (zcql) {
@@ -928,6 +933,58 @@ router.post('/items/:id/approve-print', async (req, res) => {
           ).catch(() => {});
         }
       }
+    }
+
+    // Determine target printer based on assigned printer mapping or registered printers
+    let targetPrinter = '';
+    const isPhotoKind = kind.includes('photo');
+    const isColourKind = kind.includes('colour') && !isPhotoKind;
+
+    if (zcql) {
+      try {
+        const sRows = await zcql.executeZCQLQuery(`SELECT shop_info FROM shop_settings WHERE id = 'default' LIMIT 1`);
+        if (sRows && sRows.length > 0) {
+          const sInfo = typeof sRows[0].shop_settings.shop_info === 'string' ? JSON.parse(sRows[0].shop_settings.shop_info || '{}') : (sRows[0].shop_settings.shop_info || {});
+          if (sInfo.printer_mapping) {
+            targetPrinter = isPhotoKind
+              ? (sInfo.printer_mapping.photo || sInfo.printer_mapping.colour)
+              : (isColourKind ? sInfo.printer_mapping.colour : sInfo.printer_mapping.bw);
+          }
+        }
+      } catch (_) {}
+    }
+    if (!targetPrinter) {
+      const memShop = global.__printbk_shop_settings || {};
+      const sInfo = typeof memShop.shop_info === 'string' ? JSON.parse(memShop.shop_info || '{}') : (memShop.shop_info || {});
+      if (sInfo.printer_mapping) {
+        targetPrinter = isPhotoKind
+          ? (sInfo.printer_mapping.photo || sInfo.printer_mapping.colour)
+          : (isColourKind ? sInfo.printer_mapping.colour : sInfo.printer_mapping.bw);
+      }
+    }
+    if (!targetPrinter && zcql) {
+      try {
+        const targetRole = isPhotoKind ? 'photo' : (isColourKind ? 'colour' : 'bw');
+        const pRows = await zcql.executeZCQLQuery(`SELECT name, role FROM printers WHERE role = '${targetRole}' OR role = 'both' ORDER BY online DESC LIMIT 1`);
+        if (pRows && pRows.length > 0) targetPrinter = pRows[0].printers.name;
+      } catch (_) {}
+    }
+    if (!targetPrinter && global.__printbk_printers) {
+      for (const [pName, p] of global.__printbk_printers) {
+        if (isPhotoKind && (p.role === 'photo' || p.role === 'colour' || p.role === 'both')) {
+          targetPrinter = p.name || pName;
+          break;
+        } else if (isColourKind && (p.role === 'colour' || p.role === 'both')) {
+          targetPrinter = p.name || pName;
+          break;
+        } else if (!isPhotoKind && !isColourKind && (p.role === 'bw' || p.role === 'both')) {
+          targetPrinter = p.name || pName;
+          break;
+        }
+      }
+    }
+    if (!targetPrinter) {
+      targetPrinter = isPhotoKind ? 'Photo Printer' : (isColourKind ? 'Colour Printer' : 'B&W Printer');
     }
 
     // Queue print job for print agent
@@ -983,7 +1040,7 @@ router.post('/items/:id/approve-print', async (req, res) => {
       await global.__printbk_invalidateCachedQueue(catalystApp);
     }
 
-    res.json({ ok: true, itemId, status: 'sending', printJobId });
+    res.json({ ok: true, itemId, status: 'sending', printJobId, targetPrinter });
   } catch (err) {
     res.status(500).json({ error: 'Failed to approve print: ' + err.message });
   }

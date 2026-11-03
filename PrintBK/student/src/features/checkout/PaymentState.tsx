@@ -74,7 +74,7 @@ function PaymentState({
         if (active) {
           setUpiData(data);
           qrShownAtRef.current = Date.now();
-          if (isDesktop) setShowQR(true);
+          if (isDesktop || isIOS) setShowQR(true);
         }
       } catch (err: any) {
         if (active) setError(err?.message || 'Failed to initiate UPI payment');
@@ -99,6 +99,40 @@ function PaymentState({
       .then(url => setLocalQrDataUrl(url))
       .catch(err => console.warn('Offline QR code generation warning:', err));
   }, [upiData?.intentUrl]);
+
+  // 1b. Active order status poller — auto-transitions when payment is confirmed or approved by counter
+  useEffect(() => {
+    if (!id || redirecting) return;
+    const orderId = id;
+    let active = true;
+
+    const pollTimer = setInterval(async () => {
+      if (!active || claimedRef.current || document.visibilityState !== 'visible') return;
+      try {
+        const o = await api.getOrder(orderId, order?.accessToken);
+        if (!o || !active) return;
+        const paidStatuses = ['upi_claimed', 'cash_collected', 'paid', 'processing', 'printing', 'ready', 'completed'];
+        if (paidStatuses.includes(o.status) || paidStatuses.includes((o as any).payment_status)) {
+          claimedRef.current = true;
+          setRedirecting(true);
+          updateOrder(orderId, {
+            status: o.status,
+            payment_status: (o as any).payment_status || 'upi_claimed',
+            orderNumber: o.orderNumber || order?.orderNumber,
+            paymentMethod: 'upi'
+          } as any);
+          useBasket.getState().clear();
+          notify('Payment verified! Opening confirmed receipt…');
+          navigate(`/receipt/${orderId}`);
+        }
+      } catch (_) {}
+    }, 2500);
+
+    return () => {
+      active = false;
+      clearInterval(pollTimer);
+    };
+  }, [id, order?.accessToken, redirecting, navigate, updateOrder]);
 
   // Execute automatic UPI return claim and redirect straight to receipt
   const executeAutoClaim = async (submittedUtr?: string) => {
@@ -254,6 +288,22 @@ function PaymentState({
       </main>
     );
   }
+
+  const gpayHref = isAndroid && (upiData as any)?.gpayAndroid
+    ? (upiData as any).gpayAndroid
+    : (isIOS && (upiData as any)?.gpayIos ? (upiData as any).gpayIos : (upiData.gpayUrl || upiData.intentUrl));
+
+  const phonepeHref = isAndroid && (upiData as any)?.phonepeAndroid
+    ? (upiData as any).phonepeAndroid
+    : (isIOS && (upiData as any)?.phonepeIos ? (upiData as any).phonepeIos : (upiData.phonepeUrl || upiData.intentUrl));
+
+  const paytmHref = isAndroid && (upiData as any)?.paytmAndroid
+    ? (upiData as any).paytmAndroid
+    : (isIOS && (upiData as any)?.paytmIos ? (upiData as any).paytmIos : (upiData.paytmUrl || upiData.intentUrl));
+
+  const bhimHref = isAndroid && (upiData as any)?.bhimAndroid
+    ? (upiData as any).bhimAndroid
+    : (upiData.intentUrl);
 
   return (
     <main className="page" style={{ height: '100dvh', maxHeight: '100dvh', overflow: 'hidden', background: '#f7f4ee', display: 'flex', flexDirection: 'column' }}>
@@ -448,7 +498,7 @@ function PaymentState({
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginTop: 4 }}>
               {/* Google Pay */}
               <a
-                href={upiData.gpayUrl || upiData.intentUrl}
+                href={gpayHref}
                 onClick={handleLaunchUpi}
                 style={{
                   display: 'flex',
@@ -472,7 +522,7 @@ function PaymentState({
 
               {/* PhonePe */}
               <a
-                href={upiData.phonepeUrl || upiData.intentUrl}
+                href={phonepeHref}
                 onClick={handleLaunchUpi}
                 style={{
                   display: 'flex',
@@ -496,7 +546,7 @@ function PaymentState({
 
               {/* Paytm */}
               <a
-                href={upiData.paytmUrl || upiData.intentUrl}
+                href={paytmHref}
                 onClick={handleLaunchUpi}
                 style={{
                   display: 'flex',
@@ -520,7 +570,7 @@ function PaymentState({
 
               {/* BHIM UPI */}
               <a
-                href={upiData.intentUrl}
+                href={bhimHref}
                 onClick={handleLaunchUpi}
                 style={{
                   display: 'flex',

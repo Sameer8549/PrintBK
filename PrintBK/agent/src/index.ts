@@ -25,15 +25,22 @@ const httpAgent = new http.Agent({
   timeout: 10000
 });
 
-function agentFetch(url: string, options: any = {}): Promise<any> {
-  if (typeof globalThis.fetch === 'function') {
-    return globalThis.fetch(url, options);
+async function agentFetch(url: string, options: any = {}, retries = 2): Promise<any> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      if (typeof globalThis.fetch === 'function') {
+        return await globalThis.fetch(url, options);
+      }
+      const isHttps = url.startsWith('https:');
+      return await fetch(url, {
+        ...options,
+        agent: isHttps ? httpsAgent : httpAgent
+      });
+    } catch (err: any) {
+      if (attempt === retries) throw err;
+      await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
+    }
   }
-  const isHttps = url.startsWith('https:');
-  return fetch(url, {
-    ...options,
-    agent: isHttps ? httpsAgent : httpAgent
-  });
 }
 import { loadConfig, saveConfig, AgentConfig } from './config';
 import { discoverPrinters } from './printers';
@@ -161,7 +168,23 @@ class PrintAgentDaemon {
     process.on('SIGTERM', () => this.shutdown());
   }
 
+  private lastPairAttempt = 0;
+
   private async pairDevice(): Promise<void> {
+    // 1. Never re-pair automatically if supervised by Desktop counter app
+    if (process.env.DESKTOP_SUPERVISED === 'true' || process.env.ELECTRON_RUN_AS_NODE === '1') {
+      logger.warn('[Agent] 401 received: Desktop supervisor manages workstation pairing; skipping standalone re-pair.');
+      return;
+    }
+
+    // 2. Strict rate limit: never re-pair more than once per 5 minutes
+    const now = Date.now();
+    if (now - this.lastPairAttempt < 5 * 60 * 1000) {
+      logger.warn('[Agent] Skipping pairDevice: throttled to prevent runaway device creation.');
+      return;
+    }
+    this.lastPairAttempt = now;
+
     logger.info(`[Agent] Pairing device with setup code against ${this.config.apiBase}...`);
     try {
       const res = await agentFetch(`${this.config.apiBase}/server/api/agent/pair`, {
@@ -541,8 +564,9 @@ class PrintAgentDaemon {
             {
               copies: Number(settings.copies || 1),
               duplex: duplexMode,
-              color: part.role === 'colour' ? 'color' : 'monochrome',
-              paper: settings.paper || 'A4'
+              color: (part.role === 'colour' || part.role === 'photo') ? 'color' : 'monochrome',
+              // Map 'Glossy' to 'A4' — SumatraPDF doesn't understand 'Glossy' as a paper size
+              paper: (settings.paper === 'Glossy' || settings.paper === 'glossy') ? 'A4' : (settings.paper || 'A4')
             },
             this.config.sumatraPath
           );

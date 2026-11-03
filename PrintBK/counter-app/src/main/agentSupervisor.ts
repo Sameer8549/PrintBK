@@ -14,6 +14,9 @@ export interface AgentSupervisorOptions {
   sumatraPath?: string;
   libreOfficePath?: string;
   dryRun?: boolean;
+  bwPrinter?: string;
+  colourPrinter?: string;
+  photoPrinter?: string;
 }
 
 export class AgentSupervisor extends EventEmitter {
@@ -49,10 +52,15 @@ export class AgentSupervisor extends EventEmitter {
     return this.status;
   }
 
-  public updateCredentials(token: string, label?: string, apiBase?: string): void {
+  public updateCredentials(token: string, label?: string, apiBase?: string, printers?: { bw?: string; colour?: string; photo?: string }): void {
     this.options.agentToken = token;
     if (label) this.options.deviceLabel = label;
     if (apiBase) this.options.apiBase = apiBase;
+    if (printers) {
+      if (printers.bw) this.options.bwPrinter = printers.bw;
+      if (printers.colour) this.options.colourPrinter = printers.colour;
+      if (printers.photo) this.options.photoPrinter = printers.photo;
+    }
     if (this.child) {
       this.restart();
     }
@@ -134,9 +142,13 @@ export class AgentSupervisor extends EventEmitter {
       API_BASE: this.options.apiBase,
       AGENT_TOKEN: this.options.agentToken,
       AGENT_LABEL: this.options.deviceLabel,
-      ELECTRON_RUN_AS_NODE: '1'
+      ELECTRON_RUN_AS_NODE: '1',
+      DESKTOP_SUPERVISED: 'true'
     };
 
+    if (this.options.bwPrinter) env.BW_PRINTER = this.options.bwPrinter;
+    if (this.options.colourPrinter) env.COLOUR_PRINTER = this.options.colourPrinter;
+    if (this.options.photoPrinter) env.PHOTO_PRINTER = this.options.photoPrinter;
     if (this.options.sumatraPath) env.SUMATRA_PATH = this.options.sumatraPath;
     if (this.options.libreOfficePath) env.LIBREOFFICE_PATH = this.options.libreOfficePath;
     if (this.options.dryRun) env.DRY_RUN = 'true';

@@ -1017,7 +1017,7 @@ function validateOrderInput(body) {
   if (!Array.isArray(services)) return 'Services must be an array';
   if (services.length > 20) return 'Exceeded maximum 20 services per order';
 
-  const validPapers = new Set(['A4', 'A3', 'Legal']);
+  const validPapers = new Set(['A4', 'A3', 'Legal', 'Glossy']);
   const validColorModes = new Set(['bw', 'colour', 'color', 'auto', 'custom']);
   const validSides = new Set(['single', 'double']);
   const validOrientations = new Set(['portrait', 'landscape', 'auto']);
@@ -1120,15 +1120,39 @@ app.post('/orders', async (req, res) => {
     }
     for (const svc of servicesToCheck) {
       let svcKey = svc.type || '';
-      if (svc.type === 'binding') {
-        const bType = String(svc.bindingType || svc.id || 'spiral').toLowerCase();
-        if (bType.includes('comb')) svcKey = 'binding_comb';
-        else if (bType.includes('staple')) svcKey = 'binding_staple';
-        else if (bType.includes('soft')) svcKey = 'binding_soft';
-        else if (bType.includes('hard')) svcKey = 'binding_hard';
-        else svcKey = 'binding_spiral';
-      }
-      const sConf = settings.services?.[svcKey] || (svcKey === 'document_bw' ? settings.services?.bw : (svcKey === 'document_colour' ? settings.services?.colour : undefined));
+      const svcText = `${svc.type || ''} ${svc.name || ''} ${svc.detail || ''} ${svc.bindingType || ''} ${svc.id || ''}`.toLowerCase();
+      if (svcText.includes('staple')) svcKey = 'binding_staple';
+      else if (svcText.includes('comb')) svcKey = 'binding_comb';
+      else if (svcText.includes('soft')) svcKey = 'binding_soft';
+      else if (svcText.includes('hard')) svcKey = 'binding_hard';
+      else if (svcText.includes('spiral')) svcKey = 'binding_spiral';
+      else if (svcText.includes('lamination')) svcKey = 'lamination';
+      else if (svcText.includes('scan')) svcKey = 'scanning';
+      else if (svcText.includes('photocopy') || svcText.includes('copy')) svcKey = 'photocopy';
+      else if (svcText.includes('typing') || svcText.includes('format')) svcKey = 'typing';
+      else if (svcText.includes('rush') || svcText.includes('express')) svcKey = 'rush';
+      else if (svcText.includes('something_else') || svcText.includes('custom')) svcKey = 'custom';
+
+      const serviceAliases = {
+        document_bw: 'bw',
+        bw: 'document_bw',
+        document_colour: 'colour',
+        colour: 'document_colour',
+        binding_staple: 'staple',
+        staple: 'binding_staple',
+        binding_spiral: 'spiral',
+        spiral: 'binding_spiral',
+        binding_comb: 'comb',
+        comb: 'binding_comb',
+        binding_soft: 'soft',
+        soft: 'binding_soft',
+        binding_hard: 'hard',
+        hard: 'binding_hard',
+        custom: 'something_else',
+        something_else: 'custom'
+      };
+      const sConf = settings.services?.[svcKey] || (serviceAliases[svcKey] ? settings.services?.[serviceAliases[svcKey]] : undefined);
+
       if (sConf && sConf.available === false) {
         return res.status(400).json({
           error: `Service "${svc.name || svcKey}" is currently unavailable: ${sConf.reason || 'Unavailable today'}`
@@ -1599,6 +1623,17 @@ app.post('/orders/:id/start-upi', async (req, res) => {
     const gpayUrl = canonicalIntent;
     const phonepeUrl = canonicalIntent;
     const paytmUrl = canonicalIntent;
+    const bhimUrl = canonicalIntent;
+
+    // Platform-specific deep links
+    const gpayAndroid = `intent://pay?${queryParams}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end`;
+    const phonepeAndroid = `intent://pay?${queryParams}#Intent;scheme=upi;package=com.phonepe.app;end`;
+    const paytmAndroid = `intent://pay?${queryParams}#Intent;scheme=upi;package=net.one97.paytm;end`;
+    const bhimAndroid = `intent://pay?${queryParams}#Intent;scheme=upi;package=in.org.npci.upiapp;end`;
+
+    const gpayIos = `gpay://upi/pay?${queryParams}`;
+    const phonepeIos = `phonepe://pay?${queryParams}`;
+    const paytmIos = `paytmmp://pay?${queryParams}`;
 
     const now = nowSec();
     b.events = b.events || [];
@@ -1632,9 +1667,19 @@ app.post('/orders/:id/start-upi', async (req, res) => {
       upiId,
       payeeName,
       intentUrl: canonicalIntent,
+      intentUri: canonicalIntent,
+      queryParams,
       gpayUrl,
       phonepeUrl,
       paytmUrl,
+      bhimUrl,
+      gpayAndroid,
+      phonepeAndroid,
+      paytmAndroid,
+      bhimAndroid,
+      gpayIos,
+      phonepeIos,
+      paytmIos,
       tr
     });
   } catch (err) {
@@ -2025,7 +2070,7 @@ app.post('/orders/:id/cancel', async (req, res) => {
       }
     }
 
-    if (!['pending_payment', 'pending_cash', 'waiting_quote'].includes(o.status) && !isStaff(req)) {
+    if (!['pending_payment', 'pending_cash', 'waiting_quote', 'upi_started'].includes(o.status) && !isStaff(req)) {
       return res.status(409).json({ error: 'Cannot cancel order that has already started processing' });
     }
 

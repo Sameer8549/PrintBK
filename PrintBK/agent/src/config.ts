@@ -50,11 +50,15 @@ const DEFAULT_CONFIG: AgentConfig = {
   dryRun: process.env.DRY_RUN === 'true' || process.argv.includes('--dry-run'),
   dryRunDir: path.resolve(getAppDataConfigDir(), 'dry-run'),
   workDir: path.resolve(getAppDataConfigDir(), 'work'),
-  pollIntervalMs: 2500,
-  heartbeatIntervalMs: 5000,
+  pollIntervalMs: 3000,
+  heartbeatIntervalMs: 15000,
   sumatraPath: process.env.SUMATRA_PATH,
   libreOfficePath: process.env.LIBREOFFICE_PATH,
-  printerProfiles: {}
+  printerProfiles: {
+    bw: process.env.BW_PRINTER || '',
+    colour: process.env.COLOUR_PRINTER || '',
+    photo: process.env.PHOTO_PRINTER || ''
+  }
 };
 
 export function loadConfig(cliArgs: string[] = process.argv.slice(2)): AgentConfig {
@@ -94,6 +98,11 @@ export function loadConfig(cliArgs: string[] = process.argv.slice(2)): AgentConf
   const merged: AgentConfig = {
     ...DEFAULT_CONFIG,
     ...fileConfig,
+    printerProfiles: {
+      bw: process.env.BW_PRINTER || fileConfig.printerProfiles?.bw || DEFAULT_CONFIG.printerProfiles.bw || '',
+      colour: process.env.COLOUR_PRINTER || fileConfig.printerProfiles?.colour || DEFAULT_CONFIG.printerProfiles.colour || '',
+      photo: process.env.PHOTO_PRINTER || fileConfig.printerProfiles?.photo || DEFAULT_CONFIG.printerProfiles.photo || ''
+    },
     agentToken: tokenCli || resolvedToken,
     paired: fileConfig.paired !== undefined ? fileConfig.paired : Boolean(tokenCli || resolvedToken),
     dryRun: dryRunCli || fileConfig.dryRun || DEFAULT_CONFIG.dryRun,

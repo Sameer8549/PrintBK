@@ -248,15 +248,15 @@ router.get('/version', (req, res) => {
   const latestVersion = process.env.COUNTER_LATEST_VERSION || '1.0.0';
   const minSupportedVersion = process.env.COUNTER_MIN_VERSION || '1.0.0';
   let fileSize = process.env.COUNTER_FILE_SIZE || '100.5 MB';
-  let fileSizeBytes = Number(process.env.COUNTER_FILE_SIZE_BYTES) || 105352009;
-  const releaseDate = process.env.COUNTER_RELEASE_DATE || '2026-11-01';
-  let sha256 = process.env.COUNTER_SHA256 || 'e90dcae73fcdb8b24e51fe6e03107d0f378d30e328dc3da4829da3e4a38aefba';
+  let fileSizeBytes = Number(process.env.COUNTER_FILE_SIZE_BYTES) || 105397040;
+  const releaseDate = process.env.COUNTER_RELEASE_DATE || '2026-11-03';
+  let sha256 = process.env.COUNTER_SHA256 || '57d59495d2d29ce722d7eac29332389779e61a422857fc4210f86337d32514db';
 
   // Sanitize stale legacy console env vars (e.g. '2.0 GB' or '367 MB')
-  if (fileSize === '2.0 GB' || fileSize === '367 MB' || fileSizeBytes > 200000000 || sha256.startsWith('8ba7d7') || sha256.startsWith('0d0474') || sha256.startsWith('b639e2')) {
+  if (fileSize === '2.0 GB' || fileSize === '367 MB' || fileSizeBytes > 200000000 || sha256.startsWith('8ba7d7') || sha256.startsWith('0d0474') || sha256.startsWith('b639e2') || sha256.startsWith('e90dca') || sha256.startsWith('023cc1') || sha256.startsWith('36ac21') || sha256.startsWith('2d9bbe') || sha256.startsWith('738de2')) {
     fileSize = '100.5 MB';
-    fileSizeBytes = 105352009;
-    sha256 = 'e90dcae73fcdb8b24e51fe6e03107d0f378d30e328dc3da4829da3e4a38aefba';
+    fileSizeBytes = 105397040;
+    sha256 = '57d59495d2d29ce722d7eac29332389779e61a422857fc4210f86337d32514db';
   }
   const releasesOwner = process.env.GITHUB_RELEASES_OWNER || 'Sameer8549';
   const releasesRepo = process.env.GITHUB_RELEASES_REPO || 'PrintBK-releases';

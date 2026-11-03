@@ -130,9 +130,19 @@
     const retryBtn = document.getElementById('retryBtn');
     const checkHealthBtn = document.getElementById('checkHealthBtn');
 
+    async function triggerReconnect() {
+      if (window.printbkCounter && typeof window.printbkCounter.reloadStaffApp === 'function') {
+        const statusEl = document.getElementById('statusText');
+        if (statusEl) statusEl.textContent = 'Connecting to shop server…';
+        await window.printbkCounter.reloadStaffApp();
+      } else {
+        window.location.reload();
+      }
+    }
+
     function checkOnline() {
       if (navigator.onLine) {
-        window.location.reload();
+        triggerReconnect();
       }
     }
 
@@ -141,12 +151,13 @@
       if (countdownEl) countdownEl.textContent = secondsLeft;
       if (secondsLeft <= 0) {
         secondsLeft = 5;
-        window.location.reload();
+        triggerReconnect();
       }
     }, 1000);
 
     retryBtn.addEventListener('click', () => {
-      window.location.reload();
+      secondsLeft = 5;
+      triggerReconnect();
     });
 
     checkHealthBtn.addEventListener('click', () => {

@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('printbkCounter', {
     ipcRenderer.invoke('counter:get-server-config'),
   getHealth: (): Promise<any> => ipcRenderer.invoke('counter:get-health'),
   repairInstallation: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('counter:repair'),
+  reloadStaffApp: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('counter:reload-staff'),
   checkForUpdates: (): Promise<{ updateAvailable: boolean; version?: string }> =>
     ipcRenderer.invoke('counter:check-update'),
   finishWizard: (config: any): Promise<{ ok: boolean }> =>

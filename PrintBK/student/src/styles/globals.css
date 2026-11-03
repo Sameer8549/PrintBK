@@ -518,6 +518,8 @@ h2 { font-size: 24px; line-height: 1.08; }
 .custom-service-row small { color: var(--muted); font-size: 10px; }
 .custom-service-row textarea, .service-notes { width: 100%; min-height: 84px; resize: vertical; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); font-size: 12px; line-height: 1.45; }
 .custom-service-row > button { min-height: 48px; padding: 0 10px; border: 1px solid var(--ink); border-radius: 9px; background: var(--paper); font-size: 9px; font-weight: 700; }
+.custom-service-row.unavailable { opacity: 0.65; background: var(--sand-deep); border-style: solid; border-color: var(--line); }
+.custom-service-row.unavailable small { color: var(--danger, #dc2626); font-weight: 600; }
 .choice-stack { display: grid; gap: 7px; }
 .choice-stack button { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); font-size: 11px; text-align: left; }
 .choice-stack button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

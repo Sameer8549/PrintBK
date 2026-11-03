@@ -54,8 +54,29 @@ async function authenticateAgent(req, res, next) {
     return next();
   }
 
-  // 2. Check hashed device token in agent_devices table
+  // 2. Check cached verified agent token in memory (saves ZCQL queries and Catalyst costs)
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const now = nowSec();
+  const cachedDev = memAgentDevices.get(tokenHash);
+  if (cachedDev && (now - (cachedDev.cachedAt || 0) < 300)) {
+    if (cachedDev.revoked === true || String(cachedDev.revoked) === 'true') {
+      return res.status(403).json({ error: 'Agent device credential has been revoked' });
+    }
+    // Throttle last_seen_at updates to at most once every 60s
+    if (now - (cachedDev.last_seen_at || 0) > 60) {
+      cachedDev.last_seen_at = now;
+      const catalystApp = getCatalystApp(req);
+      const zcql = catalystApp ? catalystApp.zcql() : null;
+      if (zcql) {
+        zcql.executeZCQLQuery(
+          `UPDATE agent_devices SET last_seen_at = ${now} WHERE token_hash = '${esc(tokenHash)}'`
+        ).catch(() => {});
+      }
+    }
+    req.agentDevice = { id: String(cachedDev.id || tokenHash.slice(0, 8)), label: cachedDev.label || 'Shop PC Print Agent' };
+    return next();
+  }
+
   const catalystApp = getCatalystApp(req);
   const zcql = catalystApp ? catalystApp.zcql() : null;
 
@@ -66,11 +87,19 @@ async function authenticateAgent(req, res, next) {
       );
       if (rows && rows.length > 0) {
         const dev = rows[0].agent_devices;
-        if (dev.revoked === true || String(dev.revoked) === 'true') {
+        const isRevoked = dev.revoked === true || String(dev.revoked) === 'true';
+        memAgentDevices.set(tokenHash, {
+          id: String(dev.ROWID || tokenHash.slice(0, 8)),
+          label: dev.label || 'Shop PC Print Agent',
+          revoked: isRevoked,
+          cachedAt: now,
+          last_seen_at: now
+        });
+
+        if (isRevoked) {
           return res.status(403).json({ error: 'Agent device credential has been revoked' });
         }
-        // Update last seen
-        const now = nowSec();
+        // Throttled update of last seen
         zcql.executeZCQLQuery(
           `UPDATE agent_devices SET last_seen_at = ${now} WHERE token_hash = '${esc(tokenHash)}'`
         ).catch(() => {});

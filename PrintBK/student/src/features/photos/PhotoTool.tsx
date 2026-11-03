@@ -510,7 +510,7 @@ function PhotoTool({
                 settings: {
                   copies: 1,
                   colorMode: colorMode === 'bw' ? 'bw' : 'colour',
-                  paper: 'Glossy',
+                  paper: 'A4',      // A4 glossy sheet loaded in photo printer (router reads isPhotoSheet flag)
                   sided: 'single',
                   orientation: 'auto',
                   nUp: 1,
