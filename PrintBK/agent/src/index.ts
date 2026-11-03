@@ -606,10 +606,26 @@ class PrintAgentDaemon {
         continue;
       }
 
-      const outName = `${item.id}_${fileId}.bin`;
-      const outPath = path.join(this.config.workDir, outName);
       const arrayBuf = typeof (res as any).arrayBuffer === 'function' ? await (res as any).arrayBuffer() : await (res as any).buffer();
       const buffer = Buffer.from(arrayBuf);
+
+      // Detect authentic extension from magic bytes or payload
+      let detectedExt = '.pdf';
+      const magic4 = buffer.slice(0, 4).toString('utf8');
+      if (magic4.startsWith('%PDF')) {
+        detectedExt = '.pdf';
+      } else if (buffer[0] === 0xFF && buffer[1] === 0xD8) {
+        detectedExt = '.jpg';
+      } else if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
+        detectedExt = '.png';
+      } else {
+        const origName = item.payload?.originalFilename || item.payload?.fileName || (typeof ref === 'object' ? ref.name : '');
+        const extFromName = origName ? path.extname(origName).toLowerCase() : '';
+        if (extFromName) detectedExt = extFromName;
+      }
+
+      const outName = `${item.id}_${fileId}${detectedExt}`;
+      const outPath = path.join(this.config.workDir, outName);
       fs.writeFileSync(outPath, buffer);
       downloaded.push(outPath);
     }

@@ -68,9 +68,9 @@ export function DownloadPage({ onPairSuccess }: DownloadPageProps) {
     fileSize = "100.5 MB"
   }
   const releaseDate = versionInfo?.releaseDate || "November 2026"
-  let sha256 = versionInfo?.sha256 || "57d59495d2d29ce722d7eac29332389779e61a422857fc4210f86337d32514db"
+  let sha256 = versionInfo?.sha256 || "21bc58c6090b66174f97fdc0f63bead64bdab51790e78a1169012ad1dff44d63"
   if (sha256.startsWith("8ba7d7") || sha256.startsWith("0d0474") || sha256.startsWith("b639e2") || sha256.startsWith("e90dca") || sha256.startsWith("023cc1") || sha256.startsWith("36ac21") || sha256.startsWith("2d9bbe") || sha256.startsWith("738de2")) {
-    sha256 = "57d59495d2d29ce722d7eac29332389779e61a422857fc4210f86337d32514db"
+    sha256 = "21bc58c6090b66174f97fdc0f63bead64bdab51790e78a1169012ad1dff44d63"
   }
 
   const psCommand = `Get-FileHash "$HOME\\Downloads\\PrintBK-Counter-Setup.exe" -Algorithm SHA256`

@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import util from 'util';
+import { PDFDocument } from 'pdf-lib';
 
 const execAsync = util.promisify(exec);
 
@@ -36,6 +37,49 @@ export async function convertToPdf(
 
   if (ext === '.pdf') {
     return inputPath;
+  }
+
+  // 1. Check if the file is already an authentic PDF (regardless of current extension or if saved as .bin)
+  try {
+    const fd = fs.openSync(inputPath, 'r');
+    const header = Buffer.alloc(5);
+    fs.readSync(fd, header, 0, 5, 0);
+    fs.closeSync(fd);
+    if (header.toString('utf8').startsWith('%PDF')) {
+      if (inputPath !== expectedPdfPath) {
+        fs.copyFileSync(inputPath, expectedPdfPath);
+      }
+      return expectedPdfPath;
+    }
+  } catch (_) {}
+
+  // 2. Native image-to-PDF embedding using pdf-lib (zero external dependencies required)
+  if (['.jpg', '.jpeg', '.png', '.bmp'].includes(ext)) {
+    try {
+      const imgBytes = fs.readFileSync(inputPath);
+      const doc = await PDFDocument.create();
+      let image;
+      if (ext === '.png') {
+        image = await doc.embedPng(imgBytes);
+      } else {
+        image = await doc.embedJpg(imgBytes);
+      }
+      const { width, height } = image.scale(1);
+      const pageWidth = 595.28;
+      const pageHeight = 841.89;
+      const page = doc.addPage([pageWidth, pageHeight]);
+      const scale = Math.min((pageWidth - 40) / width, (pageHeight - 40) / height, 1);
+      const imgWidth = width * scale;
+      const imgHeight = height * scale;
+      const x = (pageWidth - imgWidth) / 2;
+      const y = (pageHeight - imgHeight) / 2;
+      page.drawImage(image, { x, y, width: imgWidth, height: imgHeight });
+      const pdfBytes = await doc.save();
+      fs.writeFileSync(expectedPdfPath, pdfBytes);
+      return expectedPdfPath;
+    } catch (imgErr: any) {
+      console.warn(`[Converter] Native image-to-PDF conversion failed: ${imgErr.message}`);
+    }
   }
 
   const soffice = findLibreOfficeBinary(explicitSofficePath);

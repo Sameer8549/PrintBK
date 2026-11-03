@@ -60,6 +60,20 @@ export function findSumatraBinary(explicitPath?: string): string | null {
 
   const resourcesDir = (process as any).resourcesPath;
   const execDir = path.dirname(process.execPath || '');
+  let moduleDir = '';
+  try {
+    if (typeof __dirname !== 'undefined') moduleDir = __dirname;
+  } catch (_) {}
+  if (!moduleDir) {
+    try {
+      const getMetaUrl = new Function('try { return import.meta.url; } catch (_) { return null; }');
+      const metaUrl = getMetaUrl();
+      if (metaUrl) {
+        moduleDir = path.dirname(new URL(metaUrl).pathname.replace(/^\/([a-zA-Z]:)/, '$1'));
+      }
+    } catch (_) {}
+  }
+  if (!moduleDir) moduleDir = process.cwd();
 
   const candidates = [
     resourcesDir ? path.join(resourcesDir, 'bin', 'SumatraPDF.exe') : '',
@@ -67,12 +81,12 @@ export function findSumatraBinary(explicitPath?: string): string | null {
     execDir ? path.join(execDir, 'resources', 'bin', 'SumatraPDF.exe') : '',
     path.resolve(process.cwd(), 'PrintBK/counter-app/bin/SumatraPDF.exe'),
     path.resolve(process.cwd(), 'counter-app/bin/SumatraPDF.exe'),
-    path.resolve(__dirname, '../../counter-app/bin/SumatraPDF.exe'),
-    path.resolve(__dirname, '../../../counter-app/bin/SumatraPDF.exe'),
+    path.resolve(moduleDir, '../../counter-app/bin/SumatraPDF.exe'),
+    path.resolve(moduleDir, '../../../counter-app/bin/SumatraPDF.exe'),
     path.join(process.cwd(), 'bin', 'SumatraPDF.exe'),
-    path.resolve(__dirname, '../../bin/SumatraPDF.exe'),
-    path.resolve(__dirname, '../../../bin/SumatraPDF.exe'),
-    path.resolve(__dirname, '../bin/SumatraPDF.exe'),
+    path.resolve(moduleDir, '../../bin/SumatraPDF.exe'),
+    path.resolve(moduleDir, '../../../bin/SumatraPDF.exe'),
+    path.resolve(moduleDir, '../bin/SumatraPDF.exe'),
     'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe',
     'C:\\Program Files (x86)\\SumatraPDF\\SumatraPDF.exe',
     path.join(process.env.LOCALAPPDATA || '', 'SumatraPDF', 'SumatraPDF.exe')

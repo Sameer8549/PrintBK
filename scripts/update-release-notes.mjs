@@ -18,15 +18,15 @@ Official desktop counter workstation release for HKBK Campus Print Services.
 
 #### SHA-256 Checksums
 \`\`\`
-57d59495d2d29ce722d7eac29332389779e61a422857fc4210f86337d32514db  PrintBK-Counter-Setup.exe
-57d59495d2d29ce722d7eac29332389779e61a422857fc4210f86337d32514db  PrintBK-Counter-Setup-1.0.0.exe
+21bc58c6090b66174f97fdc0f63bead64bdab51790e78a1169012ad1dff44d63  PrintBK-Counter-Setup.exe
+21bc58c6090b66174f97fdc0f63bead64bdab51790e78a1169012ad1dff44d63  PrintBK-Counter-Setup-1.0.0.exe
 \`\`\`
 
 #### Windows Verification
 \`\`\`powershell
 Get-FileHash "$HOME\\Downloads\\PrintBK-Counter-Setup.exe" -Algorithm SHA256
 \`\`\`
-Expected Hash: \`57d59495d2d29ce722d7eac29332389779e61a422857fc4210f86337d32514db\`
+Expected Hash: \`21bc58c6090b66174f97fdc0f63bead64bdab51790e78a1169012ad1dff44d63\`
 `;
 
 fs.writeFileSync('release_notes_tmp.md', notes);

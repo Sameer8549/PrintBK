@@ -58,7 +58,7 @@ export async function discoverPrinters(dryRun = false, fallbackProfiles?: Record
             role = 'photo';
           } else if (lower.includes('color') || lower.includes('colour') || lower.includes('l31') || lower.includes('ecotank')) {
             role = 'colour';
-          } else if (lower.includes('laserjet') || lower.includes('m1005') || lower.includes('1020') || lower.includes('mono') || lower.includes('hl-') || lower.includes('dcp-') || lower.includes('mfc-') || lower.includes('lbp') || lower.includes('laser') || lower.includes('neverstop') || lower.includes('phaser') || lower.includes('pantum') || lower.includes('ricoh') || lower.includes('samsung') || lower.includes('m20') || lower.includes('m10') || lower.includes('2321') || lower.includes('2900') || lower.includes('1000') || lower.includes('1100') || lower.includes('2300') || lower.includes('2320')) {
+          } else if (lower.includes('bw') || lower.includes('b&w') || lower.includes('black') || lower.includes('monochrome') || lower.includes('laserjet') || lower.includes('m1005') || lower.includes('1020') || lower.includes('mono') || lower.includes('hl-') || lower.includes('dcp-') || lower.includes('mfc-') || lower.includes('lbp') || lower.includes('laser') || lower.includes('neverstop') || lower.includes('phaser') || lower.includes('pantum') || lower.includes('ricoh') || lower.includes('samsung') || lower.includes('m20') || lower.includes('m10') || lower.includes('2321') || lower.includes('2900') || lower.includes('1000') || lower.includes('1100') || lower.includes('2300') || lower.includes('2320')) {
             role = 'bw';
           }
         }
@@ -112,7 +112,7 @@ export async function discoverPrinters(dryRun = false, fallbackProfiles?: Record
               role = 'photo';
             } else if (lower.includes('color') || lower.includes('colour') || lower.includes('l31') || lower.includes('ecotank')) {
               role = 'colour';
-            } else if (lower.includes('laserjet') || lower.includes('m1005') || lower.includes('1020') || lower.includes('mono') || lower.includes('hl-') || lower.includes('dcp-') || lower.includes('mfc-') || lower.includes('lbp') || lower.includes('laser') || lower.includes('neverstop') || lower.includes('phaser')) {
+            } else if (lower.includes('bw') || lower.includes('b&w') || lower.includes('black') || lower.includes('monochrome') || lower.includes('laserjet') || lower.includes('m1005') || lower.includes('1020') || lower.includes('mono') || lower.includes('hl-') || lower.includes('dcp-') || lower.includes('mfc-') || lower.includes('lbp') || lower.includes('laser') || lower.includes('neverstop') || lower.includes('phaser')) {
               role = 'bw';
             }
           }

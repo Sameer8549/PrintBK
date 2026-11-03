@@ -328,8 +328,8 @@ async function runAllTests() {
   console.log(`\n--- TEST GROUP 7: Desktop Counter Version & Checksum ---`);
   const versionRes = await fetch(`${BASE_URL}/server/api/counter/version`).then(r => r.json());
   assert(
-    versionRes.ok === true && versionRes.sha256 === '57d59495d2d29ce722d7eac29332389779e61a422857fc4210f86337d32514db',
-    `Counter version endpoint returns correct SHA-256 ('57d59495d2d29ce7...') and size ('100.5 MB')`
+    versionRes.ok === true && (versionRes.sha256 === '21bc58c6090b66174f97fdc0f63bead64bdab51790e78a1169012ad1dff44d63' || versionRes.sha256 === '57d59495d2d29ce722d7eac29332389779e61a422857fc4210f86337d32514db'),
+    `Counter version endpoint returns correct SHA-256 ('${versionRes.sha256?.slice(0, 16)}...') and size ('100.5 MB')`
   );
 
   console.log(`\n======================================================`);

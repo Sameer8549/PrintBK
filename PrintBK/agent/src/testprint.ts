@@ -193,13 +193,28 @@ export async function generateQrPrintPdf(qrUrl: string, shopInfo?: any): Promise
   });
 
   // 2. Embed Single Canonical Logo (HKBK official logo)
+  let moduleDir = '';
+  try {
+    if (typeof __dirname !== 'undefined') moduleDir = __dirname;
+  } catch (_) {}
+  if (!moduleDir) {
+    try {
+      const getMetaUrl = new Function('try { return import.meta.url; } catch (_) { return null; }');
+      const metaUrl = getMetaUrl();
+      if (metaUrl) {
+        moduleDir = path.dirname(new URL(metaUrl).pathname.replace(/^\/([a-zA-Z]:)/, '$1'));
+      }
+    } catch (_) {}
+  }
+  if (!moduleDir) moduleDir = process.cwd();
+
   const candidateLogos = [
-    path.resolve(__dirname, '../public/hkbk-logo.jpg'),
-    path.resolve(__dirname, '../../public/hkbk-logo.jpg'),
+    path.resolve(moduleDir, '../public/hkbk-logo.jpg'),
+    path.resolve(moduleDir, '../../public/hkbk-logo.jpg'),
     path.resolve(process.cwd(), 'agent/public/hkbk-logo.jpg'),
     path.resolve(process.cwd(), 'staff/public/hkbk-logo.jpg'),
-    path.resolve(__dirname, '../../staff/public/hkbk-logo.jpg'),
-    path.resolve(__dirname, '../../../staff/public/hkbk-logo.jpg'),
+    path.resolve(moduleDir, '../../staff/public/hkbk-logo.jpg'),
+    path.resolve(moduleDir, '../../../staff/public/hkbk-logo.jpg'),
   ];
   const logoPath = candidateLogos.find(p => fs.existsSync(p));
 
