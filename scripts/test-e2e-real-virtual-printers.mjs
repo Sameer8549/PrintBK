@@ -18,8 +18,18 @@ const agentRequire = createRequire(path.join(rootDir, 'PrintBK', 'agent', 'packa
 const { PDFDocument, rgb } = agentRequire('pdf-lib');
 const nodeFetch = agentRequire('node-fetch');
 
-const httpsAgent = new https.Agent({ keepAlive: false });
-const httpAgent = new http.Agent({ keepAlive: false });
+const httpsAgent = new https.Agent({
+  keepAlive: false,
+  lookup: (hostname, options, callback) => {
+    dns.lookup(hostname, { ...options, family: 4 }, callback);
+  }
+});
+const httpAgent = new http.Agent({
+  keepAlive: false,
+  lookup: (hostname, options, callback) => {
+    dns.lookup(hostname, { ...options, family: 4 }, callback);
+  }
+});
 
 // Dynamic imports from PrintBK agent modules
 import { executeSumatraPrint, findSumatraBinary } from '../PrintBK/agent/src/sumatra.ts';
