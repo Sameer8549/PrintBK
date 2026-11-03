@@ -1989,36 +1989,50 @@ router.post('/counters/reset-all', authenticateStaff, async (req, res) => {
     let deletedPrinters = 0;
 
     if (zcql) {
+      const datastore = catalystApp ? catalystApp.datastore() : null;
+
       try {
         const sRows = await zcql.executeZCQLQuery('SELECT ROWID FROM staff_devices').catch(() => []);
-        for (const r of sRows || []) {
-          const rowId = r.staff_devices?.ROWID;
-          if (rowId) {
-            await zcql.executeZCQLQuery(`DELETE FROM staff_devices WHERE ROWID = ${rowId}`).catch(() => {});
-            deletedStaffDevices++;
+        const sIds = (sRows || []).map(r => r.staff_devices?.ROWID).filter(Boolean);
+        if (sIds.length > 0) {
+          if (datastore) {
+            await datastore.table('staff_devices').deleteRows(sIds).catch(async () => {
+              await zcql.executeZCQLQuery(`DELETE FROM staff_devices WHERE ROWID IN (${sIds.join(',')})`).catch(() => {});
+            });
+          } else {
+            await zcql.executeZCQLQuery(`DELETE FROM staff_devices WHERE ROWID IN (${sIds.join(',')})`).catch(() => {});
           }
+          deletedStaffDevices = sIds.length;
         }
       } catch (_) {}
 
       try {
         const aRows = await zcql.executeZCQLQuery('SELECT ROWID FROM agent_devices').catch(() => []);
-        for (const r of aRows || []) {
-          const rowId = r.agent_devices?.ROWID;
-          if (rowId) {
-            await zcql.executeZCQLQuery(`DELETE FROM agent_devices WHERE ROWID = ${rowId}`).catch(() => {});
-            deletedAgentDevices++;
+        const aIds = (aRows || []).map(r => r.agent_devices?.ROWID).filter(Boolean);
+        if (aIds.length > 0) {
+          if (datastore) {
+            await datastore.table('agent_devices').deleteRows(aIds).catch(async () => {
+              await zcql.executeZCQLQuery(`DELETE FROM agent_devices WHERE ROWID IN (${aIds.join(',')})`).catch(() => {});
+            });
+          } else {
+            await zcql.executeZCQLQuery(`DELETE FROM agent_devices WHERE ROWID IN (${aIds.join(',')})`).catch(() => {});
           }
+          deletedAgentDevices = aIds.length;
         }
       } catch (_) {}
 
       try {
         const pRows = await zcql.executeZCQLQuery('SELECT ROWID FROM printers').catch(() => []);
-        for (const r of pRows || []) {
-          const rowId = r.printers?.ROWID;
-          if (rowId) {
-            await zcql.executeZCQLQuery(`DELETE FROM printers WHERE ROWID = ${rowId}`).catch(() => {});
-            deletedPrinters++;
+        const pIds = (pRows || []).map(r => r.printers?.ROWID).filter(Boolean);
+        if (pIds.length > 0) {
+          if (datastore) {
+            await datastore.table('printers').deleteRows(pIds).catch(async () => {
+              await zcql.executeZCQLQuery(`DELETE FROM printers WHERE ROWID IN (${pIds.join(',')})`).catch(() => {});
+            });
+          } else {
+            await zcql.executeZCQLQuery(`DELETE FROM printers WHERE ROWID IN (${pIds.join(',')})`).catch(() => {});
           }
+          deletedPrinters = pIds.length;
         }
       } catch (_) {}
     }
@@ -2075,34 +2089,59 @@ router.post('/orders/purge-stale', async (req, res) => {
 
     let purgedCount = 0;
     if (zcql) {
+      const datastore = catalystApp ? catalystApp.datastore() : null;
       try {
         const staleOrders = await zcql.executeZCQLQuery(
-          `SELECT ROWID, id, status FROM orders WHERE created_at < ${staleCutoff}`
+          `SELECT ROWID, id, status FROM orders WHERE created_at < ${staleCutoff} LIMIT 1, 200`
         ).catch(() => null);
 
         if (staleOrders && staleOrders.length > 0) {
+          const updateBatch = [];
           for (const row of staleOrders) {
             const o = row.orders;
             if (['pending_cash', 'pending_payment', 'waiting_payment', 'ready_to_print', 'preparing', 'ready', 'processing', 'upi_claimed'].includes(o.status)) {
-              await zcql.executeZCQLQuery(
-                `UPDATE orders SET status = 'cancelled', updated_at = ${now} WHERE ROWID = ${o.ROWID}`
-              ).catch(() => {});
+              if (o.ROWID) {
+                updateBatch.push({ ROWID: o.ROWID, status: 'cancelled', updated_at: now });
+              }
               purgedCount++;
+            }
+          }
+          if (updateBatch.length > 0) {
+            if (datastore) {
+              await datastore.table('orders').updateRows(updateBatch).catch(async () => {
+                const ids = updateBatch.map(u => u.ROWID);
+                await zcql.executeZCQLQuery(`UPDATE orders SET status = 'cancelled', updated_at = ${now} WHERE ROWID IN (${ids.join(',')})`).catch(() => {});
+              });
+            } else {
+              const ids = updateBatch.map(u => u.ROWID);
+              await zcql.executeZCQLQuery(`UPDATE orders SET status = 'cancelled', updated_at = ${now} WHERE ROWID IN (${ids.join(',')})`).catch(() => {});
             }
           }
         }
 
         const staleItems = await zcql.executeZCQLQuery(
-          `SELECT ROWID, id, status FROM order_items WHERE created_at < ${staleCutoff}`
+          `SELECT ROWID, id, status FROM order_items WHERE created_at < ${staleCutoff} LIMIT 1, 200`
         ).catch(() => null);
 
         if (staleItems && staleItems.length > 0) {
+          const itemBatch = [];
           for (const row of staleItems) {
             const it = row.order_items;
             if (['waiting_payment', 'preparing', 'ready_to_print', 'waiting_quote', 'quote_sent'].includes(it.status)) {
-              await zcql.executeZCQLQuery(
-                `UPDATE order_items SET status = 'cancelled' WHERE ROWID = ${it.ROWID}`
-              ).catch(() => {});
+              if (it.ROWID) {
+                itemBatch.push({ ROWID: it.ROWID, status: 'cancelled' });
+              }
+            }
+          }
+          if (itemBatch.length > 0) {
+            if (datastore) {
+              await datastore.table('order_items').updateRows(itemBatch).catch(async () => {
+                const ids = itemBatch.map(u => u.ROWID);
+                await zcql.executeZCQLQuery(`UPDATE order_items SET status = 'cancelled' WHERE ROWID IN (${ids.join(',')})`).catch(() => {});
+              });
+            } else {
+              const ids = itemBatch.map(u => u.ROWID);
+              await zcql.executeZCQLQuery(`UPDATE order_items SET status = 'cancelled' WHERE ROWID IN (${ids.join(',')})`).catch(() => {});
             }
           }
         }

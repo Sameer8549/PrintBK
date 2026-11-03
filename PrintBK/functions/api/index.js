@@ -737,23 +737,32 @@ async function fixMissingOrderNumbers(catalystApp, zcql) {
 
   try {
     const rows = await zcql.executeZCQLQuery(
-      `SELECT id, order_number, created_at FROM orders WHERE order_number IS NULL OR order_number = 0 ORDER BY created_at ASC`
+      `SELECT ROWID, id, order_number, created_at FROM orders WHERE order_number IS NULL OR order_number = 0 ORDER BY created_at ASC`
     ).catch(() => []);
 
     if (!rows || rows.length === 0) return { fixedCount: 0 };
 
     let currentMax = await getStoreMaxOrderNumber(zcql);
+    const datastore = catalystApp ? catalystApp.datastore() : null;
+    const ordersTable = datastore ? datastore.table('orders') : null;
+    const orderUpdates = [];
 
     for (const r of rows) {
       const o = r.orders;
       currentMax++;
-      await zcql.executeZCQLQuery(
-        `UPDATE orders SET order_number = ${currentMax} WHERE id = '${esc(o.id)}'`
-      ).catch(() => {});
-      await zcql.executeZCQLQuery(
-        `UPDATE order_items SET order_number = ${currentMax} WHERE order_id = '${esc(o.id)}'`
-      ).catch(() => {});
+      if (o.ROWID) {
+        orderUpdates.push({ ROWID: o.ROWID, order_number: currentMax });
+      }
       fixedCount++;
+    }
+
+    if (ordersTable && orderUpdates.length > 0) {
+      await ordersTable.updateRows(orderUpdates).catch(async () => {
+        // Fallback: batch by ID
+        for (const u of orderUpdates) {
+          await zcql.executeZCQLQuery(`UPDATE orders SET order_number = ${u.order_number} WHERE ROWID = ${u.ROWID}`).catch(() => {});
+        }
+      });
     }
   } catch (err) {
     console.error('[fixMissingOrderNumbers] Error:', err.message);
@@ -2643,6 +2652,21 @@ global.__printbk_invalidateCachedQueue = invalidateCachedQueue;
 
 global.__printbk_purgeExpiredFiles = expireStaleOrdersAndPurgeFiles;
 
+const { syncAndOptimizePrintQueue, cleanupPostPrintAndOrphanFiles } = require('./jobs/dataSyncAndCleanup');
+
+app.post(['/cron/data-sync', '/cron/sync'], async (req, res) => {
+  if (!isCronScheduler(req) && !isStaff(req)) {
+    return res.status(401).json({ error: 'Unauthorized: valid cron secret required' });
+  }
+  try {
+    const catalystApp = getCatalystApp(req);
+    const metrics = await syncAndOptimizePrintQueue(catalystApp);
+    res.json({ ok: true, cycle: '30-minute-data-sync', ...metrics });
+  } catch (err) {
+    res.status(500).json({ error: 'Data-sync failed: ' + err.message });
+  }
+});
+
 app.post(['/cron/cleanup-files', '/cron/cleanup'], async (req, res) => {
   if (!isCronScheduler(req)) {
     return res.status(401).json({ error: 'Unauthorized: valid cron secret required' });
@@ -2653,7 +2677,9 @@ app.post(['/cron/cleanup-files', '/cron/cleanup'], async (req, res) => {
     const filestore = catalystApp ? catalystApp.filestore() : null;
     const result = await expireStaleOrdersAndPurgeFiles(catalystApp, zcql, filestore);
     const repaired = await fixMissingOrderNumbers(catalystApp, zcql);
-    res.json({ ok: true, ...result, repairedMissingOrderNumbers: repaired.fixedCount });
+    // Also sync and warm the active queue cache
+    const syncMetrics = await syncAndOptimizePrintQueue(catalystApp).catch(() => null);
+    res.json({ ok: true, ...result, repairedMissingOrderNumbers: repaired.fixedCount, syncMetrics });
   } catch (err) {
     res.status(500).json({ error: 'Cleanup job failed: ' + err.message });
   }
