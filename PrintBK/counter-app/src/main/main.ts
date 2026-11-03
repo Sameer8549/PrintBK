@@ -108,7 +108,7 @@ let appConfig: any = envName === 'prod' ? {
   updateFeedUrl: defaultUpdateFeedUrl,
   autoUpdate: true,
   heartbeatIntervalMs: 5000,
-  pollIntervalMs: 2000,
+  pollIntervalMs: 1500,
   openAtLogin: true
 } : {
   environment: 'development',
@@ -117,7 +117,7 @@ let appConfig: any = envName === 'prod' ? {
   updateFeedUrl: defaultUpdateFeedUrl,
   autoUpdate: false,
   heartbeatIntervalMs: 5000,
-  pollIntervalMs: 2500,
+  pollIntervalMs: 1500,
   openAtLogin: true
 };
 

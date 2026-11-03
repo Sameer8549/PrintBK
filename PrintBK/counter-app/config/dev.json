@@ -5,6 +5,6 @@
   "updateFeedUrl": "https://github.com/Sameer8549/PrintBK-releases/releases/latest/download",
   "autoUpdate": false,
   "heartbeatIntervalMs": 5000,
-  "pollIntervalMs": 2500,
+  "pollIntervalMs": 1500,
   "openAtLogin": true
 }

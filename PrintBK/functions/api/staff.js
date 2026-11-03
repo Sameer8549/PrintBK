@@ -935,8 +935,8 @@ router.post('/items/:id/approve-print', async (req, res) => {
       }
     }
 
-    // Determine target printer based on assigned printer mapping or registered printers
-    let targetPrinter = '';
+    // Determine target printer based on explicit request parameter, assigned printer mapping, or registered printers
+    let targetPrinter = req.body?.targetPrinter || req.body?.printerName || '';
     const isPhotoKind = kind.includes('photo');
     const isColourKind = kind.includes('colour') && !isPhotoKind;
 

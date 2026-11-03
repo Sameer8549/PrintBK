@@ -50,7 +50,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   dryRun: process.env.DRY_RUN === 'true' || process.argv.includes('--dry-run'),
   dryRunDir: path.resolve(getAppDataConfigDir(), 'dry-run'),
   workDir: path.resolve(getAppDataConfigDir(), 'work'),
-  pollIntervalMs: 3000,
+  pollIntervalMs: 1500,
   heartbeatIntervalMs: 15000,
   sumatraPath: process.env.SUMATRA_PATH,
   libreOfficePath: process.env.LIBREOFFICE_PATH,

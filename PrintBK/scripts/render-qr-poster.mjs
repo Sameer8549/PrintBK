@@ -21,7 +21,7 @@ async function main() {
 
   const { generateQrPrintPdf } = await import(`file://${testprintPath.replace(/\\/g, '/')}`);
 
-  const studentUrl = 'https://printbk-60074625517.development.catalystserverless.in/app/student';
+  const studentUrl = 'https://printbk-60074625517.development.catalystserverless.in/app/index.html';
   const shopInfo = {
     name: 'HKBK Student Point',
     address: 'HKBK College of Engineering, Campus Block B, Bengaluru',

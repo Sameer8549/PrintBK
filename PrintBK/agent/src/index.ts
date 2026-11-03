@@ -402,7 +402,7 @@ class PrintAgentDaemon {
         || discovered[0]?.name
         || '';
     }
-    const qrUrl = `${this.config.apiBase.replace('/server/api', '')}/app/student`;
+    const qrUrl = `${this.config.apiBase.replace('/server/api', '')}/app/index.html`;
 
     console.log(`[Agent] Generating Print Your QR sign for ${printerName || 'Default Printer'}...`);
 

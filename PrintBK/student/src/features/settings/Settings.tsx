@@ -411,7 +411,7 @@ export function Settings({ go }: { go: (screen: Screen) => void }) {
             </div>
             <button
               onClick={() => {
-                const appUrl = `${window.location.origin}/app/student`;
+                const appUrl = `${window.location.origin}/app/index.html`;
                 const text = `Print documents on campus without waiting in line with PrintBK!\nOpen here: ${appUrl}`;
                 if (navigator.share) {
                   navigator.share({ title: 'PrintBK Student App', text, url: appUrl }).catch(() => {});

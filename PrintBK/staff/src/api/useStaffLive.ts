@@ -171,13 +171,13 @@ export function useStaffLive(): UseStaffLiveReturn {
 
       // Adaptive polling:
       // - 8000ms when window is hidden/minimized
-      // - 1500ms when queue has active orders
-      // - 2500ms when idle (reduces Catalyst Data Store quota consumption by 65%)
-      let delay = 2500
+      // - 1000ms when queue has active orders
+      // - 1500ms when idle (near-instant order arrival on counter workbench)
+      let delay = 1500
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
         delay = 8000
       } else if (items.length > 0) {
-        delay = 1500
+        delay = 1000
       }
 
       if (timeoutIdRef.current) {
