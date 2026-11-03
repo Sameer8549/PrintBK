@@ -1468,7 +1468,7 @@ app.post('/orders/:id/choose-cash', async (req, res) => {
       }
     }
 
-    if (o.status !== 'pending_payment' && o.status !== 'pending_cash') {
+    if (o.status !== 'pending_payment' && o.status !== 'pending_cash' && o.status !== 'upi_started') {
       return res.status(409).json({ error: `Cannot choose cash for order in status "${o.status}"` });
     }
 
@@ -1481,11 +1481,26 @@ app.post('/orders/:id/choose-cash', async (req, res) => {
       timestamp: now,
       method: 'cash'
     });
-    const updatedBasket = esc(JSON.stringify(b));
+    b.payment = 'cash';
+    b.paymentMethod = 'cash';
+    o.status = 'pending_cash';
+    o.payment_status = 'cash_due';
+    o.updated_at = now;
+    o.basket = JSON.stringify(b);
+    memOrders.set(o.id, o);
 
-    await zcql.executeZCQLQuery(
-      `UPDATE orders SET status = 'pending_cash', basket = '${updatedBasket}', updated_at = ${now} WHERE id = '${esc(o.id)}'`
-    );
+    for (const it of memOrderItems.values()) {
+      if (it.order_id === o.id) {
+        it.status = 'waiting_payment';
+      }
+    }
+
+    if (zcql) {
+      const updatedBasket = esc(JSON.stringify(b));
+      await zcql.executeZCQLQuery(
+        `UPDATE orders SET status = 'pending_cash', basket = '${updatedBasket}', updated_at = ${now} WHERE id = '${esc(o.id)}'`
+      ).catch(() => {});
+    }
 
     res.json({
       ok: true,
@@ -1616,7 +1631,7 @@ app.post('/orders/:id/start-upi', async (req, res) => {
     const note = `Order ${orderNum}`;
 
     // Clean NPCI Standard UPI URI
-    const queryParams = `pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(amountStr)}&tn=${encodeURIComponent(note)}&cu=INR`;
+    const queryParams = `pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(amountStr)}&tn=${encodeURIComponent(note)}&cu=INR&tr=${encodeURIComponent(tr)}`;
     const canonicalIntent = `upi://pay?${queryParams}`;
 
     // Intent schemes
@@ -2101,8 +2116,8 @@ app.post('/orders/:id/cancel', async (req, res) => {
 const VALID_TRANSITIONS = {
   pending_payment: ['pending_cash', 'upi_started', 'cancelled', 'expired'],
   pending_cash: ['processing', 'cancelled', 'expired'],
-  upi_started: ['upi_claimed', 'cancelled', 'expired'],
-  upi_claimed: ['processing', 'cancelled', 'expired', 'rejected'],
+  upi_started: ['upi_claimed', 'pending_cash', 'processing', 'cancelled', 'expired'],
+  upi_claimed: ['processing', 'pending_cash', 'cancelled', 'expired', 'rejected'],
   waiting_quote: ['quote_sent', 'cancelled', 'rejected'],
   quote_sent: ['accepted', 'declined', 'cancelled'],
   accepted: ['pending_payment', 'pending_cash', 'processing', 'cancelled'],
@@ -2236,19 +2251,51 @@ app.post('/orders/:id/approve-cash', async (req, res) => {
     return res.status(401).json({ error: 'Staff authentication required' });
   }
   try {
-    const catalystApp = catalyst.initialize(req);
-    const zcql = catalystApp.zcql();
-    const rows = await zcql.executeZCQLQuery(`SELECT id, status FROM orders WHERE id = '${esc(req.params.id)}'` );
-    if (!rows || rows.length === 0) return res.status(404).json({ error: 'Order not found' });
-    const current = rows[0].orders.status;
-    if (current !== 'pending_cash' && current !== 'pending_payment') {
+    const catalystApp = getCatalystApp(req);
+    const zcql = catalystApp ? catalystApp.zcql() : null;
+    let rows;
+    if (zcql) {
+      rows = await zcql.executeZCQLQuery(`SELECT id, status, basket FROM orders WHERE id = '${esc(req.params.id)}'`).catch(() => null);
+    }
+    const o = (rows && rows.length > 0) ? rows[0].orders : memOrders.get(req.params.id);
+    if (!o) return res.status(404).json({ error: 'Order not found' });
+    const current = o.status;
+    if (!['pending_cash', 'pending_payment', 'upi_started', 'upi_claimed'].includes(current)) {
       return res.status(409).json({ error: `Cannot approve order in status "${current}"` });
     }
     const now = nowSec();
-    await zcql.executeZCQLQuery(
-      `UPDATE orders SET status = 'processing', confirmed_by = 'staff', confirmed_at = ${now}, updated_at = ${now} WHERE id = '${esc(req.params.id)}'`
-    );
-    res.json({ ok: true, status: 'processing' });
+    let b = {};
+    try { b = typeof o.basket === 'string' ? JSON.parse(o.basket || '{}') : (o.basket || {}); } catch(e) {}
+    b.events = b.events || [];
+    b.events.push({
+      from_status: current,
+      to_status: 'processing',
+      triggered_by: 'staff',
+      timestamp: now,
+      action: 'staff_approved'
+    });
+    const paymentStatus = (current === 'upi_claimed' || current === 'upi_started') ? 'paid_verified' : 'cash_collected';
+    o.status = 'processing';
+    o.payment_status = paymentStatus;
+    o.confirmed_by = 'staff';
+    o.confirmed_at = now;
+    o.updated_at = now;
+    o.basket = JSON.stringify(b);
+    memOrders.set(o.id, o);
+
+    for (const it of memOrderItems.values()) {
+      if (it.order_id === o.id) {
+        it.status = 'ready_to_print';
+      }
+    }
+
+    if (zcql) {
+      const updatedBasket = esc(JSON.stringify(b));
+      await zcql.executeZCQLQuery(
+        `UPDATE orders SET status = 'processing', payment_status = '${paymentStatus}', basket = '${updatedBasket}', confirmed_by = 'staff', confirmed_at = ${now}, updated_at = ${now} WHERE id = '${esc(o.id)}'`
+      ).catch(() => {});
+    }
+    res.json({ ok: true, status: 'processing', payment_status: paymentStatus });
   } catch (err) {
     res.status(500).json({ error: 'Approval failed' });
   }
