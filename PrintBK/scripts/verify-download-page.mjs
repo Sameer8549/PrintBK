@@ -39,7 +39,7 @@ const server = http.createServer((req, res) => {
       fileSize: '100.5 MB',
       fileSizeBytes: 105352009,
       releaseDate: 'November 2026',
-      sha256: 'e90dcae73fcdb8b24e51fe6e03107d0f378d30e328dc3da4829da3e4a38aefba',
+      sha256: '21bc58c6090b66174f97fdc0f63bead64bdab51790e78a1169012ad1dff44d63',
       downloadUrl: 'https://github.com/Sameer8549/PrintBK-releases/releases/latest/download/PrintBK-Counter-Setup-1.0.0.exe',
       stableDownloadUrl: 'https://github.com/Sameer8549/PrintBK-releases/releases/latest/download/PrintBK-Counter-Setup.exe',
       updateFeedUrl: 'https://github.com/Sameer8549/PrintBK-releases/releases/latest/download',
@@ -115,7 +115,7 @@ async function main() {
   // 3. Verify SHA-256 displayed
   const hashText = await page.textContent('.integrity-hash');
   console.log(`Displayed SHA-256: "${hashText}"`);
-  if (!hashText?.includes('e90dcae73fcdb8b24e51fe6e03107d0f378d30e328dc3da4829da3e4a38aefba')) {
+  if (!hashText?.includes('21bc58c6090b66174f97fdc0f63bead64bdab51790e78a1169012ad1dff44d63')) {
     throw new Error(`Expected exact SHA-256 match, got "${hashText}"`);
   }
 

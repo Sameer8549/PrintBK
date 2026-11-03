@@ -1707,6 +1707,114 @@ kbd { min-width: 32px; height: 32px; display: inline-grid; place-items: center; 
   color: var(--ink);
 }
 
+.download-changelog-section {
+  margin-bottom: 40px;
+  padding: 32px;
+  background: white;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-panel);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.download-changelog-header h2 {
+  font: 800 28px "Space Grotesk", sans-serif;
+  margin: 6px 0 8px;
+}
+
+.download-changelog-header p {
+  font-size: 15px;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.download-changelog-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.download-changelog-card {
+  padding: 20px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--sand);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.download-changelog-card h4 {
+  font: 700 16px "Space Grotesk", sans-serif;
+  color: var(--ink);
+  margin: 0;
+}
+
+.download-changelog-card p {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.changelog-badge {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font: 800 10.5px "Space Grotesk", sans-serif;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.changelog-badge--verified {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.changelog-badge--speed {
+  background: #fef9c3;
+  color: #854d0e;
+  border: 1px solid #fde047;
+}
+
+.changelog-badge--setup {
+  background: #e0e7ff;
+  color: #3730a3;
+  border: 1px solid #a5b4fc;
+}
+
+.changelog-badge--network {
+  background: #cffafe;
+  color: #155e75;
+  border: 1px solid #67e8f9;
+}
+
+.changelog-badge--payment {
+  background: #ffedd5;
+  color: #9a3412;
+  border: 1px solid #fdba74;
+}
+
+.changelog-badge--qr {
+  background: #fae8ff;
+  color: #86198f;
+  border: 1px solid #f0abfc;
+}
+
+.changelog-badge--db {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.changelog-badge--ui {
+  background: #e2e8f0;
+  color: #1e293b;
+  border: 1px solid #94a3b8;
+}
+
 .download-steps-section {
   margin-bottom: 40px;
   padding: 32px;
@@ -1900,8 +2008,9 @@ kbd { min-width: 32px; height: 32px; display: inline-grid; place-items: center; 
   .download-subline { font-size: 17px; }
   .download-primary-button { width: 100%; justify-content: center; padding: 14px 20px; }
   .download-secondary-button { width: 100%; }
-  .download-steps-section, .download-integrity-section { padding: 20px 16px; }
+  .download-steps-section, .download-integrity-section, .download-changelog-section { padding: 20px 16px; }
   .download-features-grid { grid-template-columns: 1fr; }
+  .download-changelog-grid { grid-template-columns: 1fr; }
   .download-steps-list { grid-template-columns: 1fr; }
   .integrity-val-wrap { flex-direction: column; align-items: flex-start; }
   .integrity-copy-btn { width: 100%; }
