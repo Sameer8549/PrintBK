@@ -97,22 +97,32 @@ async function staffFetch(endpoint: string, options: RequestInit = {}): Promise<
   // Prepend /server/api if not present
   const url = endpoint.startsWith("/server/api") ? endpoint : `/server/api${endpoint}`
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  })
+  // Enforce 12s timeout to prevent UI hangs on degraded Ethernet connections
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 12000)
+  const signal = options.signal || controller.signal
 
-  if (response.status === 401) {
-    // Only clear credentials if explicitly revoked by the server
-    const data = await response.clone().json().catch(() => ({}));
-    if (data?.revoked === true) {
-      clearStaffCredentials()
-      window.dispatchEvent(new CustomEvent("printbk-unauthorized"))
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      signal
+    })
+
+    if (response.status === 401) {
+      // Only clear credentials if explicitly revoked by the server
+      const data = await response.clone().json().catch(() => ({}));
+      if (data?.revoked === true) {
+        clearStaffCredentials()
+        window.dispatchEvent(new CustomEvent("printbk-unauthorized"))
+      }
+      throw new StaffApiError(data?.error || "Unauthorized: Staff device credentials rejected or pending authorization.", 401, data)
     }
-    throw new StaffApiError(data?.error || "Unauthorized: Staff device credentials rejected or pending authorization.", 401, data)
-  }
 
-  return response
+    return response
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 export async function pairStaffDevice(setupCode: string, label = "Counter PC") {

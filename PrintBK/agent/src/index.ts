@@ -10,34 +10,46 @@ try {
   dns.setDefaultResultOrder('ipv4first');
 } catch (_) {}
 
-// RFC 8305 Happy Eyeballs support to prevent IPv4 ETIMEDOUT on IPv6/NAT64 networks
+// Strict IPv4 HTTPS Agent to prevent connection hangs on unroutable synthetic IPv6 (DNS64) on Ethernet
 const httpsAgent = new https.Agent({
   autoSelectFamily: true,
-  autoSelectFamilyAttemptTimeout: 250,
+  autoSelectFamilyAttemptTimeout: 200,
   keepAlive: true,
-  timeout: 10000
+  timeout: 10000,
+  lookup: (hostname: string, options: any, callback: any) => {
+    dns.lookup(hostname, { ...options, family: 4 }, callback);
+  }
 });
 
 const httpAgent = new http.Agent({
   autoSelectFamily: true,
-  autoSelectFamilyAttemptTimeout: 250,
+  autoSelectFamilyAttemptTimeout: 200,
   keepAlive: true,
-  timeout: 10000
+  timeout: 10000,
+  lookup: (hostname: string, options: any, callback: any) => {
+    dns.lookup(hostname, { ...options, family: 4 }, callback);
+  }
 });
 
 async function agentFetch(url: string, options: any = {}, retries = 2): Promise<any> {
+  const isHttps = url.startsWith('https:');
+  const customAgent = isHttps ? httpsAgent : httpAgent;
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      if (typeof globalThis.fetch === 'function') {
-        return await globalThis.fetch(url, options);
-      }
-      const isHttps = url.startsWith('https:');
+      // Use node-fetch with IPv4-pinned agent to eliminate Ethernet IPv6 timeouts
       return await fetch(url, {
         ...options,
-        agent: isHttps ? httpsAgent : httpAgent
+        agent: customAgent
       });
     } catch (err: any) {
-      if (attempt === retries) throw err;
+      if (attempt === retries) {
+        // Fallback to globalThis.fetch as secondary attempt if node-fetch throws
+        if (typeof globalThis.fetch === 'function') {
+          return await globalThis.fetch(url, options);
+        }
+        throw err;
+      }
       await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
     }
   }

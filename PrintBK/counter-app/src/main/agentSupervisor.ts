@@ -143,7 +143,8 @@ export class AgentSupervisor extends EventEmitter {
       AGENT_TOKEN: this.options.agentToken,
       AGENT_LABEL: this.options.deviceLabel,
       ELECTRON_RUN_AS_NODE: '1',
-      DESKTOP_SUPERVISED: 'true'
+      DESKTOP_SUPERVISED: 'true',
+      NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --dns-result-order=ipv4first`.trim()
     };
 
     if (this.options.bwPrinter) env.BW_PRINTER = this.options.bwPrinter;

@@ -17,15 +17,24 @@ try {
   dns.setDefaultResultOrder('ipv4first');
 } catch (_) {}
 
-// Disable DNS over HTTPS in Chromium network service to prevent Ethernet gateway blocks
-app.commandLine.appendSwitch('disable-features', 'DnsOverHttps');
+// Disable DNS over HTTPS and AsyncDns in Chromium network service to prevent Ethernet gateway blocks
+app.commandLine.appendSwitch('disable-features', 'DnsOverHttps,AsyncDns');
 
-// Custom HTTPS Agent with RFC 8305 Happy Eyeballs support for IPv4/IPv6 NAT64 networks
+// Map Catalyst serverless domains directly to verified IPv4 address to eliminate synthetic NAT64 (RFC 6052 64:ff9b::/96) IPv6 blackhole on Ethernet
+app.commandLine.appendSwitch(
+  'host-resolver-rules',
+  'MAP printbk-60074625517.development.catalystserverless.in 169.148.148.93, MAP printbk-60074625517.catalystserverless.in 169.148.148.93, MAP *.catalystserverless.in 169.148.148.93'
+);
+
+// Custom HTTPS Agent with strict IPv4 lookup to completely bypass IPv6 NAT64 blackholes
 const httpsAgent = new https.Agent({
   autoSelectFamily: true,
-  autoSelectFamilyAttemptTimeout: 250,
+  autoSelectFamilyAttemptTimeout: 200,
   keepAlive: true,
-  timeout: 8000
+  timeout: 8000,
+  lookup: (hostname: string, options: any, callback: any) => {
+    dns.lookup(hostname, { ...options, family: 4 }, callback);
+  }
 });
 
 /**
@@ -896,6 +905,11 @@ function startAgentSupervisor() {
 
 // 12. App Lifecycle
 app.whenReady().then(async () => {
+  // Ensure Chromium session automatically honors Windows system proxy settings on corporate/campus Ethernet
+  try {
+    await session.defaultSession.setProxy({ mode: 'system' });
+  } catch (_) {}
+
   createTray();
 
   const creds = store.get();
