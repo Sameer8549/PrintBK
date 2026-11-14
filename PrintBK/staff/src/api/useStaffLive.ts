@@ -170,12 +170,12 @@ export function useStaffLive(): UseStaffLiveReturn {
       isPollingRef.current = false
 
       // Adaptive polling:
-      // - 8000ms when window is hidden/minimized
+      // - 2000ms when window is hidden/minimized
       // - 1000ms when queue has active orders
       // - 1500ms when idle (near-instant order arrival on counter workbench)
       let delay = 1500
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        delay = 8000
+        delay = 2000
       } else if (items.length > 0) {
         delay = 1000
       }
