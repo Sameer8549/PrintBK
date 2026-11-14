@@ -91,7 +91,8 @@ async function runOpenSourceUpiGatewayE2E() {
   assert(upiStart.intentUrl.startsWith('upi://pay?'), 'Canonical NPCI URI starts with upi://pay?');
   assert(upiStart.intentUrl.includes('pa=Q098686787%40ybl') || upiStart.intentUrl.includes('pa=Q098686787@ybl'), 'NPCI URI encodes correct payee VPA');
   assert(upiStart.intentUrl.includes('cu=INR'), 'NPCI URI currency is INR');
-  assert(upiStart.intentUrl.includes('tr='), 'NPCI URI contains unique transaction reference');
+  assert(!upiStart.intentUrl.includes('tr='), 'NPCI URI intentionally omits risk-blocking tr parameter');
+  assert(!!upiStart.tr, 'Backend retains unique transaction reference tr for internal reconciliation');
 
   // Verify app-specific links
   assert(!!upiStart.gpayAndroid && !!upiStart.phonepeAndroid && !!upiStart.paytmAndroid && !!upiStart.bhimAndroid, 'Direct app intent URIs generated for GPay, PhonePe, Paytm, BHIM');

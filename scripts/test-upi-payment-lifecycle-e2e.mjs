@@ -83,13 +83,14 @@ async function runUpiLifecycleTests() {
   assert(startUpiRes.upiId && startUpiRes.amount > 0, `Configured UPI ID returned: "${startUpiRes.upiId}", amount: ₹${startUpiRes.amount}`);
   assert(startUpiRes.intentUrl.startsWith('upi://pay?'), `Canonical NPCI URI valid: "${startUpiRes.intentUrl.slice(0, 50)}..."`);
   assert(startUpiRes.intentUrl.includes('cu=INR'), `NPCI URI contains currency cu=INR`);
-  assert(startUpiRes.intentUrl.includes('tr='), `NPCI URI contains unique transaction ref tr=`);
+  assert(!startUpiRes.intentUrl.includes('tr='), `NPCI URI omits risk-blocking tr parameter`);
+  assert(!!startUpiRes.tr, `Backend retains unique transaction ref tr`);
 
   // Verify deep links for all major payment apps
-  assert(startUpiRes.gpayAndroid.includes('com.google.android.apps.nbu.paisa.user'), `Google Pay Android package intent verified`);
-  assert(startUpiRes.phonepeAndroid.includes('com.phonepe.app'), `PhonePe Android package intent verified`);
-  assert(startUpiRes.paytmAndroid.includes('net.one97.paytm'), `Paytm Android package intent verified`);
-  assert(startUpiRes.bhimAndroid.includes('in.org.npci.upiapp'), `BHIM Android package intent verified`);
+  assert(startUpiRes.gpayAndroid.startsWith('tez://') || startUpiRes.gpayAndroid.startsWith('upi://'), `Google Pay deep link verified`);
+  assert(startUpiRes.phonepeAndroid.startsWith('phonepe://'), `PhonePe deep link verified`);
+  assert(startUpiRes.paytmAndroid.startsWith('paytmmp://'), `Paytm deep link verified`);
+  assert(startUpiRes.bhimAndroid.startsWith('upi://'), `BHIM deep link verified`);
   assert(startUpiRes.gpayIos.startsWith('gpay://'), `Google Pay iOS deep link verified`);
   assert(startUpiRes.phonepeIos.startsWith('phonepe://'), `PhonePe iOS deep link verified`);
   assert(startUpiRes.paytmIos.startsWith('paytmmp://'), `Paytm iOS deep link verified`);

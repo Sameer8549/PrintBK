@@ -1636,28 +1636,28 @@ app.post('/orders/:id/start-upi', async (req, res) => {
     const orderNum = o.order_number || b.orderNumber || 1001;
     const amountStr = Number(o.total || 0).toFixed(2);
     const tr = o.id.replace(/-/g, '').slice(0, 32);
-    // Sanitize note: no '#' characters (strict bank compliance prevents "internal policy" rejection)
+    // Sanitize note: purely alphanumeric, no '#' or illegal characters
     const note = `Order ${orderNum}`;
 
-    // Clean NPCI Standard UPI URI
-    const queryParams = `pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(amountStr)}&tn=${encodeURIComponent(note)}&cu=INR&tr=${encodeURIComponent(tr)}`;
-    const canonicalIntent = `upi://pay?${queryParams}`;
+    // Clean NPCI Standard UPI URI (Omits 'tr' from URI to prevent bank risk engine rejections on non-aggregator VPAs)
+    const cleanQueryParams = `pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(amountStr)}&cu=INR&tn=${encodeURIComponent(note)}`;
+    const canonicalIntent = `upi://pay?${cleanQueryParams}`;
 
-    // Intent schemes
+    // Universal & Direct App Schemes (bypasses Android Chrome external-intent security blocks)
     const gpayUrl = canonicalIntent;
-    const phonepeUrl = canonicalIntent;
-    const paytmUrl = canonicalIntent;
+    const phonepeUrl = `phonepe://pay?${cleanQueryParams}`;
+    const paytmUrl = `paytmmp://pay?${cleanQueryParams}`;
     const bhimUrl = canonicalIntent;
 
-    // Platform-specific deep links
-    const gpayAndroid = `intent://pay?${queryParams}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end`;
-    const phonepeAndroid = `intent://pay?${queryParams}#Intent;scheme=upi;package=com.phonepe.app;end`;
-    const paytmAndroid = `intent://pay?${queryParams}#Intent;scheme=upi;package=net.one97.paytm;end`;
-    const bhimAndroid = `intent://pay?${queryParams}#Intent;scheme=upi;package=in.org.npci.upiapp;end`;
+    // Direct app deep links
+    const gpayAndroid = `tez://upi/pay?${cleanQueryParams}`;
+    const phonepeAndroid = `phonepe://pay?${cleanQueryParams}`;
+    const paytmAndroid = `paytmmp://pay?${cleanQueryParams}`;
+    const bhimAndroid = canonicalIntent;
 
-    const gpayIos = `gpay://upi/pay?${queryParams}`;
-    const phonepeIos = `phonepe://pay?${queryParams}`;
-    const paytmIos = `paytmmp://pay?${queryParams}`;
+    const gpayIos = `gpay://upi/pay?${cleanQueryParams}`;
+    const phonepeIos = `phonepe://pay?${cleanQueryParams}`;
+    const paytmIos = `paytmmp://pay?${cleanQueryParams}`;
 
     const now = nowSec();
     b.events = b.events || [];
@@ -1692,7 +1692,7 @@ app.post('/orders/:id/start-upi', async (req, res) => {
       payeeName,
       intentUrl: canonicalIntent,
       intentUri: canonicalIntent,
-      queryParams,
+      queryParams: cleanQueryParams,
       gpayUrl,
       phonepeUrl,
       paytmUrl,
