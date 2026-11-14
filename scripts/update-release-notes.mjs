@@ -3,10 +3,11 @@ import { execSync } from 'child_process';
 
 const notes = `### PrintBK Counter — Official Workstation Setup (Windows 64-bit)
 
-Official desktop counter workstation release for HKBK Campus Print Services. Production Go-Live Hardened (v1.0.0).
+Official desktop counter workstation release for HKBK Campus Print Services. Production Go-Live Hardened (v1.0.0, Released November 14, 2026).
 
 #### Release Highlights & Verified Fixes
 - **47/47 End-to-End Test Suite Pass**: Complete pipeline verified from student upload to genuine Windows print spoolers (SumatraPDF silent engine).
+- **Open-Source Direct UPI Gateway Integration**: Universal NPCI protocol (\`Q098686787@ybl\`), dynamic high-contrast vector QR code, 1-tap app launch (GPay, PhonePe, Paytm, BHIM, Navi, CRED), 12-digit UTR confirmation, and live status poller.
 - **Dynamic Hardware Routing (Zero Hardcoding)**: Automatically discovers local Windows printers; routes Monochrome B/W, Vibrant Colour, Custom Split (Colour + B/W combined), and Passport Photo sheets dynamically with manual operator override.
 - **Sub-Second Order Delivery (< 750ms)**: Tuned adaptive polling delivers student uploads to the counter workbench in 647ms – 751ms with live feed cache.
 - **First-Run Workstation Setup**: Seamless pairing with setup code \`PBK-SETUP-9021\`, automatic Windows spooler discovery, and auto-start configuration.

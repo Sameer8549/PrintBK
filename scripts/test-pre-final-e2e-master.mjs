@@ -220,6 +220,19 @@ async function runMasterPreFinalSuite() {
   }).then(r => r.json());
   assert(hbRes.ok === true, 'Agent heartbeat dynamically registered discovered printers with datastore');
 
+  // Drain any lingering test jobs in datastore queue from previous runs
+  for (let d = 0; d < 10; d++) {
+    const drainJob = await safeFetch(`${TARGET_URL}/server/api/agent/jobs/next`, {
+      headers: { 'X-Agent-Token': agentToken }
+    }).then(r => r.json()).catch(() => null);
+    if (!drainJob || !drainJob.job?.id) break;
+    await safeFetch(`${TARGET_URL}/server/api/agent/jobs/${drainJob.job.id}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Agent-Token': agentToken },
+      body: JSON.stringify({ pages_printed: 1 })
+    }).catch(() => {});
+  }
+
   // ==========================================================================
   // STAGE 3: Faster Order Receiving & Live Feed Latency Benchmark
   // ==========================================================================
@@ -535,10 +548,27 @@ async function runMasterPreFinalSuite() {
   }).then(r => r.json());
   assert(qrPrintTrigger.ok === true && qrPrintTrigger.jobId, `Triggered Print QR poster job from staff portal`);
 
-  const qrJobRes = await safeFetch(`${TARGET_URL}/server/api/agent/jobs/next`, {
-    headers: { 'X-Agent-Token': agentToken }
-  }).then(r => r.json());
-  assert(qrJobRes.type === 'print_qr', `Agent leased 'print_qr' job #${qrJobRes.job?.id}`);
+  let qrJobRes = null;
+  for (let poll = 0; poll < 6; poll++) {
+    const nextRes = await safeFetch(`${TARGET_URL}/server/api/agent/jobs/next`, {
+      headers: { 'X-Agent-Token': agentToken }
+    }).then(r => r.json()).catch(() => null);
+
+    if (nextRes && (nextRes.type === 'print_qr' || nextRes.job?.item_id?.startsWith('print-qr-'))) {
+      qrJobRes = nextRes;
+      break;
+    }
+    // If a lingering previous test print job was leased, complete it and proceed
+    if (nextRes?.job?.id) {
+      await safeFetch(`${TARGET_URL}/server/api/agent/jobs/${nextRes.job.id}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Agent-Token': agentToken },
+        body: JSON.stringify({ pages_printed: 1 })
+      }).catch(() => {});
+    }
+    await new Promise(r => setTimeout(r, 600));
+  }
+  assert(qrJobRes && (qrJobRes.type === 'print_qr' || qrJobRes.job?.item_id?.startsWith('print-qr-')), `Agent leased 'print_qr' job #${qrJobRes?.job?.id}`);
 
   const qrUrl = `${TARGET_URL}/app/index.html`;
   // Verify that qrUrl returns HTTP 200 (never 404!)

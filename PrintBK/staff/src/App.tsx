@@ -189,6 +189,7 @@ function mapPaymentStatus(status: string): Payment {
     case "paid":
       return "paid"
     case "upi_claimed":
+    case "upi_started":
     case "upi":
       return "upi"
     case "pending_cash":

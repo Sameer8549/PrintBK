@@ -351,10 +351,10 @@ export function DownloadPage({ onPairSuccess }: DownloadPageProps) {
             </div>
 
             <div className="download-changelog-card">
-              <span className="changelog-badge changelog-badge--payment">UPI &amp; CASH FIX</span>
-              <h4>Complete Payment State Machine</h4>
+              <span className="changelog-badge changelog-badge--payment">OPEN SOURCE UPI GATEWAY</span>
+              <h4>Direct Zero-Fee UPI Gateway Engine</h4>
               <p>
-                Eliminated 409 transition race conditions, added staff cash approval for claimed UPI payments, and enforced pickup code gating until order approval.
+                Integrated open-source UPI gateway flow with dynamic QR generation for Q098686787@ybl, dual-mode tabs (1-tap app launch &amp; high-contrast QR), 12-digit UTR confirmation, and live real-time status sync.
               </p>
             </div>
 
