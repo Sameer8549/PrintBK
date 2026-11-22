@@ -175,9 +175,10 @@ export async function collectCash(orderId: number) {
   return data
 }
 
-export async function approvePrintItem(itemId: string) {
+export async function approvePrintItem(itemId: string, orderId?: string | number, targetPrinter?: string) {
   const res = await staffFetch(`/staff/items/${itemId}/approve-print`, {
     method: "POST",
+    body: (orderId || targetPrinter) ? JSON.stringify({ orderId, targetPrinter }) : undefined,
   })
   const data = await res.json()
   if (!res.ok) {

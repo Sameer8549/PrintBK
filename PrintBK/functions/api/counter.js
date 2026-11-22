@@ -249,7 +249,7 @@ router.get('/version', (req, res) => {
   const minSupportedVersion = process.env.COUNTER_MIN_VERSION || '1.0.0';
   let fileSize = process.env.COUNTER_FILE_SIZE || '100.5 MB';
   let fileSizeBytes = Number(process.env.COUNTER_FILE_SIZE_BYTES) || 105404787;
-  const releaseDate = process.env.COUNTER_RELEASE_DATE || '2026-11-14';
+  const releaseDate = process.env.COUNTER_RELEASE_DATE || '2026-11-22';
   let sha256 = process.env.COUNTER_SHA256 || '21bc58c6090b66174f97fdc0f63bead64bdab51790e78a1169012ad1dff44d63';
 
   // Sanitize stale legacy console env vars (e.g. '2.0 GB' or '367 MB')

@@ -2274,7 +2274,7 @@ function FileCard({
             </button>
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={handleToggle}
               style={{
                 flex: 2,
                 padding: '14px 16px',
@@ -2325,6 +2325,23 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
     prevCount.current = files.length;
   }, [files.length]);
 
+  // Track which file is expanded (accordion when multiple files exist)
+  // MUST be declared before any conditional return to preserve React Hook call order
+  const [expandedFileId, setExpandedFileId] = useState<string | null>(() => {
+    return activeFileId || files[files.length - 1]?.id || null;
+  });
+
+  // Keep expandedFileId valid if files change
+  useEffect(() => {
+    if (files.length > 0) {
+      if (expandedFileId && !files.some(f => f.id === expandedFileId)) {
+        setExpandedFileId(files[files.length - 1].id);
+      }
+    } else {
+      setExpandedFileId(null);
+    }
+  }, [files, expandedFileId]);
+
   /* ── 2. Empty Basket Screen ── */
   if (files.length === 0 && services.length === 0) {
     return (
@@ -2342,22 +2359,6 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
 
   const totalPages = files.reduce((s, f) => s + f.pages * (f.settings.copies ?? 1), 0);
 
-  // Track which file is expanded (accordion when multiple files exist)
-  const [expandedFileId, setExpandedFileId] = useState<string | null>(() => {
-    return activeFileId || files[files.length - 1]?.id || null;
-  });
-
-  // Keep expandedFileId valid if files change
-  useEffect(() => {
-    if (files.length > 0) {
-      if (!expandedFileId || !files.some(f => f.id === expandedFileId)) {
-        setExpandedFileId(files[files.length - 1].id);
-      }
-    } else {
-      setExpandedFileId(null);
-    }
-  }, [files, expandedFileId]);
-
   return (
     <main className="page" style={{ display: 'flex', flexDirection: 'column', background: '#f7f4ee', height: '100dvh', maxHeight: '100dvh', overflow: 'hidden' }}>
       <Topbar title={`Basket · ${files.length + services.length} item${files.length + services.length !== 1 ? 's' : ''}`} back onBack={() => go('entry')} />
@@ -2368,13 +2369,16 @@ function Basket({ go, setSheet }: { go: (screen: Screen) => void; setSheet: (she
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: '#718096', margin: '4px 2px 8px' }}>FILES</div>
             {files.map((f, idx) => {
-              const isThisCardOpen = files.length === 1 ? true : (expandedFileId === f.id);
+              const isThisCardOpen = files.length === 1 ? (expandedFileId !== null) : (expandedFileId === f.id);
               return (
                 <div key={f.id} ref={idx === files.length - 1 ? lastFileRef : undefined}>
                   <FileCard
                     file={f}
                     onUpdate={updated => updateFile(updated.id, updated)}
-                    onRemove={() => removeFile(f.id)}
+                    onRemove={() => {
+                      removeFile(f.id);
+                      notify('File removed from basket');
+                    }}
                     go={go}
                     isOpen={isThisCardOpen}
                     onToggleOpen={() => {

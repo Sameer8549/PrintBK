@@ -3178,7 +3178,7 @@ export default function App() {
           await retryPrintItem(job.key)
           setToast({ message: `Retrying print for #${job.order}`, action: "DISMISS" })
         } else {
-          await approvePrintItem(job.key)
+          await approvePrintItem(job.key, job.orderId || job.order)
           setToast({ message: `Order #${job.order} approved & queued for printer`, action: "DISMISS" })
         }
       } else {
