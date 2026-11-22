@@ -2043,6 +2043,8 @@ router.post('/counters/reset-all', authenticateStaff, async (req, res) => {
     memAgentDevices.clear();
     memPairedCounters.clear();
     if (global.__printbk_printers) global.__printbk_printers.clear();
+    if (global.__printbk_counter_rate_limits) global.__printbk_counter_rate_limits.clear();
+    if (global.__printbk_used_counter_codes) global.__printbk_used_counter_codes.clear();
 
     res.json({
       ok: true,
@@ -2080,13 +2082,14 @@ router.get('/diagnostics', authenticateStaff, staffRateLimiter, (req, res) => {
   res.json(diagnostics);
 });
 
-// L. Purge Stale Test Orders (Clear old queue items > 12 hours)
-router.post('/orders/purge-stale', async (req, res) => {
+// L. Purge Stale Test Orders (Clear old queue items > 12 hours, or ALL if requested)
+router.post(['/orders/purge-stale', '/orders/purge-all'], async (req, res) => {
   try {
     const catalystApp = getCatalystApp(req);
     const zcql = catalystApp ? catalystApp.zcql() : null;
     const now = nowSec();
-    const staleCutoff = now - (12 * 3600); // 12 hours ago
+    const all = req.body?.all === true || req.query?.all === 'true' || req.path.includes('purge-all');
+    const staleCutoff = all ? (now + 86400) : (now - (12 * 3600));
 
     let purgedCount = 0;
     if (zcql) {
@@ -2151,21 +2154,31 @@ router.post('/orders/purge-stale', async (req, res) => {
       }
     }
 
-    for (const [oid, o] of memOrders) {
-      if (Number(o.created_at) < staleCutoff && ['pending_cash', 'pending_payment', 'waiting_payment', 'ready_to_print', 'preparing', 'ready', 'processing', 'upi_claimed'].includes(o.status)) {
-        o.status = 'cancelled';
-        o.updated_at = now;
-        purgedCount++;
+    if (all) {
+      memOrders.clear();
+      memOrderItems.clear();
+      memPrintJobs.clear();
+    } else {
+      for (const [oid, o] of memOrders) {
+        if (Number(o.created_at) < staleCutoff && ['pending_cash', 'pending_payment', 'waiting_payment', 'ready_to_print', 'preparing', 'ready', 'processing', 'upi_claimed'].includes(o.status)) {
+          o.status = 'cancelled';
+          o.updated_at = now;
+          purgedCount++;
+        }
+      }
+
+      for (const [iid, it] of memOrderItems) {
+        if (Number(it.created_at) < staleCutoff && ['waiting_payment', 'preparing', 'ready_to_print', 'waiting_quote', 'quote_sent'].includes(it.status)) {
+          it.status = 'cancelled';
+        }
       }
     }
 
-    for (const [iid, it] of memOrderItems) {
-      if (Number(it.created_at) < staleCutoff && ['waiting_payment', 'preparing', 'ready_to_print', 'waiting_quote', 'quote_sent'].includes(it.status)) {
-        it.status = 'cancelled';
-      }
+    if (global.__printbk_invalidateCachedQueue) {
+      await global.__printbk_invalidateCachedQueue(catalystApp).catch(() => {});
     }
 
-    res.json({ ok: true, purgedCount, message: 'Stale test orders purged successfully' });
+    res.json({ ok: true, purgedCount, message: all ? 'All queue orders wiped cleanly' : 'Stale test orders purged successfully' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to purge stale orders: ' + err.message });
   }
