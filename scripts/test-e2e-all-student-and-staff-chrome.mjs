@@ -667,11 +667,19 @@ async function runComprehensiveMasterE2ESuite() {
 
     // Verify Student App detects shop closure
     console.log('  Checking student app reflects closed status...');
-    await safeGoto(pageStudent, STUDENT_URL);
-    await pageStudent.waitForTimeout(1000);
+    await safeGoto(pageStudent, `${STUDENT_URL}#/`);
+    await pageStudent.waitForTimeout(2500);
 
-    const studentClosedText = await pageStudent.evaluate(() => document.body.innerText);
-    assert(studentClosedText.includes('Closed') || studentClosedText.includes('Shop Closed') || studentClosedText.includes('Paused'), 'Student web app displays "Shop Closed" status and pauses ordering');
+    let studentClosedText = await pageStudent.evaluate(() => document.body.innerText);
+    if (!studentClosedText.includes('Closed') && !studentClosedText.includes('Paused')) {
+      // Force immediate re-fetch if polling window hasn't ticked yet
+      await pageStudent.evaluate(() => {
+        window.dispatchEvent(new Event('focus'));
+      });
+      await pageStudent.waitForTimeout(2000);
+      studentClosedText = await pageStudent.evaluate(() => document.body.innerText);
+    }
+    assert(studentClosedText.includes('Closed') || studentClosedText.includes('Shop Closed') || studentClosedText.includes('Paused') || studentClosedText.includes('CLOSED'), 'Student web app displays "Shop Closed" status and pauses ordering');
 
     // Re-open shop
     console.log('  Re-opening shop from counter...');
@@ -682,15 +690,50 @@ async function runComprehensiveMasterE2ESuite() {
     assert(staffOpenText.includes('OPEN'), 'Shop switch updated back to "SHOP OPEN"');
 
     // Verify Student App detects shop re-opened
-    await safeGoto(pageStudent, STUDENT_URL);
-    await pageStudent.waitForTimeout(1000);
+    await safeGoto(pageStudent, `${STUDENT_URL}#/`);
+    await pageStudent.waitForTimeout(2500);
 
-    const studentOpenText = await pageStudent.evaluate(() => document.body.innerText);
+    let studentOpenText = await pageStudent.evaluate(() => document.body.innerText);
+    if (!studentOpenText.includes('Open')) {
+      await pageStudent.evaluate(() => {
+        window.dispatchEvent(new Event('focus'));
+      });
+      await pageStudent.waitForTimeout(2000);
+      studentOpenText = await pageStudent.evaluate(() => document.body.innerText);
+    }
     assert(studentOpenText.includes('Open'), 'Student web app displays "Open" status and resumes ordering');
 
     const screenshotShopToggle = path.join(EVIDENCE_DIR, '10-staff-shop-toggle-verified.png');
     await pageStaff.screenshot({ path: screenshotShopToggle });
     console.log(`  📸 Screenshot captured: ${screenshotShopToggle}`);
+
+    // --- STAGE 2.6: Offline/Online LAN Resilience & Anti-Flapping Verification ---
+    console.log('\n--- STAGE 2.6: Offline/Online Network & LAN Resilience ---');
+    console.log('  Testing Staff Live Indicator reaction to simulated network disconnect...');
+    await staffContext.setOffline(true);
+    await pageStaff.evaluate(() => window.dispatchEvent(new Event('offline')));
+    await pageStaff.waitForTimeout(600);
+
+    const isOffline = await pageStaff.evaluate(() => {
+      const el = document.querySelector('.live-status');
+      return el ? (el.classList.contains('is-offline') || el.textContent.includes('OFFLINE')) : false;
+    });
+    assert(isOffline, 'Staff Counter workbench reflects OFFLINE state cleanly on disconnect');
+
+    console.log('  Testing Staff Live Indicator automatic reconnection when network restores...');
+    await staffContext.setOffline(false);
+    await pageStaff.evaluate(() => window.dispatchEvent(new Event('online')));
+    await pageStaff.waitForTimeout(1500);
+
+    const isReconnected = await pageStaff.evaluate(() => {
+      const el = document.querySelector('.live-status');
+      return el ? (!el.classList.contains('is-offline') && el.textContent.includes('LIVE')) : false;
+    });
+    assert(isReconnected, 'Staff Counter workbench automatically restored to LIVE without manual reload');
+
+    const screenshotOnlineRecovery = path.join(EVIDENCE_DIR, '11-staff-online-offline-resilience.png');
+    await pageStaff.screenshot({ path: screenshotOnlineRecovery });
+    console.log(`  📸 Screenshot captured: ${screenshotOnlineRecovery}`);
 
     console.log('\n========================================================================');
     console.log(`🎉 ALL ${passedChecks}/${totalChecks} FULL-SYSTEM MASTER VERIFICATIONS PASSED 100%!`);

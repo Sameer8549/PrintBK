@@ -51,7 +51,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   dryRunDir: path.resolve(getAppDataConfigDir(), 'dry-run'),
   workDir: path.resolve(getAppDataConfigDir(), 'work'),
   pollIntervalMs: 1500,
-  heartbeatIntervalMs: 15000,
+  heartbeatIntervalMs: 5000,
   sumatraPath: process.env.SUMATRA_PATH,
   libreOfficePath: process.env.LIBREOFFICE_PATH,
   printerProfiles: {

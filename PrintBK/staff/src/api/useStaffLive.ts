@@ -94,6 +94,11 @@ export function useStaffLive(): UseStaffLiveReturn {
   })
   const [recentlyPrinted, setRecentlyPrinted] = useState<LiveRecentlyPrinted[]>([])
   const [online, setOnline] = useState<boolean>(true)
+  const onlineRef = useRef<boolean>(true)
+  const setOnlineState = useCallback((val: boolean) => {
+    onlineRef.current = val
+    setOnline(val)
+  }, [])
   const [error, setError] = useState<Error | null>(null)
 
   const cursorRef = useRef<string | undefined>(undefined)
@@ -102,12 +107,12 @@ export function useStaffLive(): UseStaffLiveReturn {
   const timeoutIdRef = useRef<number | null>(null)
 
   const poll = useCallback(async () => {
-    if (!isStaffPaired() || isPollingRef.current) return
+    if (!isStaffPaired() || isPollingRef.current || !onlineRef.current) return
     isPollingRef.current = true
 
     try {
       const res = await fetchLiveFeed(cursorRef.current, lastEtagRef.current)
-      setOnline(true)
+      setOnlineState(true)
       setError(null)
 
       if (res.notModified) {
@@ -163,7 +168,7 @@ export function useStaffLive(): UseStaffLiveReturn {
       if (err.name === "StaffApiError" && err.status === 401) {
         // Handled by client, will trigger printbk-unauthorized
       } else {
-        setOnline(false)
+        setOnlineState(false)
         setError(err)
       }
     } finally {
@@ -183,9 +188,11 @@ export function useStaffLive(): UseStaffLiveReturn {
       if (timeoutIdRef.current) {
         window.clearTimeout(timeoutIdRef.current)
       }
-      timeoutIdRef.current = window.setTimeout(poll, delay)
+      if (onlineRef.current) {
+        timeoutIdRef.current = window.setTimeout(poll, delay)
+      }
     }
-  }, [items.length])
+  }, [items.length, setOnlineState])
 
   // Instant refresh callback
   const refresh = useCallback(async () => {
@@ -195,17 +202,24 @@ export function useStaffLive(): UseStaffLiveReturn {
     await poll()
   }, [poll])
 
+  const pollRef = useRef(poll)
+  pollRef.current = poll
+  const refreshRef = useRef(refresh)
+  refreshRef.current = refresh
+
   useEffect(() => {
     // Initial fetch
-    poll()
+    pollRef.current()
 
     // Instant refresh on window focus and online events
-    const handleFocus = () => refresh()
+    const handleFocus = () => refreshRef.current()
     const handleOnline = () => {
-      setOnline(true)
-      refresh()
+      setOnlineState(true)
+      refreshRef.current()
     }
-    const handleOffline = () => setOnline(false)
+    const handleOffline = () => {
+      setOnlineState(false)
+    }
 
     window.addEventListener("focus", handleFocus)
     window.addEventListener("online", handleOnline)
@@ -219,7 +233,7 @@ export function useStaffLive(): UseStaffLiveReturn {
       window.removeEventListener("online", handleOnline)
       window.removeEventListener("offline", handleOffline)
     }
-  }, [poll, refresh])
+  }, [setOnlineState])
 
   return {
     items,
