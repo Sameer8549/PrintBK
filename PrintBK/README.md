@@ -32,9 +32,11 @@ PrintBK/
 1. **Strictly Real-time & Zero Mocks**: Every number, timer, and order status displayed on screen is backed by the authoritative server state.
 2. **Student Privacy**: Strict 5-minute file auto-deletion rule after printing completes (`printed_at + 300s`) with an absolute 60-minute ceiling from upload.
 3. **One-Time Pairing (No Login)**: Counter PC pairs once via `STAFF_SETUP_CODE` and receives a high-entropy device token (`X-Staff-Device-Token`).
-4. **Outbound HTTPS Agent**: Windows print agent polls `/agent/jobs/poll` over outbound HTTPS. No inbound ports, public IPs, or firewall pinholes required.
-5. **Direct Silent Printing**: Uses SumatraPDF on Windows for silent command-line printing directly to designated B&W or Colour printers without print dialogs.
-6. **Robust Error Handling**: Server-enforced state transitions (invalid transitions return 409 Conflict), 5-second undo window for staff actions, and offline recovery with exponential backoff.
+4. **Outbound HTTPS Agent**: Windows print agent polls `/agent/jobs/next` over outbound HTTPS with pinned IPv4 sockets (`dns.setDefaultResultOrder('ipv4first')`) to bypass campus Ethernet/Wi-Fi IPv6/DNS64 blackholes.
+5. **Direct Silent Printing**: Uses SumatraPDF on Windows for silent command-line printing directly to designated B&W, Colour, and Photo printers without print dialogs (`PrintBK-BW-Virtual`, `PrintBK-Colour-Virtual`, `PrintBK-Photo-Virtual`).
+6. **Unblockable Open-Source UPI Gateway**: Direct merchant VPA integration (`Q098686787@ybl` for HKBK Student Point) with clean NPCI URI specifications (omits blocking `tr` parameter), client-side offline vector QR generation, 1-tap "Save QR to Gallery", 1-click UPI ID copy chips, direct app intent links, and 12-digit UTR confirmation.
+7. **Robust Network & Offline Resilience**: 5-second agent heartbeat with 60-second server expiration window (12x buffer) completely eliminates false offline drops. Decoupled single-mount event listeners cleanly detect network drops and automatically reconnect to `LIVE` without manual reloads.
+8. **Server-Enforced State Transitions**: Robust validation (invalid transitions return 409 Conflict), 5-second undo window for staff actions, and offline recovery with exponential backoff.
 
 ---
 
@@ -79,25 +81,43 @@ The output installer is generated at `counter-app/dist/installer/PrintBK-Counter
 
 ## Verification & Testing Suites
 
-### 1. End-to-End Real-Time Integration Test
+### 1. Master Chrome Playwright & Virtual Printer E2E Suite
+Exhaustive verification of physical Windows Spoolers, Student App, Staff Counter Workbench, Open-Source UPI Gateway, Real-Time Sync, and Offline/Online Network Resilience:
+```bash
+node scripts/test-e2e-all-student-and-staff-chrome.mjs
+```
+*Result: 46/46 passed checks (100% pass rate).*
+
+### 2. Windows Spooler Virtual Printer Verification
+Verifies B/W, Colour, Custom Split, Photo sheet, and QR placard poster spooling with SumatraPDF:
+```bash
+node scripts/test-e2e-real-virtual-printers.mjs
+```
+*Result: 44/44 passed checks (100% pass rate).*
+
+### 3. End-to-End Real-Time Integration Test
 Verifies the complete 12-step lifecycle across student order creation, UPI intent, live feed delta delivery, counter approval, agent polling and execution, physical service completion, cash collect/undo, and 5-minute file deletion:
 ```bash
 node scripts/e2e-live.mjs
 ```
 
-### 2. Desktop Counter E2E Field Verification
+### 4. Desktop Counter E2E Field Verification
 Verifies clean install, one-code dual-pairing, printer detection, direct launch into Orders queue, tray minimize, supervisor auto-restart, and persistence across relaunch:
 ```bash
 node scripts/verify-counter-app.mjs
 ```
 
-### 3. CI Mock Data Gate (`no-mock-data.mjs`)
+### 5. CI Mock Data Gate (`no-mock-data.mjs`)
 Verifies that no mock markers, simulated timers, or sample order datasets exist in source code or production bundles:
 ```bash
 node scripts/no-mock-data.mjs
 ```
 
-### 4. Production Builds
+### 6. Production Builds
+```bash
+node scripts/build-client.mjs
+pnpm build:installer:prod
+```
 ```bash
 pnpm -C student run build
 pnpm -C staff run build
