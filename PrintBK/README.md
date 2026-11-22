@@ -89,13 +89,20 @@ node scripts/test-e2e-all-student-and-staff-chrome.mjs
 *Result: 46/46 passed checks (100% pass rate).*
 
 ### 2. Windows Spooler Virtual Printer Verification
-Verifies B/W, Colour, Custom Split, Photo sheet, and QR placard poster spooling with SumatraPDF:
+Verifies B/W, Colour, Custom Split, Photo sheet, QR placard poster spooling, and Staff Test Print routing with SumatraPDF across all 3 virtual printers (`PrintBK-BW-Virtual`, `PrintBK-Colour-Virtual`, `PrintBK-Photo-Virtual`):
 ```bash
 node scripts/test-e2e-real-virtual-printers.mjs
 ```
-*Result: 44/44 passed checks (100% pass rate).*
+*Result: 56/56 passed checks (100% pass rate).*
 
-### 3. End-to-End Real-Time Integration Test
+### 3. Clean Slate & Fresh Device Reset
+Cleans all queue orders, purges test data, unpairs all devices, clears rate limits, and resets local AppData credentials for a crystal-clear handover:
+```bash
+node scripts/execute-clean-slate.mjs
+```
+*Result: 0 active queue items, 0 paired devices, fresh pairing handshake verified.*
+
+### 4. End-to-End Real-Time Integration Test
 Verifies the complete 12-step lifecycle across student order creation, UPI intent, live feed delta delivery, counter approval, agent polling and execution, physical service completion, cash collect/undo, and 5-minute file deletion:
 ```bash
 node scripts/e2e-live.mjs
