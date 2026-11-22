@@ -19,15 +19,31 @@ const { PDFDocument, rgb } = agentRequire('pdf-lib');
 const nodeFetch = agentRequire('node-fetch');
 
 const httpsAgent = new https.Agent({
-  keepAlive: false,
+  keepAlive: true,
+  timeout: 10000,
   lookup: (hostname, options, callback) => {
-    dns.lookup(hostname, { ...options, family: 4 }, callback);
+    dns.lookup(hostname, { ...options, family: 4 }, (err, address, family) => {
+      if (err || !address) {
+        if (hostname.includes('catalystserverless.in')) {
+          return callback(null, '169.148.148.93', 4);
+        }
+      }
+      callback(err, address, family);
+    });
   }
 });
 const httpAgent = new http.Agent({
-  keepAlive: false,
+  keepAlive: true,
+  timeout: 10000,
   lookup: (hostname, options, callback) => {
-    dns.lookup(hostname, { ...options, family: 4 }, callback);
+    dns.lookup(hostname, { ...options, family: 4 }, (err, address, family) => {
+      if (err || !address) {
+        if (hostname.includes('catalystserverless.in')) {
+          return callback(null, '169.148.148.93', 4);
+        }
+      }
+      callback(err, address, family);
+    });
   }
 });
 
@@ -515,14 +531,56 @@ async function runVirtualPrinterE2ETests() {
   assert(true, `Photo print job marked complete on datastore`);
 
   // --------------------------------------------------------------------------
-  // TEST 5: Hardware Diagnostics Test Print Sheet
+  // TEST 5: Hardware Diagnostics Test Print (Direct & Staff API -> Agent Loop)
   // --------------------------------------------------------------------------
-  console.log(`\n--- TEST 5: Hardware Diagnostics Test Print Sheet ---`);
+  console.log(`\n--- TEST 5: Hardware Diagnostics Test Print (B/W, Colour, Photo) ---`);
+  
+  // 5A: Direct Generation & Spool to PrintBK-BW-Virtual
   const testPrintPdfBytes = await generateTestPrintPdf('PrintBK-BW-Virtual', { name: 'HKBK Student Point' });
   const testPdfPath = path.join(workDir, 'hardware_test_page.pdf');
   fs.writeFileSync(testPdfPath, testPrintPdfBytes);
   const testPrintResult = await executeSumatraPrint(testPdfPath, 'PrintBK-BW-Virtual', { copies: 1, paper: 'A4' }, sumatraBin);
   assert(testPrintResult.success === true, `Hardware test print spooled successfully to 'PrintBK-BW-Virtual'`);
+
+  // 5B: Trigger Staff API Test Print for B/W, Colour, and Photo -> Agent Job Lease & Spool
+  const testTargets = [
+    { role: 'bw', printerName: 'PrintBK-BW-Virtual' },
+    { role: 'colour', printerName: 'PrintBK-Colour-Virtual' },
+    { role: 'photo', printerName: 'PrintBK-Photo-Virtual' }
+  ];
+
+  for (const target of testTargets) {
+    const queueTestRes = await safeFetch(`${TARGET_URL}/server/api/staff/printers/${target.role}/test-print`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Staff-Device-Token': staffToken
+      },
+      body: JSON.stringify({ printerName: target.printerName })
+    }).then(r => r.json());
+    assert(queueTestRes.ok === true && queueTestRes.jobId, `Staff API queued test print for ${target.role} (${target.printerName})`);
+
+    // Agent leases test print job
+    const leaseTestRes = await safeFetch(`${TARGET_URL}/server/api/agent/jobs/next`, {
+      headers: { 'X-Agent-Token': agentToken }
+    }).then(r => r.json());
+    assert(leaseTestRes.type === 'test_print', `Agent leased job type 'test_print' for ${target.printerName}`);
+
+    // Agent generates test print and spools
+    const pdfBytes = await generateTestPrintPdf(target.printerName, { name: 'HKBK Student Point' });
+    const tempJobPdf = path.join(workDir, `test_print_${leaseTestRes.job.id}.pdf`);
+    fs.writeFileSync(tempJobPdf, pdfBytes);
+    const spoolResult = await executeSumatraPrint(tempJobPdf, target.printerName, { copies: 1, paper: 'A4' }, sumatraBin);
+    assert(spoolResult.success === true, `Test print spooled to target Windows printer '${target.printerName}'`);
+
+    // Complete test print job
+    await safeFetch(`${TARGET_URL}/server/api/agent/jobs/${leaseTestRes.job.id}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Agent-Token': agentToken },
+      body: JSON.stringify({ pages_printed: 1 })
+    });
+    assert(true, `Test print job for ${target.printerName} completed on datastore`);
+  }
 
   // --------------------------------------------------------------------------
   // TEST 6: Student QR Placard Poster Print

@@ -229,12 +229,12 @@ export class AgentSupervisor extends EventEmitter {
     }
   }
 
-  public sendTestPrint(role: 'bw' | 'colour' | 'photo'): Promise<boolean> {
+  public sendTestPrint(role: 'bw' | 'colour' | 'photo', specificPrinter?: string): Promise<boolean> {
     return new Promise((resolve) => {
       if (!this.child || !this.child.connected) {
         return resolve(false);
       }
-      this.child.send({ type: 'test_print', role }, () => {
+      this.child.send({ type: 'test_print', role, specificPrinter }, () => {
         resolve(true);
       });
     });

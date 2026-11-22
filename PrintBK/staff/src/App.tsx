@@ -1276,7 +1276,7 @@ function PrinterSettingsPanel({
       setTestStatus((prev) => ({ ...prev, [target]: "Sending test print…" }))
       // If running inside desktop counter app (Electron bridge):
       if (typeof window !== "undefined" && (window as any).printbkCounter?.triggerTestPrint) {
-        const desktopRes = await (window as any).printbkCounter.triggerTestPrint(role)
+        const desktopRes = await (window as any).printbkCounter.triggerTestPrint(role, target)
         if (desktopRes && (desktopRes.success || desktopRes.ok)) {
           setTestStatus((prev) => ({ ...prev, [target]: "Sent to local printer queue successfully" }))
           return
@@ -1491,10 +1491,10 @@ function PrinterSettingsPanel({
                   printers={allPrinters}
                   role="bw"
                   onSelect={(name) => handleAssignPrinter("bw", name)}
-                  onTest={() => handleTestPrint(bwPrinter?.id || selectedBw || bwPrinter?.name, "bw")}
+                  onTest={() => handleTestPrint(selectedBw || bwPrinter?.name || bwPrinter?.id, "bw")}
                 />
-                {(bwPrinter || selectedBw) && testStatus[bwPrinter?.id || selectedBw || ""] && (
-                  <div className="test-result success"><Icon name="check" />{testStatus[bwPrinter?.id || selectedBw || ""]}</div>
+                {(selectedBw || bwPrinter?.name || bwPrinter?.id) && testStatus[selectedBw || bwPrinter?.name || bwPrinter?.id || ""] && (
+                  <div className="test-result success"><Icon name="check" />{testStatus[selectedBw || bwPrinter?.name || bwPrinter?.id || ""]}</div>
                 )}
               </section>
 
@@ -1505,10 +1505,10 @@ function PrinterSettingsPanel({
                   printers={allPrinters}
                   role="colour"
                   onSelect={(name) => handleAssignPrinter("colour", name)}
-                  onTest={() => handleTestPrint(colourPrinter?.id || selectedColour || colourPrinter?.name, "colour")}
+                  onTest={() => handleTestPrint(selectedColour || colourPrinter?.name || colourPrinter?.id, "colour")}
                 />
-                {(colourPrinter || selectedColour) && testStatus[colourPrinter?.id || selectedColour || ""] && (
-                  <div className="test-result success"><Icon name="check" />{testStatus[colourPrinter?.id || selectedColour || ""]}</div>
+                {(selectedColour || colourPrinter?.name || colourPrinter?.id) && testStatus[selectedColour || colourPrinter?.name || colourPrinter?.id || ""] && (
+                  <div className="test-result success"><Icon name="check" />{testStatus[selectedColour || colourPrinter?.name || colourPrinter?.id || ""]}</div>
                 )}
               </section>
 
@@ -1519,10 +1519,10 @@ function PrinterSettingsPanel({
                   printers={allPrinters}
                   role="photo"
                   onSelect={(name) => handleAssignPrinter("photo", name)}
-                  onTest={() => handleTestPrint(photoPrinter?.id || selectedPhoto || photoPrinter?.name, "photo")}
+                  onTest={() => handleTestPrint(selectedPhoto || photoPrinter?.name || photoPrinter?.id, "photo")}
                 />
-                {(photoPrinter || selectedPhoto) && testStatus[photoPrinter?.id || selectedPhoto || ""] && (
-                  <div className="test-result success"><Icon name="check" />{testStatus[photoPrinter?.id || selectedPhoto || ""]}</div>
+                {(selectedPhoto || photoPrinter?.name || photoPrinter?.id) && testStatus[selectedPhoto || photoPrinter?.name || photoPrinter?.id || ""] && (
+                  <div className="test-result success"><Icon name="check" />{testStatus[selectedPhoto || photoPrinter?.name || photoPrinter?.id || ""]}</div>
                 )}
               </section>
 

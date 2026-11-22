@@ -644,9 +644,9 @@ ipcMain.handle('counter:get-printers', async () => {
   return lastDiscoveredPrinters;
 });
 
-ipcMain.handle('counter:test-print', async (_event, role: 'bw' | 'colour' | 'photo') => {
+ipcMain.handle('counter:test-print', async (_event, role: 'bw' | 'colour' | 'photo', specificPrinter?: string) => {
   if (supervisor) {
-    const ok = await supervisor.sendTestPrint(role || 'bw');
+    const ok = await supervisor.sendTestPrint(role || 'bw', specificPrinter);
     if (ok) {
       return { success: true, message: 'Sent to printer queue' };
     }
@@ -654,13 +654,14 @@ ipcMain.handle('counter:test-print', async (_event, role: 'bw' | 'colour' | 'pho
   // Resilient fallback to staff test print API
   try {
     const staffToken = store.get().staffToken || 'PBK-SETUP-9021';
-    const apiRes = await robustFetch(`${appConfig.apiBase}/server/api/staff/printers/${role || 'bw'}/test-print`, {
+    const targetBase = store.get().apiBase || appConfig.apiBase;
+    const apiRes = await robustFetch(`${targetBase}/server/api/staff/printers/${role || 'bw'}/test-print`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-Staff-Device-Token': staffToken
       },
-      body: JSON.stringify({ printerName: role || 'bw' })
+      body: JSON.stringify({ printerName: specificPrinter || role || 'bw' })
     });
     if (apiRes && apiRes.ok) {
       return { success: true, message: 'Test print queued successfully' };
@@ -832,6 +833,28 @@ ipcMain.handle('counter:finish-wizard', async (_event, config) => {
           photo: config.photoPrinter || config.colourPrinter || ''
         }
       }, null, 2), 'utf8');
+    } catch (_) {}
+
+    // Synchronize chosen printer mapping to shop_settings on server
+    try {
+      const creds = store.get();
+      if (creds.staffToken) {
+        const targetBase = creds.apiBase || appConfig.apiBase;
+        robustFetch(`${targetBase}/server/api/staff/shop-settings`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Staff-Device-Token': creds.staffToken
+          },
+          body: JSON.stringify({
+            printer_mapping: {
+              bw: config.bwPrinter || '',
+              colour: config.colourPrinter || '',
+              photo: config.photoPrinter || config.colourPrinter || ''
+            }
+          })
+        }).catch(() => {});
+      }
     } catch (_) {}
 
     // Immediately start or update supervisor with the newly selected B/W and Colour printers

@@ -20,8 +20,8 @@ contextBridge.exposeInMainWorld('printbkCounter', {
   getAgentStatus: (): Promise<string> => ipcRenderer.invoke('counter:get-agent-status'),
   getDiscoveredPrinters: (): Promise<any[]> => ipcRenderer.invoke('counter:get-printers'),
   openWindowsPrinterSettings: (): Promise<void> => ipcRenderer.invoke('counter:open-printer-settings'),
-  triggerTestPrint: (role: 'bw' | 'colour' | 'photo'): Promise<{ success: boolean; message?: string }> =>
-    ipcRenderer.invoke('counter:test-print', role),
+  triggerTestPrint: (role: 'bw' | 'colour' | 'photo', specificPrinter?: string): Promise<{ success: boolean; message?: string }> =>
+    ipcRenderer.invoke('counter:test-print', role, specificPrinter),
   pairWorkstation: (setupCode: string, label?: string, serverUrl?: string): Promise<{ ok: boolean; error?: string; serverBase?: string }> =>
     ipcRenderer.invoke('counter:pair', { setupCode, label, serverUrl }),
   getServerConfig: (): Promise<{ apiBase: string; staffAppUrl: string; environment: string }> =>

@@ -513,7 +513,7 @@
       testBwBtn.disabled = true;
       testBwBtn.textContent = 'Printing…';
       try {
-        await window.printbkCounter.triggerTestPrint('bw');
+        await window.printbkCounter.triggerTestPrint('bw', getSelectedPrinter('bw'));
         bwTestBadge.classList.add('success');
         bwTestBadge.textContent = '✓ Sent to printer';
       } catch (e) {
@@ -528,7 +528,7 @@
       testColourBtn.disabled = true;
       testColourBtn.textContent = 'Printing…';
       try {
-        await window.printbkCounter.triggerTestPrint('colour');
+        await window.printbkCounter.triggerTestPrint('colour', getSelectedPrinter('colour'));
         colourTestBadge.classList.add('success');
         colourTestBadge.textContent = '✓ Sent to printer';
       } catch (e) {
@@ -543,7 +543,7 @@
       testPhotoBtn.disabled = true;
       testPhotoBtn.textContent = 'Printing…';
       try {
-        await window.printbkCounter.triggerTestPrint('photo');
+        await window.printbkCounter.triggerTestPrint('photo', getSelectedPrinter('photo'));
         photoTestBadge.classList.add('success');
         photoTestBadge.textContent = '✓ Sent to printer';
       } catch (e) {

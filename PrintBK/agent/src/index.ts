@@ -10,14 +10,21 @@ try {
   dns.setDefaultResultOrder('ipv4first');
 } catch (_) {}
 
-// Strict IPv4 HTTPS Agent to prevent connection hangs on unroutable synthetic IPv6 (DNS64) on Ethernet
+// Strict IPv4 HTTPS Agent with resilient fallback to verified IP to prevent DNS drops on campus/office Ethernet
 const httpsAgent = new https.Agent({
   autoSelectFamily: true,
   autoSelectFamilyAttemptTimeout: 200,
   keepAlive: true,
   timeout: 10000,
   lookup: (hostname: string, options: any, callback: any) => {
-    dns.lookup(hostname, { ...options, family: 4 }, callback);
+    dns.lookup(hostname, { ...options, family: 4 }, (err, address, family) => {
+      if (err || !address) {
+        if (hostname.includes('catalystserverless.in')) {
+          return callback(null, '169.148.148.93', 4);
+        }
+      }
+      callback(err, address, family);
+    });
   }
 });
 
@@ -27,7 +34,14 @@ const httpAgent = new http.Agent({
   keepAlive: true,
   timeout: 10000,
   lookup: (hostname: string, options: any, callback: any) => {
-    dns.lookup(hostname, { ...options, family: 4 }, callback);
+    dns.lookup(hostname, { ...options, family: 4 }, (err, address, family) => {
+      if (err || !address) {
+        if (hostname.includes('catalystserverless.in')) {
+          return callback(null, '169.148.148.93', 4);
+        }
+      }
+      callback(err, address, family);
+    });
   }
 });
 
@@ -141,8 +155,8 @@ class PrintAgentDaemon {
     if (process.on) {
       process.on('message', async (msg: any) => {
         if (msg?.type === 'test_print') {
-          logger.info(`[Agent] IPC test_print requested for role: ${msg.role || 'bw'}`);
-          await this.triggerLocalTestPrint(msg.role);
+          logger.info(`[Agent] IPC test_print requested for role: ${msg.role || 'bw'}, printer: ${msg.specificPrinter || 'auto'}`);
+          await this.triggerLocalTestPrint(msg.specificPrinter || msg.role);
         } else if (msg?.type === 'shutdown') {
           this.shutdown();
         }
@@ -341,21 +355,34 @@ class PrintAgentDaemon {
   private async handleTestPrintJob(payload: any): Promise<void> {
     const { job, targetPrinter } = payload;
     const discovered = await discoverPrinters(this.config.dryRun, this.config.printerProfiles).catch(() => []);
+    const itemIdRole = (job?.item_id || '').replace(/^test-print-/, '');
+    const detectedRole = (itemIdRole === 'colour' || itemIdRole === 'photo' || itemIdRole === 'bw') ? itemIdRole : '';
     let printerName = targetPrinter;
-    if (!printerName || printerName === 'bw') {
+    if (!printerName || printerName === 'bw' || detectedRole === 'bw') {
       printerName = this.config.printerProfiles.bw || discovered.find(p => p.role === 'bw' || p.role === 'both')?.name;
-    } else if (printerName === 'colour') {
+    } else if (printerName === 'colour' || detectedRole === 'colour') {
       printerName = this.config.printerProfiles.colour || discovered.find(p => p.role === 'colour' || p.role === 'both')?.name;
-    } else if (printerName === 'photo') {
-      printerName = this.config.printerProfiles.photo || this.config.printerProfiles.colour;
+    } else if (printerName === 'photo' || detectedRole === 'photo') {
+      printerName = this.config.printerProfiles.photo || this.config.printerProfiles.colour || discovered.find(p => p.role === 'photo' || p.role === 'colour')?.name;
     }
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test((printerName || '').trim());
     if (isUuid || !printerName || !discovered.some(p => p.name.toLowerCase() === (printerName || '').toLowerCase())) {
-      printerName = discovered.find(p => p.name.toLowerCase() === (this.config.printerProfiles.bw || '').toLowerCase())?.name
-        || discovered.find(p => p.isDefault)?.name
-        || discovered[0]?.name
-        || this.config.printerProfiles.bw
-        || '';
+      if (detectedRole === 'colour' || targetPrinter === 'colour') {
+        printerName = discovered.find(p => p.name.toLowerCase() === (this.config.printerProfiles.colour || '').toLowerCase())?.name
+          || discovered.find(p => p.role === 'colour' || p.role === 'both')?.name
+          || this.config.printerProfiles.colour;
+      } else if (detectedRole === 'photo' || targetPrinter === 'photo') {
+        printerName = discovered.find(p => p.name.toLowerCase() === (this.config.printerProfiles.photo || '').toLowerCase())?.name
+          || discovered.find(p => p.role === 'photo' || p.role === 'colour')?.name
+          || this.config.printerProfiles.photo;
+      } else {
+        printerName = discovered.find(p => p.name.toLowerCase() === (this.config.printerProfiles.bw || '').toLowerCase())?.name
+          || discovered.find(p => p.role === 'bw' || p.role === 'both')?.name
+          || this.config.printerProfiles.bw;
+      }
+      if (!printerName) {
+        printerName = discovered.find(p => p.isDefault)?.name || discovered[0]?.name || '';
+      }
     }
     console.log(`[Agent] Generating test print for ${printerName || 'Default Printer'}...`);
 
@@ -686,7 +713,16 @@ class PrintAgentDaemon {
         target = this.config.printerProfiles[role] || printers.find(p => p.role === role)?.name || (printers[0]?.name) || 'Default Printer';
       }
       if (printers.length > 0 && !printers.some(p => p.name.toLowerCase() === (target || '').toLowerCase())) {
-        target = printers.find(p => p.isDefault)?.name || printers[0]?.name || target;
+        if (target === 'colour' || printerNameOrRole === 'colour') {
+          target = this.config.printerProfiles.colour || printers.find(p => p.role === 'colour' || p.role === 'both')?.name;
+        } else if (target === 'photo' || printerNameOrRole === 'photo') {
+          target = this.config.printerProfiles.photo || this.config.printerProfiles.colour || printers.find(p => p.role === 'photo' || p.role === 'colour')?.name;
+        } else {
+          target = this.config.printerProfiles.bw || printers.find(p => p.role === 'bw' || p.role === 'both')?.name;
+        }
+        if (!target) {
+          target = printers.find(p => p.isDefault)?.name || printers[0]?.name || 'Default Printer';
+        }
       }
       logger.info(`[Agent] Triggering local test print on: ${target}`);
       const pdfBytes = await generateTestPrintPdf(target, { name: 'HKBK Student Point' });
