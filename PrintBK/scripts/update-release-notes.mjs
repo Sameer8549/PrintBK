@@ -3,7 +3,7 @@ import { execSync } from 'child_process';
 
 const notes = `### PrintBK Counter — Official Workstation Setup (Windows 64-bit)
 
-Official desktop counter workstation release for HKBK Campus Print Services. Production Go-Live Hardened (v1.0.0, Released November 22, 2026).
+Official desktop counter workstation release for HKBK Campus Print Services. Production Go-Live Hardened (v1.0.0, Released November 24, 2026).
 
 #### Release Highlights & Verified Fixes
 - **56/56 Physical & Virtual Printer Pipeline Pass**: Complete end-to-end pipeline verified from student upload to Windows print spoolers (SumatraPDF silent engine) across B/W, Colour, Custom Split, and Passport Photo prints.
@@ -37,8 +37,19 @@ fs.writeFileSync('release_notes_tmp.md', notes);
 try {
   execSync('gh release edit v1.0.0 --repo Sameer8549/PrintBK-releases --notes-file release_notes_tmp.md');
   console.log('GitHub Release notes updated successfully on Sameer8549/PrintBK-releases!');
+
+  console.log('Re-uploading release assets to refresh timestamps on Sameer8549/PrintBK-releases...');
+  const assetFiles = [
+    'PrintBK/counter-app/dist/installer/checksums.txt',
+    'PrintBK/counter-app/dist/installer/latest.yml',
+    'PrintBK/counter-app/dist/installer/PrintBK-Counter-Setup-1.0.0.exe',
+    'PrintBK/counter-app/dist/installer/PrintBK-Counter-Setup-1.0.0.exe.blockmap',
+    'PrintBK/counter-app/dist/installer/PrintBK-Counter-Setup.exe'
+  ];
+  execSync(`gh release upload v1.0.0 ${assetFiles.map(f => `"${f}"`).join(' ')} --clobber --repo Sameer8549/PrintBK-releases`);
+  console.log('Assets refreshed successfully on Sameer8549/PrintBK-releases!');
 } catch (err) {
-  console.error('Failed to update release notes on Sameer8549/PrintBK-releases:', err.message);
+  console.error('Failed to update release on Sameer8549/PrintBK-releases:', err.message);
 } finally {
   if (fs.existsSync('release_notes_tmp.md')) fs.unlinkSync('release_notes_tmp.md');
 }

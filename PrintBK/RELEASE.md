@@ -124,7 +124,7 @@ If an unexpected regression occurs in production:
 
 ---
 
-## 7. Production Release Changelog (v1.0.0 — November 22, 2026)
+## 7. Production Release Changelog (v1.0.0 — November 24, 2026)
 
 ### 🚀 Major Improvements & Architecture Updates
 
@@ -158,10 +158,26 @@ If an unexpected regression occurs in production:
 
 | Verification Suite | Checks Executed | Pass Rate | Status |
 | :--- | :--- | :--- | :--- |
+| **Master E2E & Spooler Suite** (`scripts/test-master-all-printers-and-screenshots.mjs`) | 36 | 100% (36/36) | ✅ PASS |
 | **Virtual Printer Spoolers** (`test-e2e-real-virtual-printers.mjs`) | 56 | 100% (56/56) | ✅ PASS |
 | **Chromium Master E2E** (`test-e2e-all-student-and-staff-chrome.mjs`) | 46 | 100% (46/46) | ✅ PASS |
 | **Download Page & Pairing Toggle** (`verify-download-page.mjs`) | 4 | 100% (4/4) | ✅ PASS |
 | **Clean Slate Purge** (`execute-clean-slate.mjs`) | Queue: 0, Paired: 0 | 100% | ✅ PASS |
+
+### Screenshot Evidence Inventory (`docs/final-evidence/production/`):
+- `01-staff-workbench-paired.png`: Staff Counter paired with setup code `PBK-SETUP-9021`
+- `02-staff-printers-settings.png`: Hardware printer mappings configured for B/W, Colour, and Photo
+- `03-staff-test-prints-verified.png`: B/W, Colour, and Photo test prints spooled and completed
+- `04-student-upload-basket.png`: Student document uploaded to basket
+- `05-student-cash-ticket-masked.png`: Cash order placed with pickup code masked (`——`)
+- `06-staff-order-received-queue.png`: Order arrives on staff queue
+- `07-staff-cash-order-collected.png`: Staff collects cash
+- `08-student-cash-pickup-code-revealed.png`: B/W document spooled to `PrintBK-BW-Virtual` & code revealed
+- `09-student-upi-payment-gateway.png`: Open-source UPI gateway with VPA `Q098686787@ybl`, QR, and UTR input
+- `10-student-upi-ticket-submitted.png`: UPI ticket submitted with UTR
+- `11-staff-upi-order-approved.png`: Staff approves UPI order
+- `12-student-upi-pickup-code-revealed.png`: Colour document spooled to `PrintBK-Colour-Virtual` & code revealed
+- `13-staff-clean-slate-empty-queue.png`: Clean slate purge executed (0 active orders)
 
 **Client Handover Instructions:**
 - **Counter Setup Code:** `PBK-SETUP-9021`

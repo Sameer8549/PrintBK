@@ -372,6 +372,7 @@ router.get(['/jobs/next', '/jobs/poll'], async (req, res) => {
         type: 'print',
         jobs: [jobPayload],
         job: jobPayload,
+        targetPrinter: queuedJob.printer,
         item: {
           id: itemRecord ? itemRecord.id : queuedJob.item_id,
           order_id: itemRecord ? itemRecord.order_id : '',
