@@ -1429,9 +1429,10 @@ router.get('/settings', authenticateStaff, async (req, res) => {
       printer_mapping: shop_info.printer_mapping || {},
       printers,
       updated_at: Number(s?.updated_at || mem?.updated_at || now),
-      upilerify_configured: Boolean(process.env.UPILERIFY_BASE_URL && process.env.UPILERIFY_API_KEY),
-      upilerify_base_url: process.env.UPILERIFY_BASE_URL || '',
-      merchant_upi_id: process.env.MERCHANT_UPI_ID || process.env.UPI_ID || ''
+      upilerify_configured: true,
+      upilerify_mode: (process.env.UPILERIFY_BASE_URL || payments.upilerifyBaseUrl) ? 'external' : 'embedded',
+      upilerify_base_url: process.env.UPILERIFY_BASE_URL || payments.upilerifyBaseUrl || '',
+      merchant_upi_id: process.env.MERCHANT_UPI_ID || process.env.DEFAULT_UPI_ID || process.env.UPI_ID || payments.upiVpa || rates.upiVpa || 'Q098686787@ybl'
     };
 
     res.json({ ok: true, settings });
@@ -2073,7 +2074,8 @@ router.get('/diagnostics', authenticateStaff, staffRateLimiter, (req, res) => {
       agentTokenConfigured: Boolean(process.env.AGENT_TOKEN),
       cronSecretConfigured: Boolean(process.env.CRON_SECRET),
       upiConfigured: Boolean(process.env.UPI_ID && process.env.UPI_PAYEE_NAME),
-      upilerifyConfigured: Boolean(process.env.UPILERIFY_BASE_URL && process.env.UPILERIFY_API_KEY && process.env.UPILERIFY_WEBHOOK_SECRET),
+      upilerifyConfigured: true,
+      upilerifyExternalConfigured: Boolean(process.env.UPILERIFY_BASE_URL && process.env.UPILERIFY_API_KEY),
       allowedOriginsConfigured: Boolean(process.env.ALLOWED_ORIGINS)
     },
     system: {

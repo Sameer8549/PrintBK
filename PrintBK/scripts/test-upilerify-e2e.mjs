@@ -273,6 +273,103 @@ try {
   assert(approveRes.status === 200, 'Staff admin approval returns HTTP 200', `Got ${approveRes.status}`);
   assert(approveData.status === 'PAID', 'Staff approval marks order PAID', approveData.status);
 
+  // Test 7: Native Embedded UPILerify Engine (Zero 503 errors when external server is unconfigured)
+  console.log('\n--- 7. Native Embedded UPILerify Engine (Missing Config Fallback) ---');
+  const savedBaseUrl = process.env.UPILERIFY_BASE_URL;
+  const savedApiKey = process.env.UPILERIFY_API_KEY;
+  try {
+    delete process.env.UPILERIFY_BASE_URL;
+    delete process.env.UPILERIFY_API_KEY;
+
+    const embedRes = await fetch(`${BASE}/api/checkout/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'true' },
+      body: JSON.stringify({
+        files: [{ id: 'f4', name: 'embedded_doc.pdf', pages: 3, colorMode: 'bw', is_test: true }]
+      })
+    });
+    const embedData = await embedRes.json();
+    assert(embedRes.status === 200, 'Embedded checkout create returns HTTP 200 (never 503)', `Got ${embedRes.status}`);
+    assert(embedData.engine === 'embedded', 'Engine mode is embedded', embedData.engine);
+    assert(embedData.payableAmount > embedData.baseAmount, 'Embedded engine adds unique paise offset', `Base: ₹${embedData.baseAmount}, Payable: ₹${embedData.payableAmount}`);
+    assert(Boolean(embedData.qrCodeData && embedData.upiIntentUrl), 'Embedded engine generates dynamic vector QR & intent URL');
+    assert(embedData.status === 'PENDING', 'Embedded checkout order is PENDING', embedData.status);
+
+    // Verify manual UTR works in embedded mode
+    const embedUtr = '777888999111';
+    const embedUtrRes = await fetch(`${BASE}/api/checkout/manual-utr`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId: embedData.orderId, utrNumber: embedUtr })
+    });
+    const embedUtrData = await embedUtrRes.json();
+    assert(embedUtrRes.status === 200, 'Embedded manual UTR accepted (200)', `Got ${embedUtrRes.status}`);
+    assert(embedUtrData.status === 'UNDER_REVIEW', 'Embedded order moves to UNDER_REVIEW', embedUtrData.status);
+  } finally {
+    process.env.UPILERIFY_BASE_URL = savedBaseUrl;
+    process.env.UPILERIFY_API_KEY = savedApiKey;
+  }
+
+  // Test 8: Official UPILerify Spec Webhook Payload (req.body.order with metadata.orderId)
+  console.log('\n--- 8. Official UPILerify README Spec Webhook Compatibility ---');
+  const fourthCreateRes = await fetch(`${BASE}/api/checkout/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-test-suite': 'true' },
+    body: JSON.stringify({
+      files: [{ id: 'f5', name: 'paper5.pdf', pages: 1, colorMode: 'bw', is_test: true }]
+    })
+  });
+  const fourthOrder = await fourthCreateRes.json();
+  const officialUtr = '555666777888';
+  const officialWebhookPayload = JSON.stringify({
+    event: 'payment.verified',
+    timestamp: Date.now(),
+    order: {
+      id: 'ord_official_test_spec_123',
+      amount: fourthOrder.baseAmount,
+      expectedAmount: fourthOrder.payableAmount,
+      utr: officialUtr,
+      bank: 'HDFC Bank',
+      status: 'VERIFIED',
+      metadata: {
+        userId: 'student_xyz',
+        orderId: fourthOrder.orderId
+      }
+    }
+  });
+
+  const officialSig = crypto.createHmac('sha256', TEST_SECRET).update(Buffer.from(officialWebhookPayload, 'utf8')).digest('hex');
+  const officialHookRes = await fetch(`${BASE}/api/webhooks/upilerify`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-UPILerify-Signature': officialSig,
+      'X-UPILerify-Event': 'payment.verified'
+    },
+    body: officialWebhookPayload
+  });
+  const officialHookData = await officialHookRes.json();
+  assert(officialHookRes.status === 200, 'Official UPILerify webhook format accepted (200)', `Got ${officialHookRes.status}`);
+  assert(officialHookData.status === 'PAID', 'Official webhook marks order PAID', officialHookData.status);
+
+  // Test 9: Staff UPILerify Connection Diagnostic Endpoint
+  console.log('\n--- 9. Staff UPILerify Connection Test Utility ---');
+  const testConnRes = await fetch(`${BASE}/api/upilerify/test-connection`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Staff-Token': 'test-staff-token-upilerify'
+    },
+    body: JSON.stringify({
+      upilerifyBaseUrl: 'http://127.0.0.1:4999',
+      upilerifyApiKey: TEST_API_KEY
+    })
+  });
+  const testConnData = await testConnRes.json();
+  assert(testConnRes.status === 200, 'Staff connection test returns HTTP 200', `Got ${testConnRes.status}`);
+  assert(testConnData.ok === true, 'Staff connection test reports ok: true', `ok=${testConnData.ok}`);
+  assert(testConnData.mode === 'external', 'Staff connection test detects external mode', testConnData.mode);
+
   console.log(`\n========================================`);
   console.log(`E2E UPILerify Test Results: ${passed} passed, ${failed} failed.`);
   console.log(`========================================\n`);

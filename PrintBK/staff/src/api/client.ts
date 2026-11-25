@@ -408,4 +408,17 @@ export async function verifyAdminOrder(orderId: string, action: "approve" | "rej
   return data
 }
 
+export async function testUpilerifyConnection(upilerifyBaseUrl?: string, upilerifyApiKey?: string) {
+  const res = await staffFetch("/upilerify/test-connection", {
+    method: "POST",
+    body: JSON.stringify({ upilerifyBaseUrl, upilerifyApiKey }),
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    throw new StaffApiError(data.error || "Failed to test UPILerify connection", res.status, data)
+  }
+  return data
+}
+
+
 

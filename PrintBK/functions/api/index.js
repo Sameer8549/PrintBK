@@ -890,7 +890,7 @@ app.get(['/config', '/shop/config'], async (req, res) => {
     paymentMethods: {
       cash: settings.payments?.cash !== false,
       upi: settings.payments?.upi !== false,
-      upilerify: Boolean(process.env.UPILERIFY_BASE_URL && process.env.UPILERIFY_API_KEY)
+      upilerify: settings.payments?.upi !== false
     },
     upi: {
       enabled: settings.payments?.upi !== false,

@@ -24,6 +24,7 @@ import {
   revokePairedCounter,
   getUnderReviewOrders,
   verifyAdminOrder,
+  testUpilerifyConnection,
 } from "./api/client"
 import { useStaffLive, LiveItem, LivePrinter, LiveShop, LiveRecentlyPrinted } from "./api/useStaffLive"
 import { downloadQrPdf, previewQrPdf } from "./qrPosterPdf"
@@ -1026,6 +1027,10 @@ function PrinterSettingsPanel({
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [upilerifyConfigured, setUpilerifyConfigured] = useState(false)
   const [upilerifyBaseUrl, setUpilerifyBaseUrl] = useState("")
+  const [upilerifyApiKey, setUpilerifyApiKey] = useState("")
+  const [upilerifyWebhookSecret, setUpilerifyWebhookSecret] = useState("")
+  const [upilerifyTestStatus, setUpilerifyTestStatus] = useState<string | null>(null)
+  const [testingUpilerify, setTestingUpilerify] = useState(false)
 
   const [rates, setRates] = useState({
     bw: String(shop.rates?.bw ?? "1.50"),
@@ -1161,6 +1166,9 @@ function PrinterSettingsPanel({
         })
         if (s.payments.upiVpa) setRates((r) => ({ ...r, upiVpa: s.payments.upiVpa }))
         if (s.payments.upiName) setRates((r) => ({ ...r, upiName: s.payments.upiName }))
+        if (s.payments.upilerifyBaseUrl) setUpilerifyBaseUrl(s.payments.upilerifyBaseUrl)
+        if (s.payments.upilerifyApiKey) setUpilerifyApiKey(s.payments.upilerifyApiKey)
+        if (s.payments.upilerifyWebhookSecret) setUpilerifyWebhookSecret(s.payments.upilerifyWebhookSecret)
       }
       if (s.shop_info) {
         setShopDetails({
@@ -1404,6 +1412,9 @@ function PrinterSettingsPanel({
           upi: pm.upi,
           upiVpa: r.upiVpa,
           upiName: r.upiName,
+          upilerifyBaseUrl: upilerifyBaseUrl.trim() || undefined,
+          upilerifyApiKey: upilerifyApiKey.trim() || undefined,
+          upilerifyWebhookSecret: upilerifyWebhookSecret.trim() || undefined,
         },
         shop_info: {
           name: sd.name,
@@ -1842,7 +1853,7 @@ function PrinterSettingsPanel({
                     saveSettings(rates, services, updated)
                   }}
                 />
-                <div style={{ marginTop: "16px", padding: "14px", border: "1.5px solid #bfdbfe", borderRadius: "10px", background: "#eff6ff" }}>
+                <div style={{ marginTop: "16px", padding: "16px", border: "1.5px solid #bfdbfe", borderRadius: "10px", background: "#eff6ff" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
                     <div style={{ fontSize: "14px", fontWeight: 800, color: "#1e40af", display: "flex", alignItems: "center", gap: "6px" }}>
                       UPILerify Direct UPI Engine
@@ -1850,18 +1861,94 @@ function PrinterSettingsPanel({
                         0% Gateway Fees
                       </span>
                     </div>
-                    <span style={{ color: upilerifyConfigured ? "#15803d" : "#d97706", fontSize: "12px", fontWeight: 700 }}>
-                      {upilerifyConfigured ? "● Active & Reconciling" : "● Configured on Server"}
+                    <span style={{ color: "#15803d", fontSize: "12px", fontWeight: 700 }}>
+                      {upilerifyBaseUrl ? "● External UPILerify Instance" : "● Native Embedded Engine Active"}
                     </span>
                   </div>
                   <p style={{ fontSize: "12px", color: "#334155", margin: 0, lineHeight: 1.5 }}>
                     Self-hosted open-source UPI verification via IMAP bank credit alerts and unique paise offsets. 100% of student payments land directly in your merchant bank account without aggregator deductions.
                   </p>
-                  {upilerifyBaseUrl && (
-                    <div style={{ marginTop: "8px", fontSize: "11px", color: "#64748b" }}>
-                      Instance: <code>{upilerifyBaseUrl}</code>
+
+                  <div style={{ marginTop: "14px", display: "grid", gap: "10px" }}>
+                    <div>
+                      <label style={{ fontSize: "11px", fontWeight: 700, color: "#1e3a8a", display: "block", marginBottom: "4px" }}>
+                        Merchant UPI ID (VPA)
+                      </label>
+                      <input
+                        type="text"
+                        value={rates.upiVpa || ""}
+                        placeholder="e.g. Q098686787@ybl"
+                        onChange={(e) => {
+                          const val = e.target.value
+                          const nr = { ...rates, upiVpa: val }
+                          setRates(nr)
+                          saveSettings(nr, services, payments)
+                        }}
+                        style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      />
                     </div>
-                  )}
+                    <div>
+                      <label style={{ fontSize: "11px", fontWeight: 700, color: "#1e3a8a", display: "block", marginBottom: "4px" }}>
+                        Merchant Payee Name
+                      </label>
+                      <input
+                        type="text"
+                        value={rates.upiName || ""}
+                        placeholder="e.g. HKBK Student Point"
+                        onChange={(e) => {
+                          const val = e.target.value
+                          const nr = { ...rates, upiName: val }
+                          setRates(nr)
+                          saveSettings(nr, services, payments)
+                        }}
+                        style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "11px", fontWeight: 700, color: "#1e3a8a", display: "block", marginBottom: "4px" }}>
+                        External UPILerify Server URL (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={upilerifyBaseUrl}
+                        placeholder="e.g. http://localhost:3000 or https://upilerify.yourdomain.com"
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setUpilerifyBaseUrl(val)
+                          saveSettings(rates, services, payments)
+                        }}
+                        style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      />
+                      <span style={{ fontSize: "11px", color: "#64748b" }}>Leave empty to run in native embedded mode (zero setup required).</span>
+                    </div>
+
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "4px" }}>
+                      <button
+                        type="button"
+                        disabled={testingUpilerify}
+                        onClick={async () => {
+                          setTestingUpilerify(true)
+                          setUpilerifyTestStatus(null)
+                          try {
+                            const res = await testUpilerifyConnection(upilerifyBaseUrl, upilerifyApiKey)
+                            setUpilerifyTestStatus(`✓ ${res.message || "Connected successfully!"}`)
+                          } catch (err: any) {
+                            setUpilerifyTestStatus(`✗ ${err.message || "Connection failed"}`)
+                          } finally {
+                            setTestingUpilerify(false)
+                          }
+                        }}
+                        style={{ padding: "6px 14px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+                      >
+                        {testingUpilerify ? "Testing..." : "Test UPILerify Engine"}
+                      </button>
+                      {upilerifyTestStatus && (
+                        <span style={{ fontSize: "12px", fontWeight: 600, color: upilerifyTestStatus.startsWith("✓") ? "#15803d" : "#b91c1c" }}>
+                          {upilerifyTestStatus}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </section>
             </div>

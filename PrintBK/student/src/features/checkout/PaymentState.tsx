@@ -441,11 +441,11 @@ export default function PaymentState({
           <div style={{ background: '#ffffff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16, width: '100%', marginBottom: 24, textAlign: 'left' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
               <span style={{ fontSize: 13, color: '#64748b' }}>Order Number</span>
-              <strong style={{ fontSize: 14, color: '#0f172a' }}>#{checkoutData.orderNumber || orderId.slice(0, 8)}</strong>
+              <strong style={{ fontSize: 14, color: '#0f172a' }}>#{checkoutData?.orderNumber || orderId.slice(0, 8)}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 13, color: '#64748b' }}>Base Total</span>
-              <strong style={{ fontSize: 14, color: '#0f172a' }}>₹{checkoutData.baseAmount.toFixed(2)}</strong>
+              <strong style={{ fontSize: 14, color: '#0f172a' }}>₹{Number(checkoutData?.baseAmount || 0).toFixed(2)}</strong>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
