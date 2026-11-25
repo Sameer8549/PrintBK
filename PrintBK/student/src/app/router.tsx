@@ -9,6 +9,8 @@ import OtherServices from '../features/services/OtherServices';
 import PhotoTool from '../features/photos/PhotoTool';
 import Checkout from '../features/checkout/Checkout';
 import PaymentState from '../features/checkout/PaymentState';
+import OrderSuccess from '../features/checkout/OrderSuccess';
+import OrderPending from '../features/checkout/OrderPending';
 import FailedPayment from '../features/checkout/FailedPayment';
 import Ticket from '../features/order/Ticket';
 import QuoteTicket from '../features/order/QuoteTicket';
@@ -162,20 +164,23 @@ function RouteMapper() {
   };
 
   // Determine if current route should display closed barrier
-  const isExemptRoute = ['/history', '/settings', '/about', '/privacy'].includes(location.pathname) || location.pathname.startsWith('/order/') || location.pathname.startsWith('/receipt/') || location.pathname.startsWith('/pay/');
+  const isExemptRoute = ['/history', '/settings', '/about', '/privacy', '/order-success', '/order-pending'].includes(location.pathname) || location.pathname.startsWith('/order/') || location.pathname.startsWith('/receipt/') || location.pathname.startsWith('/pay/') || location.pathname.startsWith('/checkout/');
   const showClosedBarrier = !shopOpen && !isExemptRoute;
 
   return (
     <>
       <Routes>
-        <Route path="/"          element={<Entry go={go} setSheet={setSheet} openPhoto={() => navigate('/photos')} />} />
-        <Route path="/basket"    element={<Basket go={go} setSheet={setSheet} />} />
-        <Route path="/services"  element={<OtherServices go={go} setSheet={setSheet} addService={addService} openBinding={(t) => { setBindingType(t); setSheet('binding'); }} openCustom={(t) => { setCustomNote(t); setSheet('custom'); }} />} />
-        <Route path="/photos"    element={<PhotoTool go={go} initialLayout="Passport 8-up" />} />
-        <Route path="/checkout"  element={<Checkout go={go} setSheet={setSheet} services={[]} />} />
-        <Route path="/pay/:id"   element={<PaymentState go={go} />} />
-        <Route path="/order/:id" element={<Ticket go={go} setSheet={setSheet} />} />
-        <Route path="/receipt/:id" element={<Ticket go={go} setSheet={setSheet} />} />
+        <Route path="/"              element={<Entry go={go} setSheet={setSheet} openPhoto={() => navigate('/photos')} />} />
+        <Route path="/basket"        element={<Basket go={go} setSheet={setSheet} />} />
+        <Route path="/services"      element={<OtherServices go={go} setSheet={setSheet} addService={addService} openBinding={(t) => { setBindingType(t); setSheet('binding'); }} openCustom={(t) => { setCustomNote(t); setSheet('custom'); }} />} />
+        <Route path="/photos"        element={<PhotoTool go={go} initialLayout="Passport 8-up" />} />
+        <Route path="/checkout"      element={<Checkout go={go} setSheet={setSheet} services={[]} />} />
+        <Route path="/checkout/:id"  element={<PaymentState go={go} />} />
+        <Route path="/pay/:id"       element={<PaymentState go={go} />} />
+        <Route path="/order-success" element={<OrderSuccess go={go} />} />
+        <Route path="/order-pending" element={<OrderPending go={go} />} />
+        <Route path="/order/:id"     element={<Ticket go={go} setSheet={setSheet} />} />
+        <Route path="/receipt/:id"   element={<Ticket go={go} setSheet={setSheet} />} />
         <Route path="/history"   element={<History go={go} />} />
         <Route path="/settings"  element={<Settings go={go} />} />
         <Route path="/about"     element={<About go={go} />} />

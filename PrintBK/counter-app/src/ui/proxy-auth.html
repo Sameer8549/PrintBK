@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <title>Proxy Authentication Required — PrintBK Counter</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f7f4ee;
+      color: #0f172a;
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: #ffffff;
+      border: 2px solid #0f172a;
+      border-radius: 16px;
+      box-shadow: 5px 5px 0px #0f172a;
+      width: 100%;
+      padding: 24px;
+    }
+    .badge {
+      display: inline-block;
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fcd34d;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 999px;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+    h1 { font-size: 18px; font-weight: 800; margin-bottom: 6px; }
+    p { font-size: 13px; color: #475569; line-height: 1.45; margin-bottom: 16px; }
+    .meta {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: #334155;
+      margin-bottom: 16px;
+      word-break: break-all;
+    }
+    .field { margin-bottom: 12px; }
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #475569;
+      margin-bottom: 5px;
+    }
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+    }
+    input:focus { border-color: #0f172a; }
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 18px;
+    }
+    button {
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-cancel {
+      background: transparent;
+      border: 1.5px solid #cbd5e1;
+      color: #475569;
+    }
+    .btn-submit {
+      background: #0f172a;
+      border: none;
+      color: #ffffff;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">NETWORK PROXY AUTH</div>
+    <h1>Campus / Corporate Proxy Login</h1>
+    <p>Your Ethernet/LAN proxy requires credentials to reach external HTTPS services.</p>
+    <div class="meta" id="proxyMeta">Proxy: detecting…</div>
+    <form id="authForm">
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" type="text" autocomplete="username" autofocus required />
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" type="password" autocomplete="current-password" required />
+      </div>
+      <div class="actions">
+        <button type="button" class="btn-cancel" id="cancelBtn">Cancel</button>
+        <button type="submit" class="btn-submit">Sign In to Proxy</button>
+      </div>
+    </form>
+  </div>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const requestId = params.get('requestId') || '';
+    const host = params.get('host') || 'proxy';
+    const port = params.get('port') || '';
+    const scheme = params.get('scheme') || 'http';
+    const realm = params.get('realm') || '';
+
+    const metaEl = document.getElementById('proxyMeta');
+    metaEl.textContent = `${scheme.toUpperCase()} Proxy: ${host}${port ? ':' + port : ''}${realm ? ' · Realm: ' + realm : ''}`;
+
+    let submitted = false;
+    document.getElementById('authForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (submitted) return;
+      submitted = true;
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      await window.printbkCounter?.submitProxyAuth?.(requestId, username, password);
+    });
+
+    document.getElementById('cancelBtn').addEventListener('click', async () => {
+      if (submitted) return;
+      submitted = true;
+      await window.printbkCounter?.cancelProxyAuth?.(requestId);
+    });
+  </script>
+</body>
+</html>

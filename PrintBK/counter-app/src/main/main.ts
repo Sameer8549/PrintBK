@@ -1,82 +1,27 @@
-import { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog, session, nativeImage, net } from 'electron';
+import { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog, session, nativeImage } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import dns from 'dns';
-import https from 'https';
-import fetch from 'node-fetch';
 import { autoUpdater } from 'electron-updater';
 import { CounterStore } from './store';
 import { AgentSupervisor, AgentStatus } from './agentSupervisor';
+import {
+  configureLanNetworkingBeforeReady,
+  configureLanNetworkingWhenReady,
+  registerNetworkHandlers,
+  attachWindowLoadDiagnostics,
+  robustFetch,
+  classifyNetworkError,
+  recordNetworkDiagnostic,
+  resolveSystemProxyLabel,
+  validateStandardHttpsPort
+} from './network';
 import { discoverPrinters } from '../agent/printers';
 import { findSumatraBinary } from '../agent/sumatra';
 import { findLibreOfficeBinary } from '../agent/converter';
 
-// Prioritize IPv4 across all Node DNS lookups to prevent blackhole timeouts on campus/office Ethernet
-try {
-  dns.setDefaultResultOrder('ipv4first');
-} catch (_) {}
-
-// Disable DNS over HTTPS and AsyncDns in Chromium network service to prevent Ethernet gateway blocks
-app.commandLine.appendSwitch('disable-features', 'DnsOverHttps,AsyncDns');
-
-// Map Catalyst serverless domains directly to verified IPv4 address to eliminate synthetic NAT64 (RFC 6052 64:ff9b::/96) IPv6 blackhole on Ethernet
-app.commandLine.appendSwitch(
-  'host-resolver-rules',
-  'MAP printbk-60074625517.development.catalystserverless.in 169.148.148.93, MAP printbk-60074625517.catalystserverless.in 169.148.148.93, MAP *.catalystserverless.in 169.148.148.93'
-);
-
-// Custom HTTPS Agent with strict IPv4 lookup to completely bypass IPv6 NAT64 blackholes
-const httpsAgent = new https.Agent({
-  autoSelectFamily: true,
-  autoSelectFamilyAttemptTimeout: 200,
-  keepAlive: true,
-  timeout: 8000,
-  lookup: (hostname: string, options: any, callback: any) => {
-    dns.lookup(hostname, { ...options, family: 4 }, callback);
-  }
-});
-
-/**
- * Robust network fetcher:
- * 1. Uses Electron's Chromium network service (net.fetch) which automatically uses
- *    Windows System Proxy, PAC scripts, Windows root certificate trust, and Happy Eyeballs.
- * 2. Falls back to node-fetch with autoSelectFamily: true if net.fetch is unavailable.
- * 3. Enforces an explicit connection & response timeout so the app never hangs indefinitely.
- */
-async function robustFetch(url: string, options: any = {}, timeoutMs = 15000): Promise<any> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  // Attempt 1: Native Chromium network stack via Electron net.fetch
-  try {
-    if (net && typeof (net as any).fetch === 'function') {
-      const res = await (net as any).fetch(url, {
-        ...options,
-        signal: controller.signal
-      });
-      clearTimeout(timer);
-      return res;
-    }
-  } catch (netErr: any) {
-    clearTimeout(timer);
-    console.warn(`[Network] net.fetch failed for ${url} (${netErr?.message}), trying fallback...`);
-  }
-
-  // Attempt 2: node-fetch with autoSelectFamily Happy Eyeballs agent
-  const fallbackController = new AbortController();
-  const fallbackTimer = setTimeout(() => fallbackController.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      ...options,
-      agent: url.startsWith('https') ? httpsAgent : undefined,
-      signal: fallbackController.signal
-    });
-    return res;
-  } finally {
-    clearTimeout(fallbackTimer);
-  }
-}
+// Configure Chromium pre-ready LAN/proxy switches (auto-detect PAC/WPAD, no IPv4 or resolver hacks)
+configureLanNetworkingBeforeReady();
 
 // 1. Single-Instance Lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -485,23 +430,9 @@ function showMainWindow() {
 
   loadStaffAppWithRetry();
 
-  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-    // Only fail-load on main frame navigation should ever consider showing offline screen.
-    // Sub-resources, images, or iframes must NEVER trigger the offline view.
-    if (isMainFrame && errorCode !== -3 && validatedURL && !validatedURL.startsWith('file://')) {
-      console.warn(`[Navigation] Main frame did-fail-load: ${errorCode} ${errorDescription} on ${validatedURL}`);
-      // Retry once after 2.5s before falling back to offline screen
-      setTimeout(() => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          const currentUrl = mainWindow.webContents.getURL();
-          if (currentUrl && currentUrl.startsWith('http')) {
-            console.log('[Navigation] Retrying main frame reload after transient glitch...');
-            mainWindow.webContents.reload();
-          } else {
-            mainWindow?.loadFile(path.resolve(__dirname, '../ui/offline.html'));
-          }
-        }
-      }, 2500);
+  attachWindowLoadDiagnostics(mainWindow, () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.loadFile(path.resolve(__dirname, '../ui/offline.html'));
     }
   });
 
@@ -697,6 +628,13 @@ ipcMain.handle('counter:pair', async (_event, { setupCode, label, serverUrl }: {
     let lastError = 'Pairing rejected by server';
     let failedAttempts = 0;
 
+    if (serverUrl) {
+      const portWarn = validateStandardHttpsPort(serverUrl);
+      if (portWarn) {
+        return { ok: false, error: portWarn };
+      }
+    }
+
     for (const base of candidateBases) {
       for (const code of candidateCodes) {
         try {
@@ -754,14 +692,18 @@ ipcMain.handle('counter:pair', async (_event, { setupCode, label, serverUrl }: {
           }
         } catch (netErr: any) {
           failedAttempts++;
-          console.warn(`[Pair] Connection attempt failed for ${base}: ${netErr.message || netErr}`);
-          lastError = netErr.message || 'Connection timed out';
+          const proxyInfo = await resolveSystemProxyLabel(base);
+          const diag = classifyNetworkError(netErr?.message || netErr?.code || String(netErr), base, { proxyInfo });
+          recordNetworkDiagnostic(diag, mainWindow);
+          console.warn(`[Pair] Connection attempt failed for ${base} [${diag.code}]: ${netErr.message || netErr}`);
+          lastError = `[${diag.code}] ${diag.title}: ${diag.actionHint}`;
         }
       }
     }
 
-    if (failedAttempts > 0 && (lastError.includes('ETIMEDOUT') || lastError.includes('abort') || lastError.includes('failed to fetch') || lastError.includes('timeout'))) {
-      lastError = `Connection to server timed out (${lastError}). If using campus Wi-Fi, ensure you are logged into the campus portal, or switch to Production Server.`;
+    if (failedAttempts > 0 && !lastError.startsWith('[')) {
+      const diag = classifyNetworkError(lastError, candidateBases[0]);
+      lastError = `[${diag.code}] ${diag.title}: ${diag.actionHint}`;
     }
 
     return { ok: false, error: lastError };
@@ -908,7 +850,22 @@ function startAgentSupervisor() {
     dryRun: process.env.DRY_RUN === 'true',
     bwPrinter: creds.bwPrinter,
     colourPrinter: creds.colourPrinter,
-    photoPrinter: creds.photoPrinter
+    photoPrinter: creds.photoPrinter,
+    fetchHandler: async (url: string, options: any = {}) => {
+      const res = await robustFetch(url, options, options?.timeoutMs || 20000);
+      const buf = Buffer.from(await res.arrayBuffer());
+      const headers: Record<string, string> = {};
+      res.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+      return {
+        status: res.status,
+        statusText: res.statusText,
+        ok: res.ok,
+        headers,
+        bodyBase64: buf.toString('base64')
+      };
+    }
   });
 
   supervisor.on('status-changed', (newStatus: AgentStatus) => {
@@ -928,10 +885,11 @@ function startAgentSupervisor() {
 
 // 12. App Lifecycle
 app.whenReady().then(async () => {
-  // Ensure Chromium session automatically honors Windows system proxy settings on corporate/campus Ethernet
-  try {
-    await session.defaultSession.setProxy({ mode: 'system' });
-  } catch (_) {}
+  // Configure Chromium host resolver (automatic DoH fallback to LAN DNS) and Windows system proxy/PAC
+  await configureLanNetworkingWhenReady();
+
+  // Register app-wide proxy auth ('login'), certificate error diagnostics, and LAN diagnostic IPC handlers
+  registerNetworkHandlers(() => store.get().apiBase || appConfig.apiBase, () => mainWindow);
 
   createTray();
 

@@ -1,67 +1,109 @@
 import fs from 'fs';
 import path from 'path';
-import https from 'https';
-import http from 'http';
-import dns from 'dns';
-import fetch from 'node-fetch';
+import crypto from 'crypto';
 
-// Prioritize IPv4 across all Node DNS lookups to prevent blackhole timeouts on campus/office Ethernet
-try {
-  dns.setDefaultResultOrder('ipv4first');
-} catch (_) {}
+interface PendingIpcFetch {
+  resolve: (res: any) => void;
+  reject: (err: Error) => void;
+  timer: NodeJS.Timeout;
+}
 
-// Strict IPv4 HTTPS Agent with resilient fallback to verified IP to prevent DNS drops on campus/office Ethernet
-const httpsAgent = new https.Agent({
-  autoSelectFamily: true,
-  autoSelectFamilyAttemptTimeout: 200,
-  keepAlive: true,
-  timeout: 10000,
-  lookup: (hostname: string, options: any, callback: any) => {
-    dns.lookup(hostname, { ...options, family: 4 }, (err, address, family) => {
-      if (err || !address) {
-        if (hostname.includes('catalystserverless.in')) {
-          return callback(null, '169.148.148.93', 4);
-        }
+const pendingIpcFetches = new Map<string, PendingIpcFetch>();
+let ipcFetchListenerRegistered = false;
+
+function ensureIpcFetchListener(): void {
+  if (ipcFetchListenerRegistered || typeof process.on !== 'function') return;
+  ipcFetchListenerRegistered = true;
+  process.on('message', (msg: any) => {
+    if (msg?.type === 'net_fetch_response' && msg.id) {
+      const pending = pendingIpcFetches.get(msg.id);
+      if (!pending) return;
+      pendingIpcFetches.delete(msg.id);
+      clearTimeout(pending.timer);
+
+      if (msg.error) {
+        const err: any = new Error(msg.error);
+        if (msg.code) err.code = msg.code;
+        pending.reject(err);
+        return;
       }
-      callback(err, address, family);
-    });
-  }
-});
 
-const httpAgent = new http.Agent({
-  autoSelectFamily: true,
-  autoSelectFamilyAttemptTimeout: 200,
-  keepAlive: true,
-  timeout: 10000,
-  lookup: (hostname: string, options: any, callback: any) => {
-    dns.lookup(hostname, { ...options, family: 4 }, (err, address, family) => {
-      if (err || !address) {
-        if (hostname.includes('catalystserverless.in')) {
-          return callback(null, '169.148.148.93', 4);
-        }
+      const r = msg.result;
+      const bodyBuf = Buffer.from(r.bodyBase64 || '', 'base64');
+      const headerMap = new Map<string, string>(
+        Object.entries(r.headers || {}).map(([k, v]) => [k.toLowerCase(), String(v)])
+      );
+      pending.resolve({
+        ok: Boolean(r.ok),
+        status: Number(r.status),
+        statusText: r.statusText || '',
+        headers: {
+          get: (name: string) => headerMap.get(String(name).toLowerCase()) ?? null
+        },
+        text: async () => bodyBuf.toString('utf8'),
+        json: async () => JSON.parse(bodyBuf.toString('utf8')),
+        arrayBuffer: async () => bodyBuf.buffer.slice(bodyBuf.byteOffset, bodyBuf.byteOffset + bodyBuf.byteLength),
+        buffer: async () => bodyBuf
+      });
+    }
+  });
+}
+
+function supervisedNetFetch(url: string, options: any = {}, timeoutMs = 20000): Promise<any> {
+  ensureIpcFetchListener();
+  return new Promise((resolve, reject) => {
+    if (typeof process.send !== 'function') {
+      reject(new Error('IPC channel unavailable for supervised net.fetch'));
+      return;
+    }
+    const id = crypto.randomBytes(8).toString('hex');
+    const timer = setTimeout(() => {
+      pendingIpcFetches.delete(id);
+      reject(new Error(`ERR_CONNECTION_TIMED_OUT (${timeoutMs}ms)`));
+    }, timeoutMs);
+
+    pendingIpcFetches.set(id, { resolve, reject, timer });
+
+    const serializedBody = typeof options.body === 'string'
+      ? options.body
+      : (Buffer.isBuffer(options.body) ? options.body.toString('utf8') : undefined);
+
+    process.send({
+      type: 'net_fetch_request',
+      id,
+      url,
+      options: {
+        method: options.method || 'GET',
+        headers: options.headers || {},
+        body: serializedBody,
+        timeoutMs
       }
-      callback(err, address, family);
     });
-  }
-});
+  });
+}
 
+/**
+ * Dual-stack, proxy-aware agent fetcher:
+ * 1. When supervised by Electron Counter App, proxies all requests through Electron's Chromium
+ *    `net.fetch` in the parent process (inheriting Windows system proxy, PAC scripts, proxy auth,
+ *    OS Trusted Root CA store, automatic DoH fallback, and RFC 8305 Happy Eyeballs).
+ * 2. When invoked standalone CLI, uses Node 20+ built-in `globalThis.fetch` (native dual-stack
+ *    Happy Eyeballs without hardcoded IPv4/IP hacks).
+ */
 async function agentFetch(url: string, options: any = {}, retries = 2): Promise<any> {
-  const isHttps = url.startsWith('https:');
-  const customAgent = isHttps ? httpsAgent : httpAgent;
+  const canUseChromiumIpc = process.env.DESKTOP_SUPERVISED === 'true' && typeof process.send === 'function';
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      // Use node-fetch with IPv4-pinned agent to eliminate Ethernet IPv6 timeouts
-      return await fetch(url, {
+      if (canUseChromiumIpc) {
+        return await supervisedNetFetch(url, options, 20000);
+      }
+      return await globalThis.fetch(url, {
         ...options,
-        agent: customAgent
+        signal: options.signal || AbortSignal.timeout(20000)
       });
     } catch (err: any) {
       if (attempt === retries) {
-        // Fallback to globalThis.fetch as secondary attempt if node-fetch throws
-        if (typeof globalThis.fetch === 'function') {
-          return await globalThis.fetch(url, options);
-        }
         throw err;
       }
       await new Promise(r => setTimeout(r, 600 * (attempt + 1)));

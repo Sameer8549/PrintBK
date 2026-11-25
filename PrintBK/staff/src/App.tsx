@@ -22,6 +22,8 @@ import {
   purgeStaleOrders,
   getPairedCounters,
   revokePairedCounter,
+  getUnderReviewOrders,
+  verifyAdminOrder,
 } from "./api/client"
 import { useStaffLive, LiveItem, LivePrinter, LiveShop, LiveRecentlyPrinted } from "./api/useStaffLive"
 import { downloadQrPdf, previewQrPdf } from "./qrPosterPdf"
@@ -52,6 +54,8 @@ export type Job = {
   values: string[]
   detail: string
   pickup_code: string
+  utrNumber?: string
+  utr?: string
   rawStatus: string
   created_at?: string
   payment_time?: string
@@ -187,7 +191,9 @@ function mapPaymentStatus(status: string): Payment {
     case "paid_online":
     case "paid_verified":
     case "paid":
+    case "PAID":
       return "paid"
+    case "UNDER_REVIEW":
     case "upi_claimed":
     case "upi_started":
     case "upi":
@@ -392,6 +398,8 @@ function mapLiveItemToJob(item: LiveItem): Job {
     values,
     detail,
     pickup_code: item.pickup_code,
+    utrNumber: (item as any).utrNumber || (item as any).utr || pld.utrNumber || pld.utr || null,
+    utr: (item as any).utrNumber || (item as any).utr || pld.utrNumber || pld.utr || null,
     rawStatus: item.status,
     created_at: item.created_at,
     printed_at: item.printed_at,
@@ -1016,8 +1024,8 @@ function PrinterSettingsPanel({
   const [version, setVersion] = useState<number>(shop.version || 1)
   const [undoable, setUndoable] = useState<any | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [rzpKeys, setRzpKeys] = useState({ keyId: "", keySecret: "" })
-  const [rzpConfigured, setRzpConfigured] = useState(false)
+  const [upilerifyConfigured, setUpilerifyConfigured] = useState(false)
+  const [upilerifyBaseUrl, setUpilerifyBaseUrl] = useState("")
 
   const [rates, setRates] = useState({
     bw: String(shop.rates?.bw ?? "1.50"),
@@ -1068,10 +1076,9 @@ function PrinterSettingsPanel({
     ...((shop as any).services || {})
   }))
 
-  const [payments, setPayments] = useState<{ cash: boolean; upi: boolean; razorpay: boolean }>({
+  const [payments, setPayments] = useState<{ cash: boolean; upi: boolean }>({
     cash: true,
-    upi: true,
-    razorpay: false
+    upi: true
   })
 
   const [shopDetails, setShopDetails] = useState({
@@ -1150,8 +1157,7 @@ function PrinterSettingsPanel({
       if (s.payments) {
         setPayments({
           cash: s.payments.cash !== false,
-          upi: s.payments.upi !== false,
-          razorpay: Boolean(s.payments.razorpay)
+          upi: s.payments.upi !== false
         })
         if (s.payments.upiVpa) setRates((r) => ({ ...r, upiVpa: s.payments.upiVpa }))
         if (s.payments.upiName) setRates((r) => ({ ...r, upiName: s.payments.upiName }))
@@ -1167,7 +1173,8 @@ function PrinterSettingsPanel({
         })
       }
       if (s.mixed_colour_mode) setMixedMode(s.mixed_colour_mode)
-      if (s.razorpay_configured) setRzpConfigured(true)
+      if (s.upilerify_configured) setUpilerifyConfigured(true)
+      if (s.upilerify_base_url) setUpilerifyBaseUrl(s.upilerify_base_url)
     }).catch(() => {})
     return () => { mounted = false }
   }, [])
@@ -1395,7 +1402,6 @@ function PrinterSettingsPanel({
         payments: {
           cash: pm.cash,
           upi: pm.upi,
-          razorpay: pm.razorpay,
           upiVpa: r.upiVpa,
           upiName: r.upiName,
         },
@@ -1410,10 +1416,6 @@ function PrinterSettingsPanel({
         announcement: sd.announcement,
         mixed_colour_mode: mixedMode,
         delete_delay_minutes: delMinutes,
-      }
-      if (rzpKeys.keyId && rzpKeys.keySecret) {
-        payload.payments.razorpay_key_id = rzpKeys.keyId
-        payload.payments.razorpay_key_secret = rzpKeys.keySecret
       }
 
       const res = await updateShopSettings(payload)
@@ -1840,46 +1842,27 @@ function PrinterSettingsPanel({
                     saveSettings(rates, services, updated)
                   }}
                 />
-                <ToggleRow
-                  title="Razorpay Online Gateway"
-                  subtitle={rzpConfigured ? "Payment gateway active (credentials stored on server)" : "Card, Netbanking & Wallets via Razorpay (API Key required)"}
-                  checked={payments.razorpay}
-                  onChange={(checked) => {
-                    const updated = { ...payments, razorpay: checked }
-                    setPayments(updated)
-                    saveSettings(rates, services, updated)
-                  }}
-                />
-                {payments.razorpay && (
-                  <div style={{ marginTop: "16px", padding: "14px", border: "1px solid var(--line)", borderRadius: "8px", background: "var(--paper)" }}>
-                    <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "8px" }}>
-                      Razorpay API Credentials
-                      {rzpConfigured && <span style={{ marginLeft: "8px", color: "var(--success)", fontSize: "12px" }}>● Configured on server</span>}
+                <div style={{ marginTop: "16px", padding: "14px", border: "1.5px solid #bfdbfe", borderRadius: "10px", background: "#eff6ff" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                    <div style={{ fontSize: "14px", fontWeight: 800, color: "#1e40af", display: "flex", alignItems: "center", gap: "6px" }}>
+                      UPILerify Direct UPI Engine
+                      <span style={{ background: "#dbeafe", color: "#1d4ed8", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 800 }}>
+                        0% Gateway Fees
+                      </span>
                     </div>
-                    <div className="field-grid">
-                      <SettingsField
-                        label="Key ID"
-                        value={rzpKeys.keyId}
-                        placeholder={rzpConfigured ? "rzp_live_••••••• (unchanged)" : "rzp_live_..."}
-                        onChange={(v) => setRzpKeys((k) => ({ ...k, keyId: v }))}
-                      />
-                      <SettingsField
-                        label="Key Secret"
-                        type="password"
-                        value={rzpKeys.keySecret}
-                        placeholder={rzpConfigured ? "•••••••••••••••• (unchanged)" : "Secret"}
-                        onChange={(v) => setRzpKeys((k) => ({ ...k, keySecret: v }))}
-                      />
-                    </div>
-                    {(rzpKeys.keyId || rzpKeys.keySecret) && (
-                      <div style={{ marginTop: "10px" }}>
-                        <Button kind="plain" onClick={() => saveSettings(rates, services, payments, shopDetails)}>
-                          UPDATE RAZORPAY KEYS
-                        </Button>
-                      </div>
-                    )}
+                    <span style={{ color: upilerifyConfigured ? "#15803d" : "#d97706", fontSize: "12px", fontWeight: 700 }}>
+                      {upilerifyConfigured ? "● Active & Reconciling" : "● Configured on Server"}
+                    </span>
                   </div>
-                )}
+                  <p style={{ fontSize: "12px", color: "#334155", margin: 0, lineHeight: 1.5 }}>
+                    Self-hosted open-source UPI verification via IMAP bank credit alerts and unique paise offsets. 100% of student payments land directly in your merchant bank account without aggregator deductions.
+                  </p>
+                  {upilerifyBaseUrl && (
+                    <div style={{ marginTop: "8px", fontSize: "11px", color: "#64748b" }}>
+                      Instance: <code>{upilerifyBaseUrl}</code>
+                    </div>
+                  )}
+                </div>
               </section>
             </div>
           )}
@@ -2572,8 +2555,12 @@ function OrderDetailPanel({
 
         {job.payment === "upi" && (
           <section className="upi-claim">
-            <div><Icon name="eye" size={26} /><strong>UPI payment claimed</strong></div>
-            <p><b>₹{job.amount.toFixed(2)}</b> ref <b>#{job.order}</b>. Check your UPI app, then tap Approve &amp; Print.</p>
+            <div><Icon name="eye" size={26} /><strong>Direct UPI (Under Review)</strong></div>
+            <p>
+              <b>₹{job.amount.toFixed(2)}</b> ref <b>#{job.order}</b>.
+              {(job as any).utrNumber || (job as any).utr ? <> 12-digit UTR: <strong style={{ fontFamily: "monospace", letterSpacing: "1px" }}>{(job as any).utrNumber || (job as any).utr}</strong>.</> : null}
+              {" "}Check bank alert / UPI app, then tap Approve &amp; Print.
+            </p>
           </section>
         )}
 

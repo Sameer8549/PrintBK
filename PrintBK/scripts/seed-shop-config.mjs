@@ -55,8 +55,7 @@ const INITIAL_SHOP_CONFIG = {
   },
   payments: {
     cash: true,
-    upi: true,
-    razorpay: false
+    upi: true
   },
   shop_info: {
     name: 'HKBK Student Point',

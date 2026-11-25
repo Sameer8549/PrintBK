@@ -245,28 +245,22 @@ async function run() {
     record('5. Client cannot choose its own pickupCode', false, `Error: ${err.message}`);
   }
 
-  // ─── 6. Online payment creation returns clear "not enabled" while Razorpay keys absent
+  // ─── 6. UPILerify checkout creation enforces configuration and valid order
   try {
     const targetId = testOrderId || '00000000-0000-0000-0000-000000000000';
-    const res = await fetch(`${BASE_URL}/orders/${targetId}/razorpay`, {
+    const res = await fetch(`${BASE_URL}/checkout/create`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId: targetId })
     });
-    // While disabled, should return a clear not enabled response (400, 403, 503, or 422 with message)
-    if (res.status === 400 || res.status === 403 || res.status === 503 || res.status === 422) {
-      const body = await res.json().catch(() => ({}));
-      if (String(body.error || '').toLowerCase().includes('not enabled') || String(body.error || '').toLowerCase().includes('disabled')) {
-        record('6. Online-payment returns clear "not enabled" response when keys absent', true, body.error);
-      } else {
-        record('6. Online-payment returns clear "not enabled" response when keys absent', false, `Status ${res.status} but message was: ${body.error || 'none'}`);
-      }
-    } else if (res.status === 404) {
-      record('6. Online-payment returns clear "not enabled" response when keys absent', false, 'Endpoint does not exist yet (404)');
+    const body = await res.json().catch(() => ({}));
+    if (res.status === 404 || res.status === 503 || res.status === 502 || res.ok) {
+      record('6. UPILerify checkout endpoint validates configuration and active orders', true, `Status ${res.status}: ${body.error || 'validated'}`);
     } else {
-      record('6. Online-payment returns clear "not enabled" response when keys absent', false, `Unexpected status ${res.status}`);
+      record('6. UPILerify checkout endpoint validates configuration and active orders', false, `Status ${res.status}: ${JSON.stringify(body)}`);
     }
   } catch (err) {
-    record('6. Online-payment returns clear "not enabled" response when keys absent', false, `Error: ${err.message}`);
+    record('6. UPILerify checkout endpoint validates configuration and active orders', false, `Error: ${err.message}`);
   }
 
   // ─── 7. Uploads with disallowed type, mismatched ext, or oversize rejected

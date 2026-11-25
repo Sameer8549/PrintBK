@@ -1,900 +1,921 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import QRCode from 'qrcode';
 import { Topbar, Icon, UpiLogo, GPayLogo, PhonePeLogo, PaytmLogo, BhimLogo } from '../../components/ui';
 import { Screen } from '../../lib/types';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../../services/api';
 import { useHistory, useBasket } from '../../store/basket';
 import { notify } from '../../lib/store';
 
-function PaymentState({
+export default function PaymentState({
   go
 }: {
-  go: (screen: Screen) => void;
+  go?: (screen: Screen) => void;
 }) {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
   const { orders, updateOrder } = useHistory();
-  const order = id ? orders.find(o => o.id === id) : orders[0];
+
+  // Extract orderId from URL parameter or query string
+  const orderId = useMemo(() => {
+    if (id) return id;
+    const query = new URLSearchParams(location.search);
+    return query.get('orderId') || '';
+  }, [id, location.search]);
+
+  const existingOrder = useMemo(() => {
+    return orders.find(o => o.id === orderId);
+  }, [orders, orderId]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [upiData, setUpiData] = useState<{
-    upiId: string;
+
+  // UPILerify checkout data
+  const [checkoutData, setCheckoutData] = useState<{
+    orderId: string;
+    orderNumber: number | null;
+    baseAmount: number;
+    payableAmount: number;
+    qrCodeData: string;
+    upiIntentUrl: string;
+    merchantUpiId: string;
     payeeName: string;
-    amount: number;
-    intentUrl: string;
-    gpayUrl: string;
-    phonepeUrl: string;
-    paytmUrl: string;
-    tr: string;
-    orderNumber: number;
+    expiresAt: string;
+    status: 'PENDING' | 'UNDER_REVIEW' | 'PAID' | 'EXPIRED';
   } | null>(null);
 
-  // Platform detection
-  const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
-  const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
-  const isAndroid = /android/i.test(ua);
-  const isDesktop = !isIOS && !isAndroid;
-
-  const [activeTab, setActiveTab] = useState<'qr' | 'intent'>('qr');
-  const [copiedVpa, setCopiedVpa] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [copiedUpiId, setCopiedUpiId] = useState(false);
   const [copiedAmount, setCopiedAmount] = useState(false);
-  const [savedQr, setSavedQr] = useState(false);
-  const [failedLaunch, setFailedLaunch] = useState(false);
-  const [redirecting, setRedirecting] = useState(false);
-  const [localQrDataUrl, setLocalQrDataUrl] = useState<string>('');
-  const [utrInput, setUtrInput] = useState('');
+  const [downloadingQr, setDownloadingQr] = useState(false);
+
+  // 15-minute countdown timer state
+  const [remainingSeconds, setRemainingSeconds] = useState<number>(15 * 60);
+  const [isExpired, setIsExpired] = useState(false);
+
+  // 20-second delayed "I Have Paid" fallback state
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [manualUtr, setManualUtr] = useState('');
+  const [manualUtrError, setManualUtrError] = useState<string | null>(null);
   const [submittingUtr, setSubmittingUtr] = useState(false);
 
-  // Tracking timestamps
-  const launchTimeRef = useRef<number | null>(null);
-  const hiddenAtRef = useRef<number | null>(null);
-  const claimedRef = useRef<boolean>(false);
+  // Instant PAID animation & redirect state
+  const [isPaidSuccess, setIsPaidSuccess] = useState(false);
+  const redirectingRef = useRef(false);
 
-  // 1. Fetch UPI payload from server
+  // Platform detection for responsive mobile action
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
+  const isMobile = /android|iphone|ipad|ipod/i.test(ua);
+
+  // 1. Initial Load: create or fetch UPILerify checkout session
   useEffect(() => {
-    if (!id) return;
-    const orderId = id;
+    if (!orderId) {
+      setError('Missing order ID. Please return to checkout.');
+      setLoading(false);
+      return;
+    }
+
     let active = true;
 
-    async function loadUpi() {
+    async function initializeCheckout() {
       try {
         setLoading(true);
-        let data = null;
-        let lastErr = null;
-        for (let attempt = 0; attempt < 3; attempt++) {
-          try {
-            data = await api.startUpi(orderId, order?.accessToken);
-            if (data) break;
-          } catch (e: any) {
-            lastErr = e;
-            await new Promise(r => setTimeout(r, 800));
-          }
+        setError(null);
+
+        // First check if an existing session is already active or paid
+        let statusRes: any = null;
+        try {
+          statusRes = await api.getCheckoutStatus(orderId);
+        } catch (_) {
+          statusRes = null;
         }
-        if (!data) throw lastErr || new Error('Failed to initiate UPI payment');
-        if (active) {
-          setUpiData(data);
+
+        if (statusRes && statusRes.status === 'PAID') {
+          if (active) {
+            setIsPaidSuccess(true);
+            redirectingRef.current = true;
+            useBasket.getState().clear();
+            setTimeout(() => {
+              navigate(`/order-success?orderId=${encodeURIComponent(orderId)}`, { replace: true });
+            }, 600);
+          }
+          return;
+        }
+
+        if (statusRes && statusRes.status === 'UNDER_REVIEW') {
+          if (active) {
+            navigate(`/order-pending?orderId=${encodeURIComponent(orderId)}`, { replace: true });
+          }
+          return;
+        }
+
+        if (statusRes && statusRes.status === 'EXPIRED') {
+          if (active) {
+            setIsExpired(true);
+            setLoading(false);
+          }
+          return;
+        }
+
+        // If no upiIntentUrl or session needs refresh, call createCheckout
+        if (!statusRes?.upiIntentUrl || !statusRes?.payableAmount) {
+          const createRes = await api.createCheckout({ orderId });
+          if (!active) return;
+          setCheckoutData({
+            orderId: createRes.orderId,
+            orderNumber: createRes.orderNumber ?? existingOrder?.orderNumber ?? null,
+            baseAmount: Number(createRes.baseAmount || 0),
+            payableAmount: Number(createRes.payableAmount || createRes.baseAmount || 0),
+            qrCodeData: createRes.qrCodeData,
+            upiIntentUrl: createRes.upiIntentUrl,
+            merchantUpiId: createRes.merchantUpiId,
+            payeeName: createRes.payeeName,
+            expiresAt: createRes.expiresAt,
+            status: 'PENDING'
+          });
+        } else {
+          setCheckoutData({
+            orderId: statusRes.orderId,
+            orderNumber: statusRes.orderNumber ?? existingOrder?.orderNumber ?? null,
+            baseAmount: Number(statusRes.baseAmount || 0),
+            payableAmount: Number(statusRes.payableAmount || 0),
+            qrCodeData: statusRes.qrCodeData || statusRes.upiIntentUrl,
+            upiIntentUrl: statusRes.upiIntentUrl,
+            merchantUpiId: statusRes.merchantUpiId || '',
+            payeeName: statusRes.payeeName || 'HKBK Student Point',
+            expiresAt: statusRes.expiresAt,
+            status: statusRes.status
+          });
         }
       } catch (err: any) {
-        if (active) setError(err?.message || 'Failed to initiate UPI payment');
+        if (active) {
+          console.error('[UPILerify Checkout] Init error:', err);
+          setError(err?.message || 'Failed to initialize UPILerify payment session.');
+        }
       } finally {
         if (active) setLoading(false);
       }
     }
 
-    loadUpi();
+    initializeCheckout();
     return () => { active = false; };
-  }, [id, order?.accessToken]);
+  }, [orderId, existingOrder?.orderNumber, navigate]);
 
-  // Generate local offline vector QR code whenever intentUrl is loaded
+  // 2. Generate Crisp Dynamic Vector QR Code
   useEffect(() => {
-    if (!upiData?.intentUrl) return;
-    QRCode.toDataURL(upiData.intentUrl, {
+    const rawQrTarget = checkoutData?.upiIntentUrl || checkoutData?.qrCodeData;
+    if (!rawQrTarget) return;
+
+    QRCode.toDataURL(rawQrTarget, {
       margin: 1,
       width: 480,
       errorCorrectionLevel: 'M',
       color: { dark: '#0f172a', light: '#ffffff' }
     })
-      .then(url => setLocalQrDataUrl(url))
-      .catch(err => console.warn('Offline QR code generation warning:', err));
-  }, [upiData?.intentUrl]);
+      .then(url => setQrDataUrl(url))
+      .catch(err => console.warn('QR Code generation error:', err));
+  }, [checkoutData?.upiIntentUrl, checkoutData?.qrCodeData]);
 
-  // Active order status poller — auto-transitions when payment is confirmed or approved by counter
+  // 3. Live 15-Minute Countdown Timer & Page Elapsed Timer
   useEffect(() => {
-    if (!id || redirecting) return;
-    const orderId = id;
+    if (!checkoutData?.expiresAt || isExpired || isPaidSuccess) return;
+
+    const timer = setInterval(() => {
+      setElapsedSeconds(prev => prev + 1);
+
+      const expiryMs = new Date(checkoutData.expiresAt).getTime();
+      const nowMs = Date.now();
+      const diffSec = Math.max(0, Math.floor((expiryMs - nowMs) / 1000));
+
+      setRemainingSeconds(diffSec);
+
+      if (diffSec <= 0) {
+        setIsExpired(true);
+        clearInterval(timer);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [checkoutData?.expiresAt, isExpired, isPaidSuccess]);
+
+  // Format MM:SS for countdown display
+  const formattedCountdown = useMemo(() => {
+    const minutes = Math.floor(remainingSeconds / 60);
+    const seconds = remainingSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }, [remainingSeconds]);
+
+  // 4. Automatic Polling: Poll GET /api/checkout/status/[orderId] every 3 seconds
+  useEffect(() => {
+    if (!orderId || isExpired || redirectingRef.current) return;
+
     let active = true;
 
-    const pollTimer = setInterval(async () => {
-      if (!active || claimedRef.current || document.visibilityState !== 'visible') return;
+    const pollInterval = setInterval(async () => {
+      if (!active || redirectingRef.current || document.visibilityState !== 'visible') return;
+
       try {
-        const o = await api.getOrder(orderId, order?.accessToken);
-        if (!o || !active) return;
-        const paidStatuses = ['upi_claimed', 'cash_collected', 'paid', 'paid_verified', 'processing', 'printing', 'ready', 'completed'];
-        if (paidStatuses.includes(o.status) || paidStatuses.includes((o as any).payment_status)) {
-          claimedRef.current = true;
-          setRedirecting(true);
-          updateOrder(orderId, {
-            status: o.status,
-            payment_status: (o as any).payment_status || 'upi_claimed',
-            orderNumber: o.orderNumber || order?.orderNumber,
-            paymentMethod: 'upi'
-          } as any);
+        const res = await api.getCheckoutStatus(orderId);
+        if (!active || !res) return;
+
+        // Instant Automatic Confirmation on PAID
+        if (res.status === 'PAID') {
+          redirectingRef.current = true;
+          setIsPaidSuccess(true);
           useBasket.getState().clear();
-          notify('Payment verified! Opening confirmed receipt…');
-          navigate(`/receipt/${orderId}`);
+
+          if (existingOrder) {
+            updateOrder(orderId, {
+              status: 'PAID',
+              payment_status: 'paid_verified',
+              orderNumber: res.orderNumber || existingOrder.orderNumber,
+              pickupCode: res.pickupCode || existingOrder.pickupCode,
+              utr: res.utrNumber
+            } as any);
+          }
+
+          notify('Payment verified! Redirecting to receipt…');
+          setTimeout(() => {
+            navigate(`/order-success?orderId=${encodeURIComponent(orderId)}`, { replace: true });
+          }, 800);
+          return;
         }
-      } catch (_) {}
-    }, 2000);
+
+        if (res.status === 'UNDER_REVIEW') {
+          redirectingRef.current = true;
+          navigate(`/order-pending?orderId=${encodeURIComponent(orderId)}`, { replace: true });
+          return;
+        }
+
+        if (res.status === 'EXPIRED') {
+          setIsExpired(true);
+        }
+      } catch (_) {
+        // Tolerant to transient connection hiccups
+      }
+    }, 3000);
 
     return () => {
       active = false;
-      clearInterval(pollTimer);
+      clearInterval(pollInterval);
     };
-  }, [id, order?.accessToken, redirecting, navigate, updateOrder]);
+  }, [orderId, isExpired, existingOrder, updateOrder, navigate]);
 
-  // Execute automatic UPI return claim and redirect straight to receipt
-  const executeAutoClaim = async (submittedUtr?: string) => {
-    if (!id || claimedRef.current) return;
-    claimedRef.current = true;
-    setRedirecting(true);
-    setSubmittingUtr(true);
-
-    try {
-      const finalUtr = (submittedUtr !== undefined ? submittedUtr : utrInput).trim() || undefined;
-      const res = await api.upiReturn(id, order?.accessToken, finalUtr);
-      if (order) {
-        updateOrder(id, {
-          status: res.status || 'upi_claimed',
-          payment_status: 'upi_claimed',
-          orderNumber: res.orderNumber || order?.orderNumber,
-          paymentMethod: 'upi',
-          utr: finalUtr
-        } as any);
-      } else {
-        useHistory.getState().addOrder({
-          id,
-          orderNumber: res.orderNumber || upiData?.orderNumber,
-          date: Date.now(),
-          files: [],
-          total: upiData?.amount || 0,
-          pickupCode: '——',
-          status: 'upi_claimed',
-          payment_status: 'upi_claimed',
-          paymentMethod: 'upi'
-        });
-      }
-      useBasket.getState().clear();
-      notify('Payment recorded! Redirecting to confirmed receipt…');
-      navigate(`/receipt/${id}`);
-    } catch (err: any) {
-      claimedRef.current = false;
-      setRedirecting(false);
-      setSubmittingUtr(false);
-      notify(err?.message || 'Failed to record payment. Please try again.');
-    }
-  };
-
-  // Return-from-UPI hook with safety guards for mobile browsers
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      const now = Date.now();
-
-      if (document.visibilityState === 'hidden') {
-        hiddenAtRef.current = now;
-        return;
-      }
-
-      if (document.visibilityState === 'visible') {
-        const launchedAt = launchTimeRef.current;
-        if (launchedAt) {
-          // Ignore returns > 15 minutes after launch
-          if ((now - launchedAt) > 15 * 60 * 1000) {
-            launchTimeRef.current = null;
-            return;
-          }
-
-          // Guard: Require page to have been hidden for at least 1.5 seconds (1500ms)
-          const hiddenStart = hiddenAtRef.current || launchedAt;
-          const hiddenDuration = now - hiddenStart;
-
-          if (hiddenDuration < 1500) {
-            setFailedLaunch(true);
-            return;
-          }
-
-          // Valid return after completing payment in UPI app
-          executeAutoClaim();
-        }
-      }
-    };
-
-    const handleWindowFocus = () => {
-      if (document.visibilityState === 'visible') {
-        handleVisibilityChange();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleWindowFocus);
-    window.addEventListener('pageshow', handleWindowFocus);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleWindowFocus);
-      window.removeEventListener('pageshow', handleWindowFocus);
-    };
-  }, [id, order?.accessToken]);
-
+  // Copy Merchant UPI ID
   const handleCopyUpiId = () => {
-    if (!upiData) return;
-    navigator.clipboard?.writeText(upiData.upiId).then(() => {
-      setCopiedVpa(true);
+    if (!checkoutData?.merchantUpiId) return;
+    navigator.clipboard?.writeText(checkoutData.merchantUpiId).then(() => {
+      setCopiedUpiId(true);
       notify('UPI ID copied to clipboard');
-      setTimeout(() => setCopiedVpa(false), 2500);
+      setTimeout(() => setCopiedUpiId(false), 2500);
     }).catch(() => {});
   };
 
+  // Copy Exact Payable Amount
   const handleCopyAmount = () => {
-    if (!upiData) return;
-    navigator.clipboard?.writeText(upiData.amount.toFixed(2)).then(() => {
+    if (!checkoutData?.payableAmount) return;
+    navigator.clipboard?.writeText(checkoutData.payableAmount.toFixed(2)).then(() => {
       setCopiedAmount(true);
-      notify('Amount ₹' + upiData.amount.toFixed(2) + ' copied');
+      notify(`Payable amount ₹${checkoutData.payableAmount.toFixed(2)} copied`);
       setTimeout(() => setCopiedAmount(false), 2500);
     }).catch(() => {});
   };
 
+  // Download QR Code image
   const handleDownloadQr = () => {
-    if (!localQrDataUrl) return;
+    if (!qrDataUrl) return;
     try {
+      setDownloadingQr(true);
       const link = document.createElement('a');
-      link.href = localQrDataUrl;
-      link.download = `PrintBK-Order-${upiData?.orderNumber || 'payment'}.png`;
+      link.href = qrDataUrl;
+      link.download = `PrintBK-UPI-${checkoutData?.orderNumber || 'Order'}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      setSavedQr(true);
-      notify('QR code downloaded! Open GPay/PhonePe scanner and select from Gallery.');
-      setTimeout(() => setSavedQr(false), 4000);
+      notify('QR code saved. Open Google Pay or PhonePe to scan from gallery.');
+      setTimeout(() => setDownloadingQr(false), 2500);
     } catch (_) {
-      notify('Please screenshot this QR code to scan inside Google Pay or PhonePe');
+      notify('Please screenshot the QR code on your screen.');
+      setDownloadingQr(false);
     }
   };
 
-  const handleSwitchToCash = async () => {
-    if (!id) return;
+  // Handle Manual 12-Digit UTR submission
+  const handleSubmitManualUtr = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanUtr = manualUtr.trim();
+
+    if (!/^\d{12}$/.test(cleanUtr)) {
+      setManualUtrError('Please enter exactly 12 numeric digits (UPI Reference / UTR Number).');
+      return;
+    }
+
     try {
-      const res = await api.chooseCash(id, order?.accessToken);
-      updateOrder(id, {
-        status: res.status || 'pending_cash',
-        payment_status: 'cash_due',
-        orderNumber: res.orderNumber || order?.orderNumber,
-        paymentMethod: 'cash'
+      setSubmittingUtr(true);
+      setManualUtrError(null);
+
+      const res = await api.submitManualUtr(orderId, cleanUtr);
+      if (res.success) {
+        redirectingRef.current = true;
+        setShowManualModal(false);
+        notify('UTR submitted for verification.');
+        navigate(res.redirectUrl || `/order-pending?orderId=${encodeURIComponent(orderId)}`, { replace: true });
+      } else {
+        setManualUtrError('Failed to record UTR. Please verify the digits and try again.');
+      }
+    } catch (err: any) {
+      setManualUtrError(err?.message || 'Failed to submit UTR. Check if it is already used.');
+    } finally {
+      setSubmittingUtr(false);
+    }
+  };
+
+  // Refresh expired session
+  const handleRefreshSession = async () => {
+    try {
+      setLoading(true);
+      setIsExpired(false);
+      setElapsedSeconds(0);
+      const res = await api.createCheckout({ orderId });
+      setCheckoutData({
+        orderId: res.orderId,
+        orderNumber: res.orderNumber ?? existingOrder?.orderNumber ?? null,
+        baseAmount: Number(res.baseAmount || 0),
+        payableAmount: Number(res.payableAmount || res.baseAmount || 0),
+        qrCodeData: res.qrCodeData,
+        upiIntentUrl: res.upiIntentUrl,
+        merchantUpiId: res.merchantUpiId,
+        payeeName: res.payeeName,
+        expiresAt: res.expiresAt,
+        status: 'PENDING'
       });
+      notify('Generated fresh 15-minute payment session.');
+    } catch (err: any) {
+      notify(err?.message || 'Failed to refresh session');
+      setIsExpired(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Switch to Cash at Counter fallback
+  const handleSwitchToCash = async () => {
+    if (!orderId) return;
+    try {
+      const res = await api.chooseCash(orderId, existingOrder?.accessToken);
+      if (existingOrder) {
+        updateOrder(orderId, {
+          status: res.status || 'pending_cash',
+          payment_status: 'cash_due',
+          orderNumber: res.orderNumber || existingOrder.orderNumber,
+          paymentMethod: 'cash'
+        });
+      }
       useBasket.getState().clear();
-      notify('Switched to Cash at counter.');
-      navigate(`/receipt/${id}`);
+      notify('Switched to Cash at Counter.');
+      navigate(`/order/${encodeURIComponent(orderId)}`);
     } catch (err: any) {
       notify(err?.message || 'Failed to switch to cash');
     }
   };
 
-  const handleLaunchUpi = () => {
-    launchTimeRef.current = Date.now();
-    hiddenAtRef.current = Date.now();
-    setFailedLaunch(false);
-  };
-
+  // ── Loading Screen ──
   if (loading) {
     return (
-      <main className="page" style={{ minHeight: '100dvh', background: '#f7f4ee', display: 'flex', flexDirection: 'column' }}>
-        <Topbar title="UPI Payment Gateway" back onBack={() => go('checkout')} />
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div style={{ width: 56, height: 56, borderRadius: '50%', border: '4px solid #e2e8f0', borderTopColor: '#2563eb', animation: 'spin 1s linear infinite' }} />
-          <p style={{ marginTop: 16, fontSize: 14, color: '#64748b', fontWeight: 600 }}>Connecting to Open-Source UPI Gateway…</p>
-        </div>
-      </main>
-    );
-  }
-
-  if (error || !upiData) {
-    return (
-      <main className="page" style={{ minHeight: '100dvh', background: '#f7f4ee', display: 'flex', flexDirection: 'column' }}>
-        <Topbar title="UPI Payment Gateway" back onBack={() => go('checkout')} />
+      <main className="page" style={{ minHeight: '100dvh', background: 'var(--paper, #f7f4ee)', display: 'flex', flexDirection: 'column' }}>
+        <Topbar title="Direct UPI Checkout" back onBack={() => navigate('/checkout')} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
-          <div style={{ display: 'grid', placeItems: 'center', marginBottom: 12 }}><Icon name="arrow" size={36} /></div>
-          <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px' }}>Unable to load UPI payment</h2>
-          <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 20px', maxWidth: 320 }}>{error}</p>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button className="primary" onClick={() => window.location.reload()} style={{ padding: '10px 20px' }}>Retry</button>
-            <button onClick={handleSwitchToCash} style={{ padding: '10px 20px', borderRadius: 10, border: '1.5px solid #cbd5e1', background: '#fff', fontWeight: 700 }}>Pay Cash</button>
+          <div style={{ width: 52, height: 52, borderRadius: '50%', border: '4px solid #e2e8f0', borderTopColor: '#2563eb', animation: 'spin 1s linear infinite' }} />
+          <p style={{ marginTop: 18, fontSize: 15, color: '#0f172a', fontWeight: 700 }}>Connecting to UPILerify Engine…</p>
+          <span style={{ marginTop: 6, fontSize: 12, color: '#64748b' }}>Reserving unique paise amount for instant automatic confirmation</span>
+        </div>
+      </main>
+    );
+  }
+
+  // ── Error Screen ──
+  if (error || !checkoutData) {
+    return (
+      <main className="page" style={{ minHeight: '100dvh', background: 'var(--paper, #f7f4ee)', display: 'flex', flexDirection: 'column' }}>
+        <Topbar title="Payment Error" back onBack={() => navigate('/checkout')} />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center', maxWidth: 420, margin: '0 auto' }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, marginBottom: 16 }}>
+            ⚠️
+          </div>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Unable to Load Payment</h2>
+          <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5, marginBottom: 24 }}>{error || 'The payment session could not be established.'}</p>
+          <div style={{ display: 'flex', gap: 12, width: '100%' }}>
+            <button
+              onClick={() => navigate('/checkout')}
+              style={{ flex: 1, padding: '12px', background: '#e2e8f0', color: '#1e293b', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Back to Checkout
+            </button>
+            <button
+              onClick={handleSwitchToCash}
+              style={{ flex: 1, padding: '12px', background: '#16a34a', color: '#ffffff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Pay Cash Instead
+            </button>
           </div>
         </div>
       </main>
     );
   }
 
-  const gpayHref = isAndroid && (upiData as any)?.gpayAndroid
-    ? (upiData as any).gpayAndroid
-    : (isIOS && (upiData as any)?.gpayIos ? (upiData as any).gpayIos : (upiData.gpayUrl || upiData.intentUrl));
-
-  const phonepeHref = isAndroid && (upiData as any)?.phonepeAndroid
-    ? (upiData as any).phonepeAndroid
-    : (isIOS && (upiData as any)?.phonepeIos ? (upiData as any).phonepeIos : (upiData.phonepeUrl || upiData.intentUrl));
-
-  const paytmHref = isAndroid && (upiData as any)?.paytmAndroid
-    ? (upiData as any).paytmAndroid
-    : (isIOS && (upiData as any)?.paytmIos ? (upiData as any).paytmIos : (upiData.paytmUrl || upiData.intentUrl));
-
-  const bhimHref = isAndroid && (upiData as any)?.bhimAndroid
-    ? (upiData as any).bhimAndroid
-    : (upiData.intentUrl);
-
-  return (
-    <main className="page" style={{ minHeight: '100dvh', background: '#f7f4ee', display: 'flex', flexDirection: 'column' }}>
-      <Topbar title={`Pay ₹${upiData.amount.toFixed(2)}`} back onBack={() => go('checkout')} />
-
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 80px', maxWidth: 460, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
-        
-        {/* Order & Amount Hero Card */}
-        <div style={{
-          background: '#ffffff',
-          borderRadius: 20,
-          border: '1.5px solid #e2e8f0',
-          padding: '20px',
-          textAlign: 'center',
-          marginBottom: 16,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.04)'
-        }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#ecfdf5', color: '#059669', padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 800, marginBottom: 8 }}>
-            <span>Verified Campus Merchant</span>
+  // ── Expired State ──
+  if (isExpired) {
+    return (
+      <main className="page" style={{ minHeight: '100dvh', background: 'var(--paper, #f7f4ee)', display: 'flex', flexDirection: 'column' }}>
+        <Topbar title="Session Expired" back onBack={() => navigate('/checkout')} />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center', maxWidth: 440, margin: '0 auto' }}>
+          <div style={{ width: 68, height: 68, borderRadius: '50%', background: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, marginBottom: 16 }}>
+            ⏱️
           </div>
-
-          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2, color: '#64748b', textTransform: 'uppercase' }}>
-            TOTAL AMOUNT DUE
-          </div>
-          <div style={{ fontSize: 38, fontWeight: 900, color: '#0f172a', margin: '4px 0 2px', letterSpacing: -1 }}>
-            ₹{upiData.amount.toFixed(2)}
-          </div>
-          <div style={{ fontSize: 13, color: '#475569', fontWeight: 600 }}>
-            Order #{upiData.orderNumber} · {upiData.payeeName}
-          </div>
-
-          {/* Quick Copy Chips (VPA + Amount) */}
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              background: '#f8fafc',
-              border: '1px solid #cbd5e1',
-              padding: '5px 10px',
-              borderRadius: 8
-            }}>
-              <span style={{ fontSize: 12, fontFamily: 'monospace', color: '#1e293b', fontWeight: 700 }}>
-                {upiData.upiId}
-              </span>
-              <button
-                type="button"
-                onClick={handleCopyUpiId}
-                style={{
-                  background: copiedVpa ? '#dcfce7' : '#eff6ff',
-                  color: copiedVpa ? '#15803d' : '#2563eb',
-                  border: 'none',
-                  borderRadius: 6,
-                  padding: '3px 8px',
-                  fontSize: 11,
-                  fontWeight: 800,
-                  cursor: 'pointer'
-                }}
-              >
-                {copiedVpa ? 'Copied!' : 'Copy UPI'}
-              </button>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Payment Window Expired</h2>
+          <p style={{ fontSize: 14, color: '#475569', lineHeight: 1.5, marginBottom: 20 }}>
+            This 15-minute UPI reservation has expired to release the unique paise amount. No money was deducted.
+          </p>
+          <div style={{ background: '#ffffff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16, width: '100%', marginBottom: 24, textAlign: 'left' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: '#64748b' }}>Order Number</span>
+              <strong style={{ fontSize: 14, color: '#0f172a' }}>#{checkoutData.orderNumber || orderId.slice(0, 8)}</strong>
             </div>
-
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, color: '#64748b' }}>Base Total</span>
+              <strong style={{ fontSize: 14, color: '#0f172a' }}>₹{checkoutData.baseAmount.toFixed(2)}</strong>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
             <button
-              type="button"
-              onClick={handleCopyAmount}
+              onClick={handleRefreshSession}
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                background: copiedAmount ? '#dcfce7' : '#f8fafc',
-                color: copiedAmount ? '#15803d' : '#334155',
-                border: '1px solid #cbd5e1',
-                padding: '5px 10px',
-                borderRadius: 8,
-                fontSize: 11,
+                width: '100%',
+                padding: '14px',
+                background: '#2563eb',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 12,
+                fontSize: 15,
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(37,99,235,0.2)'
+              }}
+            >
+              Generate Fresh Payment Session
+            </button>
+            <button
+              onClick={handleSwitchToCash}
+              style={{
+                width: '100%',
+                padding: '12px',
+                background: '#ffffff',
+                color: '#16a34a',
+                border: '1.5px solid #16a34a',
+                borderRadius: 12,
+                fontSize: 14,
                 fontWeight: 700,
                 cursor: 'pointer'
               }}
             >
-              <span>₹{upiData.amount.toFixed(2)}</span>
-              <span style={{ fontWeight: 800, color: copiedAmount ? '#15803d' : '#2563eb' }}>
-                {copiedAmount ? 'Copied!' : 'Copy'}
-              </span>
+              Pay Cash at Counter Instead
             </button>
           </div>
         </div>
+      </main>
+    );
+  }
 
-        {/* Auto-Redirecting Banner */}
-        {redirecting && (
+  // ── Instant Paid Success Overlay ──
+  if (isPaidSuccess) {
+    return (
+      <main className="page" style={{ minHeight: '100dvh', background: '#f0fdf4', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
+        <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#16a34a', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, marginBottom: 20, animation: 'bounce 0.6s ease' }}>
+          ✓
+        </div>
+        <h2 style={{ fontSize: 26, fontWeight: 900, color: '#166534', marginBottom: 8 }}>Payment Verified!</h2>
+        <p style={{ fontSize: 15, color: '#15803d', fontWeight: 600 }}>Opening your confirmed receipt…</p>
+      </main>
+    );
+  }
+
+  // ── Main Checkout Card ──
+  return (
+    <main className="page" style={{ minHeight: '100dvh', background: 'var(--paper, #f7f4ee)', display: 'flex', flexDirection: 'column' }}>
+      <Topbar title="Direct UPI Payment" back onBack={() => navigate('/checkout')} />
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 40px', maxWidth: 440, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+        
+        {/* Main Payment Card */}
+        <div style={{
+          background: '#ffffff',
+          borderRadius: 20,
+          border: '1.5px solid #e2e8f0',
+          padding: '20px 18px',
+          boxShadow: '0 8px 30px rgba(0,0,0,0.04)',
+          position: 'relative'
+        }}>
+          
+          {/* Header Row: Order Number & 15-Minute Countdown Timer */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div>
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                ORDER #{checkoutData.orderNumber || orderId.slice(0, 8)}
+              </span>
+            </div>
+            {/* Countdown Badge */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              background: remainingSeconds < 180 ? '#fee2e2' : '#f1f5f9',
+              color: remainingSeconds < 180 ? '#dc2626' : '#334155',
+              padding: '4px 10px',
+              borderRadius: 20,
+              fontSize: 12,
+              fontWeight: 800
+            }}>
+              <span>⏱️</span>
+              <span>{formattedCountdown}</span>
+            </div>
+          </div>
+
+          {/* Exact Payable Amount Hero */}
+          <div style={{ textAlign: 'center', margin: '8px 0 16px' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1 }}>
+              EXACT PAYABLE AMOUNT
+            </div>
+            <div style={{
+              fontSize: 38,
+              fontWeight: 900,
+              color: '#0f172a',
+              letterSpacing: -1,
+              marginTop: 2,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8
+            }}>
+              <span>₹{checkoutData.payableAmount.toFixed(2)}</span>
+              <button
+                type="button"
+                onClick={handleCopyAmount}
+                title="Copy exact amount"
+                style={{
+                  background: copiedAmount ? '#dcfce7' : '#f1f5f9',
+                  color: copiedAmount ? '#15803d' : '#475569',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '4px 8px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                {copiedAmount ? 'Copied ✓' : 'Copy'}
+              </button>
+            </div>
+
+            {/* Crucial Paise Offset Notice */}
+            <div style={{
+              background: '#eff6ff',
+              border: '1.5px solid #bfdbfe',
+              borderRadius: 12,
+              padding: '10px 14px',
+              marginTop: 12,
+              fontSize: 12,
+              lineHeight: 1.45,
+              color: '#1e40af',
+              fontWeight: 600,
+              textAlign: 'left',
+              display: 'flex',
+              gap: 8,
+              alignItems: 'flex-start'
+            }}>
+              <span style={{ fontSize: 16 }}>⚠️</span>
+              <div>
+                <strong>Please pay the exact amount including paise</strong> (₹{checkoutData.payableAmount.toFixed(2)}) for instant automatic confirmation.
+              </div>
+            </div>
+          </div>
+
+          {/* Dynamic Scannable UPI QR Code */}
           <div style={{
-            background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+            background: '#fafafa',
             borderRadius: 16,
-            border: '2px solid #059669',
-            padding: '16px 18px',
-            textAlign: 'center',
-            marginBottom: 16,
+            border: '1.5px dashed #cbd5e1',
+            padding: 16,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 8,
-            boxShadow: '0 4px 16px rgba(5, 150, 105, 0.15)'
+            margin: '16px 0'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #a7f3d0', borderTopColor: '#059669', animation: 'spin 0.8s linear infinite' }} />
-              <strong style={{ fontSize: 15, fontWeight: 900, color: '#065f46' }}>
-                Payment Recorded Successfully!
-              </strong>
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#047857' }}>
-              Claiming order &amp; opening your confirmed receipt ticket…
-            </span>
-          </div>
-        )}
-
-        {/* False Return Notice (App did not open fallback) */}
-        {failedLaunch && !redirecting && (
-          <div style={{
-            background: '#fffbeb',
-            borderRadius: 16,
-            border: '1.5px solid #f59e0b',
-            padding: '14px 16px',
-            marginBottom: 16,
-            boxShadow: '0 4px 14px rgba(245, 158, 11, 0.12)'
-          }}>
-            <strong style={{ fontSize: 14, color: '#92400e', display: 'block', marginBottom: 4 }}>
-              UPI App Didn't Open
-            </strong>
-            <p style={{ fontSize: 12, color: '#b45309', margin: '0 0 10px', lineHeight: 1.4 }}>
-              If your app didn't open automatically, switch to the <strong>Scan QR</strong> tab to pay via any UPI app.
-            </p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setActiveTab('qr')}
-                style={{
-                  flex: 1,
-                  padding: '9px 12px',
-                  borderRadius: 8,
-                  background: '#2563eb',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  fontSize: 12,
-                  border: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                Scan QR Code Instead
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Dual Mode View Switcher (Tabs) */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
-          background: '#e2e8f0',
-          borderRadius: 14,
-          padding: 3,
-          marginBottom: 16
-        }}>
-          <button
-            type="button"
-            onClick={() => setActiveTab('qr')}
-            style={{
-              padding: '10px 12px',
-              borderRadius: 12,
-              border: 'none',
-              background: activeTab === 'qr' ? '#ffffff' : 'transparent',
-              color: activeTab === 'qr' ? '#0f172a' : '#64748b',
-              fontWeight: 800,
-              fontSize: 13,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              boxShadow: activeTab === 'qr' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <span>📷 Scan QR Code</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('intent')}
-            style={{
-              padding: '10px 12px',
-              borderRadius: 12,
-              border: 'none',
-              background: activeTab === 'intent' ? '#ffffff' : 'transparent',
-              color: activeTab === 'intent' ? '#0f172a' : '#64748b',
-              fontWeight: 800,
-              fontSize: 13,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              boxShadow: activeTab === 'intent' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <span>⚡ Pay via UPI App</span>
-          </button>
-        </div>
-
-        {/* TAB 1: SCAN QR CODE VIEW (RECOMMENDED - 100% ZERO-RISK SUCCESS) */}
-        {activeTab === 'qr' && (
-          <div style={{
-            background: '#ffffff',
-            borderRadius: 20,
-            border: '1.5px solid #e2e8f0',
-            padding: '22px 18px',
-            marginBottom: 16,
-            textAlign: 'center',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.03)'
-          }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-              <UpiLogo size={24} />
-              <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>Scan &amp; Pay Instant</span>
-              <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: 12, fontSize: 10, fontWeight: 800 }}>
-                100% UNBLOCKABLE
-              </span>
-            </div>
-
-            {/* QR Code Container */}
-            <div style={{
-              background: '#fff',
-              padding: 12,
-              borderRadius: 16,
-              border: '2px solid #0f172a',
-              display: 'inline-block',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-            }}>
-              {localQrDataUrl ? (
+            {qrDataUrl ? (
+              <div style={{ position: 'relative', display: 'inline-block' }}>
                 <img
-                  src={localQrDataUrl}
+                  src={qrDataUrl}
                   alt="UPI Payment QR Code"
-                  style={{ width: 220, height: 220, display: 'block', borderRadius: 8 }}
+                  style={{
+                    width: 220,
+                    height: 220,
+                    borderRadius: 12,
+                    display: 'block',
+                    background: '#ffffff',
+                    padding: 8,
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+                  }}
                 />
-              ) : (
-                <div style={{ width: 220, height: 220, display: 'grid', placeItems: 'center', color: '#64748b', fontSize: 12 }}>
-                  Generating QR…
+                <div style={{ textAlign: 'center', marginTop: 10 }}>
+                  <button
+                    type="button"
+                    onClick={handleDownloadQr}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#2563eb',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      padding: '4px 8px'
+                    }}
+                  >
+                    {downloadingQr ? 'Saving QR…' : '📥 Save QR to Gallery'}
+                  </button>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div style={{ width: 220, height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+                Loading QR code…
+              </div>
+            )}
 
-            {/* Quick Actions under QR: Download QR & Copy UPI ID */}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 14 }}>
-              <button
-                type="button"
-                onClick={handleDownloadQr}
-                style={{
-                  flex: 1,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  padding: '10px 14px',
-                  borderRadius: 10,
-                  background: savedQr ? '#dcfce7' : '#eff6ff',
-                  color: savedQr ? '#15803d' : '#2563eb',
-                  border: '1.5px solid ' + (savedQr ? '#86efac' : '#bfdbfe'),
-                  fontWeight: 800,
-                  fontSize: 12,
-                  cursor: 'pointer'
-                }}
-              >
-                <span>{savedQr ? '✓ Saved to Gallery!' : '📥 Save QR Code'}</span>
-              </button>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 8, textAlign: 'center' }}>
+              Scan with any UPI app: Google Pay, PhonePe, Paytm, BHIM, or Mobile Banking
+            </div>
+          </div>
+
+          {/* Prominent "Pay via UPI App" Button (Mobile Intent) */}
+          <div style={{ marginBottom: 16 }}>
+            <a
+              href={checkoutData.upiIntentUrl}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                width: '100%',
+                padding: '16px',
+                background: '#2563eb',
+                color: '#ffffff',
+                borderRadius: 14,
+                fontSize: 16,
+                fontWeight: 900,
+                textDecoration: 'none',
+                textAlign: 'center',
+                boxShadow: '0 4px 16px rgba(37,99,235,0.25)',
+                boxSizing: 'border-box'
+              }}
+            >
+              <UpiLogo size={26} />
+              <span>Pay via UPI App (₹{checkoutData.payableAmount.toFixed(2)})</span>
+            </a>
+
+            {/* Real UPI App Logos */}
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 10 }}>
+              <GPayLogo size={24} />
+              <PhonePeLogo size={24} />
+              <PaytmLogo size={24} />
+              <BhimLogo size={24} />
+              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>+ All UPI Apps</span>
+            </div>
+          </div>
+
+          {/* Copy-to-clipboard: Merchant UPI ID & Payee */}
+          <div style={{
+            background: '#f8fafc',
+            borderRadius: 12,
+            border: '1px solid #e2e8f0',
+            padding: '12px 14px',
+            marginBottom: 16
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Merchant UPI ID</span>
               <button
                 type="button"
                 onClick={handleCopyUpiId}
                 style={{
-                  flex: 1,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  padding: '10px 14px',
-                  borderRadius: 10,
-                  background: copiedVpa ? '#dcfce7' : '#f8fafc',
-                  color: copiedVpa ? '#15803d' : '#1e293b',
-                  border: '1.5px solid #cbd5e1',
-                  fontWeight: 800,
-                  fontSize: 12,
+                  background: copiedUpiId ? '#dcfce7' : '#ffffff',
+                  color: copiedUpiId ? '#15803d' : '#2563eb',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 6,
+                  padding: '2px 8px',
+                  fontSize: 11,
+                  fontWeight: 700,
                   cursor: 'pointer'
                 }}
               >
-                <span>{copiedVpa ? '✓ Copied UPI' : '📋 Copy UPI ID'}</span>
+                {copiedUpiId ? 'Copied ✓' : 'Copy UPI ID'}
               </button>
             </div>
-
-            {/* Step-by-step Mobile In-App Scanner Instructions */}
-            <div style={{
-              marginTop: 16,
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: 14,
-              padding: '12px 14px',
-              textAlign: 'left'
-            }}>
-              <strong style={{ fontSize: 12, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <span>📱 Paying on this mobile device?</span>
-              </strong>
-              <ol style={{ margin: 0, paddingLeft: 18, fontSize: 11, color: '#475569', lineHeight: 1.55 }}>
-                <li>Tap <b>Save QR Code</b> above (or take a screenshot of this QR).</li>
-                <li>Open <b>Google Pay, PhonePe, or Paytm</b>.</li>
-                <li>Tap the <b>Scanner icon (📷)</b> ➔ choose <b>Gallery / Upload</b>.</li>
-                <li>Confirm ₹<b>{upiData.amount.toFixed(2)}</b> &amp; pay with <b>0% bank decline</b>!</li>
-              </ol>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', wordBreak: 'break-all' }}>
+              {checkoutData.merchantUpiId || 'Q098686787@ybl'}
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
+              Payee: <strong>{checkoutData.payeeName}</strong>
             </div>
           </div>
-        )}
 
-        {/* TAB 2: PAY VIA UPI APP (MOBILE 1-TAP) */}
-        {activeTab === 'intent' && (
+          {/* Live Automatic Status Poller Indicator */}
           <div style={{
-            background: '#ffffff',
-            borderRadius: 20,
-            border: '1.5px solid #e2e8f0',
-            padding: '20px',
-            marginBottom: 16,
-            boxShadow: '0 4px 16px rgba(0,0,0,0.03)'
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: '10px 14px',
+            background: '#f8fafc',
+            borderRadius: 10,
+            border: '1px solid #e2e8f0'
           }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 }}>
-              SELECT YOUR UPI PAYMENT APP
-            </div>
-
-            {/* Bank Risk Policy Warning Notice */}
-            <div style={{
-              background: '#fffbeb',
-              borderRadius: 12,
-              border: '1px solid #fde68a',
-              padding: '10px 12px',
-              fontSize: 11,
-              color: '#92400e',
-              lineHeight: 1.45,
-              marginBottom: 12
-            }}>
-              <strong>⚠️ Bank Risk Policy Notice:</strong> Some banks (SBI, HDFC, Axis) block web payment links. If your app declines or rejects the payment, switch to the <b>📷 Scan QR Code</b> tab — in-app scanning is 100% accepted!
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {/* Universal Primary Intent Button */}
-              <a
-                href={upiData.intentUrl}
-                onClick={handleLaunchUpi}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '14px 18px',
-                  borderRadius: 14,
-                  background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
-                  color: '#ffffff',
-                  fontWeight: 800,
-                  fontSize: 15,
-                  textDecoration: 'none',
-                  boxShadow: '0 4px 14px rgba(37, 99, 235, 0.25)',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <UpiLogo size={24} />
-                  <span>Pay via Any UPI App</span>
-                </div>
-                <span style={{ fontSize: 18 }}>➔</span>
-              </a>
-
-              {/* Direct App Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginTop: 4 }}>
-                <a
-                  href={gpayHref}
-                  onClick={handleLaunchUpi}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '12px 14px',
-                    borderRadius: 12,
-                    background: '#ffffff',
-                    border: '1.5px solid #e2e8f0',
-                    color: '#0f172a',
-                    fontWeight: 700,
-                    fontSize: 13,
-                    textDecoration: 'none',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-                  }}
-                >
-                  <GPayLogo size={28} />
-                  <span>Google Pay</span>
-                </a>
-
-                <a
-                  href={phonepeHref}
-                  onClick={handleLaunchUpi}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '12px 14px',
-                    borderRadius: 12,
-                    background: '#ffffff',
-                    border: '1.5px solid #e2e8f0',
-                    color: '#0f172a',
-                    fontWeight: 700,
-                    fontSize: 13,
-                    textDecoration: 'none',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-                  }}
-                >
-                  <PhonePeLogo size={28} />
-                  <span>PhonePe</span>
-                </a>
-
-                <a
-                  href={paytmHref}
-                  onClick={handleLaunchUpi}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '12px 14px',
-                    borderRadius: 12,
-                    background: '#ffffff',
-                    border: '1.5px solid #e2e8f0',
-                    color: '#0f172a',
-                    fontWeight: 700,
-                    fontSize: 13,
-                    textDecoration: 'none',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-                  }}
-                >
-                  <PaytmLogo size={28} />
-                  <span>Paytm</span>
-                </a>
-
-                <a
-                  href={bhimHref}
-                  onClick={handleLaunchUpi}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '12px 14px',
-                    borderRadius: 12,
-                    background: '#ffffff',
-                    border: '1.5px solid #e2e8f0',
-                    color: '#0f172a',
-                    fontWeight: 700,
-                    fontSize: 13,
-                    textDecoration: 'none',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-                  }}
-                >
-                  <BhimLogo size={28} />
-                  <span>BHIM UPI</span>
-                </a>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* OPEN-SOURCE UPI GATEWAY CONFIRMATION CARD (Visible on both QR and App tabs) */}
-        <div style={{
-          background: '#ffffff',
-          borderRadius: 20,
-          border: '1.5px solid #16a34a',
-          padding: '20px',
-          marginBottom: 16,
-          boxShadow: '0 4px 16px rgba(22, 163, 74, 0.08)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#16a34a', display: 'inline-block' }} />
-            <strong style={{ fontSize: 13, fontWeight: 800, color: '#15803d', textTransform: 'uppercase', letterSpacing: 0.8 }}>
-              Step 2: Confirm Your Payment
-            </strong>
-          </div>
-          <p style={{ fontSize: 12, color: '#475569', margin: '0 0 12px', lineHeight: 1.45 }}>
-            After completing payment in your UPI app, submit below to open your receipt ticket and send your files directly to the counter printers.
-          </p>
-
-          {/* 12-Digit UTR Input */}
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6, textTransform: 'uppercase' }}>
-              12-Digit UPI Ref / UTR Number (Optional)
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. 431802938102"
-              value={utrInput}
-              onChange={(e) => setUtrInput(e.target.value.replace(/[^0-9a-zA-Z]/g, '').slice(0, 22))}
-              style={{
-                width: '100%',
-                padding: '11px 14px',
-                border: '1.5px solid #cbd5e1',
-                borderRadius: 10,
-                fontSize: 14,
-                fontFamily: 'monospace',
-                fontWeight: 600,
-                background: '#f8fafc',
-                boxSizing: 'border-box'
-              }}
-            />
-            <span style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block' }}>
-              Found in your UPI app payment details as &ldquo;UPI Ref No.&rdquo; or &ldquo;UTR&rdquo;.
+            <span style={{
+              width: 10,
+              height: 10,
+              borderRadius: '50%',
+              background: '#2563eb',
+              boxShadow: '0 0 0 3px rgba(37,99,235,0.2)',
+              animation: 'pulse 1.8s infinite'
+            }} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
+              Waiting for automatic bank confirmation…
             </span>
           </div>
 
-          {/* Big Green Primary Confirmation CTA */}
-          <button
-            type="button"
-            disabled={submittingUtr || redirecting}
-            onClick={() => executeAutoClaim(utrInput)}
-            style={{
-              width: '100%',
-              padding: '14px 16px',
-              borderRadius: 12,
-              border: 'none',
-              background: '#16a34a',
-              color: '#ffffff',
-              fontSize: 15,
-              fontWeight: 800,
-              cursor: submittingUtr ? 'wait' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              boxShadow: '0 4px 12px rgba(22, 163, 74, 0.25)',
-              transition: 'background 0.15s ease'
-            }}
-          >
-            <span>{submittingUtr ? 'Recording Payment…' : '✓ I Have Paid (Open My Receipt)'}</span>
-          </button>
-        </div>
+          {/* 20-Second Delayed "I Have Paid" Fallback Button */}
+          {elapsedSeconds >= 20 && (
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid #f1f5f9', textAlign: 'center' }}>
+              <p style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+                Bank SMS or alert delayed? Submit your 12-digit UPI reference:
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setManualUtrError(null);
+                  setShowManualModal(true);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  background: '#f8fafc',
+                  border: '1.5px solid #2563eb',
+                  color: '#2563eb',
+                  borderRadius: 12,
+                  fontSize: 14,
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                I Have Paid (Enter 12-Digit UTR)
+              </button>
+            </div>
+          )}
 
-        {/* Security / Web Link Warning Notice */}
-        <div style={{ background: '#eff6ff', borderRadius: 14, border: '1px solid #bfdbfe', padding: '12px 14px', fontSize: 12, color: '#1e40af', lineHeight: 1.45, marginBottom: 16 }}>
-          <strong>💡 Open-Source Direct UPI:</strong> All payments go 100% directly to the campus merchant VPA (<strong>{upiData.upiId}</strong>) with 0% intermediate gateway deduction. If your browser blocks links, scan the QR code above!
-        </div>
-
-        {/* Fallback to cash */}
-        <div style={{ textAlign: 'center', marginTop: 8 }}>
-          <button
-            type="button"
-            onClick={handleSwitchToCash}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#64748b',
-              fontSize: 12,
-              fontWeight: 600,
-              textDecoration: 'underline',
-              cursor: 'pointer'
-            }}
-          >
-            Having trouble? Switch to Cash at Counter instead
-          </button>
+          {/* Switch to Cash Option */}
+          <div style={{ marginTop: 12, textAlign: 'center' }}>
+            <button
+              type="button"
+              onClick={handleSwitchToCash}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#64748b',
+                fontSize: 12,
+                fontWeight: 600,
+                textDecoration: 'underline',
+                cursor: 'pointer'
+              }}
+            >
+              Prefer to pay cash at the counter? Switch here
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Manual "I Have Paid" 12-Digit UTR Modal */}
+      {showManualModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.65)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 16,
+          zIndex: 1000,
+          backdropFilter: 'blur(3px)'
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: 20,
+            padding: 24,
+            maxWidth: 420,
+            width: '100%',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>Enter 12-Digit UPI UTR</h3>
+              <button
+                type="button"
+                onClick={() => setShowManualModal(false)}
+                style={{ background: 'transparent', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5, marginBottom: 16 }}>
+              Find the 12-digit numeric <strong>UPI Reference ID / UTR Number</strong> in Google Pay, PhonePe, Paytm, or your bank SMS.
+            </p>
+
+            <form onSubmit={handleSubmitManualUtr}>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                  12-Digit Reference Number (UTR)
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="\d{12}"
+                  maxLength={12}
+                  placeholder="e.g. 423456789012"
+                  value={manualUtr}
+                  onChange={(e) => {
+                    const onlyDigits = e.target.value.replace(/\D/g, '');
+                    setManualUtr(onlyDigits);
+                  }}
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    borderRadius: 10,
+                    border: manualUtrError ? '2px solid #ef4444' : '1.5px solid #cbd5e1',
+                    fontSize: 16,
+                    fontWeight: 700,
+                    letterSpacing: 2,
+                    boxSizing: 'border-box'
+                  }}
+                />
+                <span style={{ fontSize: 11, color: '#94a3b8', marginTop: 4, display: 'block' }}>
+                  {manualUtr.length}/12 digits entered
+                </span>
+              </div>
+
+              {manualUtrError && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '8px 12px', borderRadius: 8, fontSize: 12, marginBottom: 14 }}>
+                  {manualUtrError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowManualModal(false)}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    background: '#f1f5f9',
+                    color: '#475569',
+                    border: 'none',
+                    borderRadius: 10,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingUtr || manualUtr.length !== 12}
+                  style={{
+                    flex: 2,
+                    padding: '12px',
+                    background: submittingUtr || manualUtr.length !== 12 ? '#94a3b8' : '#2563eb',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 10,
+                    fontWeight: 800,
+                    cursor: submittingUtr || manualUtr.length !== 12 ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {submittingUtr ? 'Submitting…' : 'Submit & Review'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
-
-export default PaymentState;

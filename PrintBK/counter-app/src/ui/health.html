@@ -210,6 +210,19 @@
           <div class="item-detail" id="lastPrintDetail">Spooler queue health verified.</div>
         </div>
       </div>
+
+      <!-- 7. Campus LAN & Proxy Connectivity -->
+      <div class="item-row">
+        <div class="status-dot" id="networkDot"></div>
+        <div class="item-content">
+          <div class="item-title">
+            <span>Campus LAN, Proxy &amp; HTTPS (Port 443)</span>
+            <span id="networkStatus">Testing…</span>
+          </div>
+          <div class="item-detail" id="networkDetail">Chromium system proxy, DoH automatic fallback &amp; Happy Eyeballs dual-stack.</div>
+          <div class="fix-hint" id="networkHint"></div>
+        </div>
+      </div>
     </div>
 
     <div class="actions">
@@ -279,6 +292,30 @@
           converterStatus.textContent = 'Not Found';
           converterDot.className = 'status-dot yellow';
           converterHint.classList.add('visible');
+        }
+
+        // Campus LAN / Proxy / Port 443 Connectivity
+        const networkDot = document.getElementById('networkDot');
+        const networkStatus = document.getElementById('networkStatus');
+        const networkDetail = document.getElementById('networkDetail');
+        const networkHint = document.getElementById('networkHint');
+        if (window.printbkCounter?.testNetworkConnectivity) {
+          try {
+            const netRes = await window.printbkCounter.testNetworkConnectivity();
+            networkStatus.textContent = netRes.ok ? `Connected (${netRes.latencyMs}ms)` : (netRes.code || 'Blocked');
+            networkDetail.textContent = `Proxy: ${netRes.proxyInfo || 'SYSTEM'} · Target: ${netRes.url || 'HTTPS:443'}`;
+            if (netRes.ok) {
+              networkDot.className = 'status-dot green';
+              networkHint.classList.remove('visible');
+            } else {
+              networkDot.className = 'status-dot red';
+              networkHint.textContent = netRes.actionHint || netRes.message || 'Check captive portal or campus proxy settings.';
+              networkHint.classList.add('visible');
+            }
+          } catch (netErr) {
+            networkDot.className = 'status-dot yellow';
+            networkStatus.textContent = 'Check Failed';
+          }
         }
 
         const overall = document.getElementById('overallBadge');

@@ -241,7 +241,13 @@
       <div class="step-desc">
         Type the counter setup code (PBK-SETUP-9021) from your Catalyst console. This pairs both the counter app and the background print agent.
       </div>
-      <div id="errorBox" class="error-box"></div>
+      <div id="errorBox" class="error-box">
+        <div id="errorMsg"></div>
+        <div id="errorActions" style="display: none; margin-top: 8px; gap: 10px; flex-wrap: wrap;">
+          <button type="button" id="wizPortalBtn" style="background: #fffbeb; color: #92400e; border: 1px solid #f59e0b; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;">Open Captive Portal Check</button>
+          <button type="button" id="wizProxyBtn" style="background: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;">Open Windows Proxy Settings</button>
+        </div>
+      </div>
       <div class="form-group">
         <label>Counter Setup Code</label>
         <input type="text" id="setupCodeInput" class="code-input" placeholder="PBK-SETUP-9021" spellcheck="false" autocomplete="off" />
@@ -439,12 +445,26 @@
     }
 
     function showError(msg) {
-      errorBox.textContent = msg;
+      const msgEl = document.getElementById('errorMsg');
+      const actionsEl = document.getElementById('errorActions');
+      if (msgEl) msgEl.textContent = msg;
+      else errorBox.textContent = msg;
+      if (actionsEl) {
+        const isNetErr = /ERR_|PROXY|CERT|TIMEOUT|DNS|PORT|FIREWALL|CONNECT/i.test(String(msg));
+        actionsEl.style.display = isNetErr ? 'flex' : 'none';
+      }
       errorBox.classList.add('visible');
     }
     function hideError() {
       errorBox.classList.remove('visible');
     }
+
+    document.getElementById('wizPortalBtn')?.addEventListener('click', () => {
+      window.printbkCounter?.openCaptivePortal?.();
+    });
+    document.getElementById('wizProxyBtn')?.addEventListener('click', () => {
+      window.printbkCounter?.openWindowsNetworkSettings?.();
+    });
 
     async function loadPrinters() {
       if (!window.printbkCounter) return;

@@ -33,6 +33,18 @@ contextBridge.exposeInMainWorld('printbkCounter', {
     ipcRenderer.invoke('counter:check-update'),
   finishWizard: (config: any): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('counter:finish-wizard', config),
+  getNetworkDiagnostics: (): Promise<any> =>
+    ipcRenderer.invoke('counter:get-network-diagnostics'),
+  testNetworkConnectivity: (targetUrl?: string): Promise<any> =>
+    ipcRenderer.invoke('counter:test-connectivity', targetUrl),
+  openCaptivePortal: (): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('counter:open-captive-portal'),
+  openWindowsNetworkSettings: (): Promise<void> =>
+    ipcRenderer.invoke('counter:open-network-settings'),
+  submitProxyAuth: (requestId: string, username: string, password: string): Promise<void> =>
+    ipcRenderer.invoke('counter:proxy-auth-submit', { requestId, username, password }),
+  cancelProxyAuth: (requestId: string): Promise<void> =>
+    ipcRenderer.invoke('counter:proxy-auth-cancel', { requestId }),
   getStaffTokenSync: (): string | null => {
     try {
       return ipcRenderer.sendSync('counter:get-credentials-sync')?.staffToken || null;
@@ -44,5 +56,10 @@ contextBridge.exposeInMainWorld('printbkCounter', {
     const handler = (_event: any, status: string) => callback(status);
     ipcRenderer.on('agent:status', handler);
     return () => ipcRenderer.removeListener('agent:status', handler);
+  },
+  onNetworkDiagnostic: (callback: (diag: any) => void) => {
+    const handler = (_event: any, diag: any) => callback(diag);
+    ipcRenderer.on('network:diagnostic', handler);
+    return () => ipcRenderer.removeListener('network:diagnostic', handler);
   }
 });

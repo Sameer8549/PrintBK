@@ -1,35 +1,47 @@
 import { PaymentProvider, PaymentResult } from './types';
 
-export class ManualUpiProvider implements PaymentProvider {
-  id = 'manual_upi';
-  name = 'UPI QR / Intent';
-  description = 'Scan QR at shop or use any UPI app.';
-  upiId: string;
+/**
+ * UPILerify Direct UPI Payment Provider
+ * Creates UPILerify payment sessions via /api/checkout/create and supports
+ * manual 12-digit UTR fallback via /api/checkout/manual-utr.
+ */
+export class UpiLerifyProvider implements PaymentProvider {
+  id = 'upilerify';
+  name = 'Direct UPI (UPILerify)';
+  description = 'Pay exact paise amount via UPI QR or Intent for instant auto-verification.';
+  merchantUpiId: string;
 
-  constructor(upiId: string = 'Q098686787@ybl') {
-    this.upiId = upiId;
+  constructor(merchantUpiId: string = '') {
+    this.merchantUpiId = merchantUpiId;
   }
 
   isAvailable() {
     return true;
   }
 
-  async processPayment(amount: number, orderId: string): Promise<PaymentResult> {
-    const res = await fetch(`/orders/${orderId}/pay`, {
+  async processPayment(_amount: number, orderId: string, extras?: { utrNumber?: string }): Promise<PaymentResult> {
+    if (extras?.utrNumber) {
+      const res = await fetch('/api/checkout/manual-utr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, utrNumber: extras.utrNumber })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        return { success: true, transactionId: extras.utrNumber };
+      }
+      return { success: false, error: data.error || 'Failed to submit UTR verification' };
+    }
+
+    const res = await fetch('/api/checkout/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ method: 'manual_upi' })
+      body: JSON.stringify({ orderId })
     });
-    
-    if (res.ok) {
-      // In a real flow, the shopkeeper confirms payment on the agent side
-      return { success: true };
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.orderId) {
+      return { success: true, transactionId: data.orderId };
     }
-    
-    return { success: false, error: 'Failed to initiate UPI payment' };
-  }
-
-  generateIntentUrl(amount: number, orderId: string) {
-    return `upi://pay?pa=${this.upiId}&pn=PrintBK&am=${amount}&tr=${orderId}&cu=INR`;
+    return { success: false, error: data.error || 'Failed to create UPILerify checkout session' };
   }
 }

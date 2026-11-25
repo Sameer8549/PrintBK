@@ -21,13 +21,14 @@ describe('computePaymentStatus', () => {
     expect(computePaymentStatus({ status: 'completed', paymentMethod: 'cash' })).toBe('cash_collected');
   });
 
-  it('identifies upi_claimed when student returns from UPI app', () => {
-    const res = computePaymentStatus({ status: 'upi_claimed', paymentMethod: 'upi' });
+  it('identifies UNDER_REVIEW when manual 12-digit UTR is submitted', () => {
+    const res = computePaymentStatus({ status: 'UNDER_REVIEW', paymentMethod: 'upi', utrNumber: '412345678901' });
     expect(res).toBe('upi_claimed');
     expect(getPaymentLabel(res)).toBe('UPI payment waiting for the shop to verify');
   });
 
-  it('identifies paid_verified once shop approves a UPI order', () => {
+  it('identifies PAID once UPILerify webhook or admin confirms payment', () => {
+    expect(computePaymentStatus({ status: 'PAID', paymentMethod: 'upi' })).toBe('paid_verified');
     const res = computePaymentStatus({ status: 'processing', paymentMethod: 'upi' });
     expect(res).toBe('paid_verified');
     expect(getPaymentLabel(res)).toBe('Payment verified');

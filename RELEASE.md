@@ -124,32 +124,40 @@ If an unexpected regression occurs in production:
 
 ---
 
-## 7. Production Release Changelog (v1.0.0 — November 24, 2026)
+## 7. Production Release Changelog (v1.0.0 — November 25, 2026)
 
 ### 🚀 Major Improvements & Architecture Updates
 
-1. **Clean Slate State & Fresh Workstation Onboarding**:
+1. **UPILerify Direct-UPI Payment Engine**:
+   - Complete replacement of all legacy payment gateways with open-source, self-hosted UPILerify (`harshavarma02/upilerify`).
+   - Server-side unique paise offset calculation (`POST /api/checkout/create`), dynamic vector QR code, universal mobile `upi://pay` deep-link, and 15-minute checkout countdown timer.
+   - Real-time 3-second bank credit polling (`GET /api/checkout/status/:orderId`) with automatic redirect to `/order-success`.
+   - 20-second delayed "I Have Paid" manual fallback modal (`POST /api/checkout/manual-utr`) with 12-digit numeric validation (`^\d{12}$`), cross-order uniqueness fraud prevention, and live `/order-pending` polling.
+   - HMAC-SHA256 authenticated webhook fulfillment (`POST /api/webhooks/upilerify`) on bank IMAP alert ingestion, guaranteeing single-execution idempotent order unlocks.
+   - Staff/Admin manual verification endpoints (`GET /api/admin/orders/under-review`, `POST /api/admin/orders/verify`).
+
+2. **Enterprise & Institutional Network Hardening**:
+   - Replaced all raw Node.js fetch and legacy IPv4 socket pinning hacks with Electron's `net.fetch` and native Chromium network stack.
+   - Added `session.defaultSession.setProxy({ mode: 'system' })` and Chromium `proxy-auto-detect` to honor enterprise PAC scripts, Cyberoam, Sophos, and Fortinet campus firewalls.
+   - Added native proxy authentication dialog handler (`app.on('login')`) for LANs requiring proxy credentials.
+   - Dual-stack RFC 8305 Happy Eyeballs with `app.configureHostResolver` (`enableBuiltInResolver: true`, `secureDnsMode: 'automatic'`).
+   - Comprehensive diagnostic network error mapping (`ERR_PROXY_CONNECTION_FAILED`, `ERR_CERT_AUTHORITY_INVALID`, `ERR_INTERNET_DISCONNECTED`, captive portal detection) with actionable counter UI guidance.
+
+3. **Clean Slate State & Fresh Workstation Onboarding**:
    - Total queue wipe capability (`/staff/orders/purge-all` with `{ all: true }` and `/internal/purge-test-data` with `forceUnflagged: true`) leaving **0 active queue orders** across datastore, file store, and in-memory caches.
    - Comprehensive system unpairing (`/staff/counters/reset-all`) clearing all registered `staff_devices`, `agent_devices`, counter rate limits, and setup code caches.
    - Zero pre-existing paired devices: both Staff Web App and Desktop Counter launch into fresh unconfigured setup state requiring pairing code `PBK-SETUP-9021`.
    - Local workstation AppData credential cleaner (`counter-store.json`, `agent-config.json`, work spoolers, log directories).
 
-2. **Hardened Test Print & Physical Printer Assignment**:
+4. **Hardened Test Print & Physical Printer Assignment**:
    - Exact physical printer routing: Counter App and Staff UI pass selected printer name for B/W (`PrintBK-BW-Virtual`), Colour (`PrintBK-Colour-Virtual`), and Photo (`PrintBK-Photo-Virtual`).
    - Strict printer role isolation: Colour and Photo test prints never fall back to mono B/W printers.
    - Dynamic zero-restart printer assignment: choosing a printer in the setup wizard immediately persists to `shop_settings.printer_mapping` without requiring agent or supervisor restarts.
 
-3. **Unblockable Open-Source UPI Gateway**:
-   - Standard merchant VPA: `Q098686787@ybl` (HKBK Student Point).
-   - Removed banking app blocking query parameters (omitted `tr`) to ensure 100% acceptance across PhonePe, Google Pay, Paytm, BHIM, and Cred.
-   - Offline SVG vector QR generator, 1-tap "Save QR to Gallery", instant clipboard copy chips, direct app intent deep-links, and 12-digit UTR confirmation.
+5. **Anti-Flapping Heartbeat Sync**:
+   - 5-second agent heartbeat with 60-second server threshold (12x buffer) completely eliminates false offline indicator drops on high-latency campus networks.
 
-4. **Network & DNS Blackhole Immunity**:
-   - Dual-tier IPv4 socket pinning (`dns.setDefaultResultOrder('ipv4first')`) across print agent, counter app supervisor, and Playwright test harnesses.
-   - Verified IPv4 fallback (`169.148.148.93`) in custom HTTPS lookup agents to guarantee zero outages during campus ISP DNS glitches.
-   - Anti-flapping logic: 5-second agent heartbeat with 60-second server threshold (12x buffer) completely eliminates false offline indicator drops.
-
-5. **Student App Cart Resilience**:
+6. **Student App Cart Resilience**:
    - Hardened item deletion in student cart to prevent blank screens or JavaScript crashes when the cart reaches 0 items.
 
 ---

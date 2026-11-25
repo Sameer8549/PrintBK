@@ -48,13 +48,17 @@ if (!process.env.AGENT_SETUP_CODE) {
   process.env.AGENT_SETUP_CODE = 'PBK-SETUP-9021';
 }
 
+if (!process.env.MERCHANT_UPI_ID && process.env.UPI_ID) {
+  process.env.MERCHANT_UPI_ID = process.env.UPI_ID;
+}
+
 // Logs missing variable names only (never prints secret values)
 const CRITICAL_ENV_VARS = [
   'STAFF_TOKEN',
   'COUNTER_SETUP_CODE',
   'AGENT_TOKEN',
   'CRON_SECRET',
-  'UPI_ID',
+  'MERCHANT_UPI_ID',
   'UPI_PAYEE_NAME',
   'ALLOWED_ORIGINS',
   'STUDENT_APP_URL',
@@ -314,11 +318,16 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Order-Token', 'X-Staff-Token', 'X-Staff-Device-Token', 'X-Agent-Token', 'X-Cron-Secret', 'X-Authorization', 'Accept', 'If-None-Match'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Order-Token', 'X-Staff-Token', 'X-Staff-Device-Token', 'X-Agent-Token', 'X-Cron-Secret', 'X-Authorization', 'X-Upilerify-Signature', 'X-Webhook-Signature', 'X-API-Key', 'Accept', 'If-None-Match'],
   exposedHeaders: ['ETag']
 }));
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({
+  limit: '2mb',
+  verify: (req, _res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 
 /* ─── Web Client Portal Redirects ────────────────────────────────── */
 app.get(['/staff', '/staff/', '/counter', '/counter/', '/staff-portal', '/app-staff'], (req, res, next) => {
@@ -436,9 +445,6 @@ const { basketToOrderItems } = require('./shared/orderItems');
 const { computePaymentStatus, getPaymentLabel } = require('./shared/paymentStatus');
 const { computeEffectiveShopStatus } = require('./shared/shopStatus');
 
-// In-memory tracker for active unapproved UPI claims per device (max 3)
-const deviceUpiClaims = new Map(); // deviceKey -> Set of orderIds
-
 function esc(str) { return String(str ?? '').replace(/'/g, "''"); }
 function nowSec() { return Math.floor(Date.now() / 1000); }
 
@@ -522,7 +528,7 @@ const DEFAULT_SHOP_SETTINGS = {
   payments: {
     cash: true,
     upi: true,
-    razorpay: false,
+    upilerify: true,
     upiVpa: 'Q098686787@ybl',
     upiName: 'HKBK Student Point'
   },
@@ -813,8 +819,7 @@ app.get(['/config', '/shop/config'], async (req, res) => {
   const catalystApp = getCatalystApp(req);
   const settings = await getEffectiveShopSettings(catalystApp);
 
-  const rzpEnabled = Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET && process.env.RAZORPAY_ENABLED === 'true');
-  const upiId = process.env.UPI_ID || settings.rates?.upiVpa || settings.payments?.upiVpa || 'printbk@upi';
+  const upiId = process.env.MERCHANT_UPI_ID || process.env.UPI_ID || settings.rates?.upiVpa || settings.payments?.upiVpa || 'printbk@upi';
   const upiPayee = process.env.UPI_PAYEE_NAME || settings.rates?.upiName || settings.payments?.upiName || 'PrintBK Campus Reprographics';
 
   // Compute live printer status summary from memPrinters
@@ -885,7 +890,7 @@ app.get(['/config', '/shop/config'], async (req, res) => {
     paymentMethods: {
       cash: settings.payments?.cash !== false,
       upi: settings.payments?.upi !== false,
-      razorpay: Boolean(rzpEnabled && settings.payments?.razorpay)
+      upilerify: Boolean(process.env.UPILERIFY_BASE_URL && process.env.UPILERIFY_API_KEY)
     },
     upi: {
       enabled: settings.payments?.upi !== false,
@@ -1057,6 +1062,17 @@ function validateOrderInput(body) {
 
   return null;
 }
+
+/* ─── Mount UPILerify Checkout, UTR & Webhook Router ─────────────── */
+const { buildUpilerifyRouter } = require('./upilerify');
+app.use(buildUpilerifyRouter({
+  getCatalystApp,
+  getEffectiveShopSettings,
+  isStaff,
+  validateOrderInput,
+  generateUniquePickupCode,
+  insertOrderWithUniqueNumber
+}));
 
 /* ─── ORDER CREATION (Server-Authoritative Pricing & Codes) ───────── */
 app.post('/orders', async (req, res) => {
@@ -1368,16 +1384,16 @@ app.get('/orders/:id', async (req, res) => {
     const createdAt = Number(o.created_at || now);
     const updatedAt = Number(o.updated_at || createdAt);
 
-    const isPendingExpired = ['pending_payment', 'upi_started'].includes(o.status) && (now - createdAt >= paymentExpirySec);
-    const isUpiClaimExpired = (o.status === 'upi_claimed') && (now - updatedAt >= upiClaimExpirySec);
+    const isPendingExpired = ['pending_payment', 'PENDING'].includes(o.status) && (now - createdAt >= paymentExpirySec);
+    const isUpiClaimExpired = (o.status === 'UNDER_REVIEW') && (now - updatedAt >= upiClaimExpirySec);
 
     if (isPendingExpired || isUpiClaimExpired) {
-      o.status = 'expired';
+      o.status = 'EXPIRED';
       o.payment_status = 'not_paid';
       o.updated_at = now;
       if (zcql) {
         zcql.executeZCQLQuery(
-          `UPDATE orders SET status = 'expired', payment_status = 'not_paid', updated_at = ${now} WHERE id = '${esc(o.id)}'`
+          `UPDATE orders SET status = 'EXPIRED', payment_status = 'not_paid', updated_at = ${now} WHERE id = '${esc(o.id)}'`
         ).catch(() => {});
       }
       memOrders.set(o.id, o);
@@ -1404,13 +1420,15 @@ app.get('/orders/:id', async (req, res) => {
     const isStudent = !isStaff(req);
     const computedPaymentStatus = computePaymentStatus(o);
 
-    if (isStudent && o.status === 'pending_payment') {
+    if (isStudent && ['pending_payment', 'PENDING'].includes(o.status)) {
       return res.json({
         id: o.id,
-        status: 'pending_payment',
+        status: o.status,
         payment_status: computedPaymentStatus,
         paymentRequired: true,
         total: o.total,
+        baseAmount: o.baseAmount ?? o.total,
+        payableAmount: o.payableAmount ?? o.total,
         orderNumber: null,
         pickupCode: null,
         basket: null,
@@ -1419,8 +1437,8 @@ app.get('/orders/:id', async (req, res) => {
       });
     }
 
-    // Hide pickup code from students until order reaches processing or ready
-    const isPreProcessing = ['pending_payment', 'pending_cash', 'upi_started', 'upi_claimed', 'waiting_quote'].includes(o.status);
+    // Hide pickup code from students until order reaches PAID, processing, printing, or ready
+    const isPreProcessing = ['pending_payment', 'PENDING', 'pending_cash', 'UNDER_REVIEW', 'waiting_quote'].includes(o.status);
     const exposedPickupCode = (isStudent && isPreProcessing) ? null : (basketData.pickupCode || '');
 
     const typedItems = (basketData.typedItems && Array.isArray(basketData.typedItems) && basketData.typedItems.length > 0)
@@ -1477,7 +1495,7 @@ app.post('/orders/:id/choose-cash', async (req, res) => {
       }
     }
 
-    if (o.status !== 'pending_payment' && o.status !== 'pending_cash' && o.status !== 'upi_started') {
+    if (!['pending_payment', 'pending_cash', 'PENDING', 'EXPIRED'].includes(o.status)) {
       return res.status(409).json({ error: `Cannot choose cash for order in status "${o.status}"` });
     }
 
@@ -1580,495 +1598,7 @@ app.post('/orders/:id/accept-quote', async (req, res) => {
   }
 });
 
-/* ─── DIRECT UPI INTENT (NPCI Canonical Spec & Platform Schemes) ───── */
-app.post('/orders/:id/start-upi', async (req, res) => {
-  try {
-    const catalystApp = getCatalystApp(req);
-    const zcql = catalystApp ? catalystApp.zcql() : null;
-    let rows;
-    if (zcql) {
-      rows = await zcql.executeZCQLQuery(
-        `SELECT id, order_number, status, total, basket, access_token_hash FROM orders WHERE id = '${esc(req.params.id)}'`
-      ).catch(() => null);
-    }
-    const o = (rows && rows.length > 0) ? rows[0].orders : memOrders.get(req.params.id);
-    if (!o) return res.status(404).json({ error: 'Order not found' });
-
-    // Verify token
-    const clientToken = req.headers['x-order-token'] || req.query.token;
-    let b = {};
-    try { b = typeof o.basket === 'string' ? JSON.parse(o.basket || '{}') : (o.basket || {}); } catch(e) {}
-    const storedHash = o.access_token_hash || b.accessTokenHash;
-    if (clientToken && storedHash) {
-      const clientHash = crypto.createHash('sha256').update(String(clientToken)).digest('hex');
-      if (!timingSafeCompare(clientHash, storedHash) && !isStaff(req)) {
-        return res.status(403).json({ error: 'Invalid order access token' });
-      }
-    }
-
-    if (!['pending_payment', 'upi_started', 'pending_cash'].includes(o.status)) {
-      return res.status(409).json({ error: `Cannot start UPI for order in status "${o.status}"` });
-    }
-
-    let upiId = process.env.UPI_ID;
-    let payeeName = process.env.UPI_PAYEE_NAME;
-
-    // Dynamically retrieve configured shop UPI VPA and payee name
-    try {
-      if (global.__printbk_settings) {
-        upiId = upiId || global.__printbk_settings.rates?.upiVpa || global.__printbk_settings.payments?.upiVpa || global.__printbk_settings.shop_info?.upi;
-        payeeName = payeeName || global.__printbk_settings.rates?.upiName || global.__printbk_settings.payments?.upiName || global.__printbk_settings.shop_info?.payee;
-      }
-      if (!upiId && zcql) {
-        const sRows = await zcql.executeZCQLQuery("SELECT * FROM shop_settings WHERE id = 'default' LIMIT 1").catch(() => null);
-        if (sRows && sRows.length > 0) {
-          const cfg = sRows[0].shop_settings;
-          const p = typeof cfg.payments === 'string' ? JSON.parse(cfg.payments || '{}') : (cfg.payments || {});
-          upiId = upiId || p.upiVpa || cfg.upi_id;
-          payeeName = payeeName || p.upiName || cfg.payee_name;
-        }
-      }
-    } catch (_) {}
-
-    upiId = (upiId || process.env.UPI_ID || 'Q098686787@ybl').trim();
-    if (upiId === 'printbk@upi') upiId = 'Q098686787@ybl';
-    payeeName = (payeeName || process.env.UPI_PAYEE_NAME || 'HKBK Student Point').trim();
-    const orderNum = o.order_number || b.orderNumber || 1001;
-    const amountStr = Number(o.total || 0).toFixed(2);
-    const tr = o.id.replace(/-/g, '').slice(0, 32);
-    // Sanitize note: purely alphanumeric, no '#' or illegal characters
-    const note = `Order ${orderNum}`;
-
-    // Clean NPCI Standard UPI URI (Omits 'tr' from URI to prevent bank risk engine rejections on non-aggregator VPAs)
-    const cleanQueryParams = `pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(amountStr)}&cu=INR&tn=${encodeURIComponent(note)}`;
-    const canonicalIntent = `upi://pay?${cleanQueryParams}`;
-
-    // Universal & Direct App Schemes (bypasses Android Chrome external-intent security blocks)
-    const gpayUrl = canonicalIntent;
-    const phonepeUrl = `phonepe://pay?${cleanQueryParams}`;
-    const paytmUrl = `paytmmp://pay?${cleanQueryParams}`;
-    const bhimUrl = canonicalIntent;
-
-    // Direct app deep links
-    const gpayAndroid = `tez://upi/pay?${cleanQueryParams}`;
-    const phonepeAndroid = `phonepe://pay?${cleanQueryParams}`;
-    const paytmAndroid = `paytmmp://pay?${cleanQueryParams}`;
-    const bhimAndroid = canonicalIntent;
-
-    const gpayIos = `gpay://upi/pay?${cleanQueryParams}`;
-    const phonepeIos = `phonepe://pay?${cleanQueryParams}`;
-    const paytmIos = `paytmmp://pay?${cleanQueryParams}`;
-
-    const now = nowSec();
-    b.events = b.events || [];
-    b.events.push({
-      from_status: o.status,
-      to_status: 'upi_started',
-      triggered_by: 'student',
-      timestamp: now,
-      upiId,
-      tr
-    });
-    
-    o.status = 'upi_started';
-    o.updated_at = now;
-    o.basket = JSON.stringify(b);
-    memOrders.set(o.id, o);
-
-    if (zcql) {
-      const updatedBasket = esc(JSON.stringify(b));
-      await zcql.executeZCQLQuery(
-        `UPDATE orders SET status = 'upi_started', basket = '${updatedBasket}', updated_at = ${now} WHERE id = '${esc(o.id)}'`
-      ).catch(() => {});
-    }
-
-    res.json({
-      ok: true,
-      status: 'upi_started',
-      orderId: o.id,
-      orderNumber: orderNum,
-      amount: Number(amountStr),
-      upiId,
-      payeeName,
-      intentUrl: canonicalIntent,
-      intentUri: canonicalIntent,
-      queryParams: cleanQueryParams,
-      gpayUrl,
-      phonepeUrl,
-      paytmUrl,
-      bhimUrl,
-      gpayAndroid,
-      phonepeAndroid,
-      paytmAndroid,
-      bhimAndroid,
-      gpayIos,
-      phonepeIos,
-      paytmIos,
-      tr
-    });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to start UPI flow: ' + err.message });
-  }
-});
-
-/* ─── UPI RETURN HOOK (Student Payment Claim) ──────────────────────── */
-app.post('/orders/:id/upi-return', async (req, res) => {
-  try {
-    const catalystApp = getCatalystApp(req);
-    const zcql = catalystApp ? catalystApp.zcql() : null;
-    let rows;
-    if (zcql) {
-      rows = await zcql.executeZCQLQuery(
-        `SELECT id, order_number, status, total, basket, access_token_hash FROM orders WHERE id = '${esc(req.params.id)}'`
-      ).catch(() => null);
-    }
-    const o = (rows && rows.length > 0) ? rows[0].orders : memOrders.get(req.params.id);
-    if (!o) return res.status(404).json({ error: 'Order not found' });
-
-    // Verify token
-    const clientToken = req.headers['x-order-token'] || req.query.token;
-    let b = {};
-    try { b = typeof o.basket === 'string' ? JSON.parse(o.basket || '{}') : (o.basket || {}); } catch(e) {}
-    const storedHash = o.access_token_hash || b.accessTokenHash;
-    if (clientToken && storedHash) {
-      const clientHash = crypto.createHash('sha256').update(String(clientToken)).digest('hex');
-      if (!timingSafeCompare(clientHash, storedHash) && !isStaff(req)) {
-        return res.status(403).json({ error: 'Invalid order access token' });
-      }
-    }
-
-    const now = nowSec();
-
-    // Abuse Limit: At most 3 unapproved UPI claims per device; claims expire with order.
-    const isTestOrder = b?.is_test === true || req.body?.is_test === true || o?.is_test === true;
-    const deviceKey = String(req.headers['x-device-id'] || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown');
-    let deviceClaims = deviceUpiClaims.get(deviceKey);
-    if (!deviceClaims) {
-      deviceClaims = new Set();
-      deviceUpiClaims.set(deviceKey, deviceClaims);
-    }
-
-    // Clean up claims that are already approved, rejected, cancelled, or expired (> 30 mins or past delete_after)
-    for (const claimedId of Array.from(deviceClaims)) {
-      if (claimedId === o.id) continue;
-      const other = memOrders.get(claimedId);
-      if (other) {
-        let otherB = {};
-        try { otherB = typeof other.basket === 'string' ? JSON.parse(other.basket || '{}') : (other.basket || {}); } catch (_) {}
-        const isFinishedOrApproved = ['processing', 'printing', 'ready', 'completed', 'cancelled', 'rejected', 'expired'].includes(other.status);
-        const orderExpired = other.delete_after ? (now > Number(other.delete_after)) : false;
-        const isStale = orderExpired || (now - Number(other.created_at || now)) > 1800;
-        if (isFinishedOrApproved || isStale || otherB.is_test) {
-          deviceClaims.delete(claimedId);
-        }
-      } else {
-        deviceClaims.delete(claimedId);
-      }
-    }
-
-    // Idempotent return if already upi_claimed: update optional UTR without re-incrementing
-    if (o.status === 'upi_claimed') {
-      const utr = req.body.utr ? String(req.body.utr).trim().slice(0, 32) : null;
-      if (utr) {
-        b.upiClaim = b.upiClaim || {};
-        b.upiClaim.utr = utr;
-        o.basket = JSON.stringify(b);
-        memOrders.set(o.id, o);
-        if (zcql) {
-          await zcql.executeZCQLQuery(
-            `UPDATE orders SET basket = '${esc(JSON.stringify(b))}', updated_at = ${now} WHERE id = '${esc(o.id)}'`
-          ).catch(() => {});
-        }
-      }
-      return res.json({
-        ok: true,
-        status: 'upi_claimed',
-        payment_status: 'upi_claimed',
-        orderId: o.id,
-        orderNumber: o.order_number || b.orderNumber,
-        total: o.total,
-        claimedAt: b.upiClaim?.claimedAt || now
-      });
-    }
-
-    if (!['upi_started', 'pending_payment'].includes(o.status)) {
-      if (['processing', 'ready', 'completed'].includes(o.status)) {
-        return res.json({
-          ok: true,
-          status: o.status,
-          payment_status: computePaymentStatus(o),
-          orderId: o.id,
-          orderNumber: o.order_number || b.orderNumber
-        });
-      }
-      return res.status(409).json({ error: `Cannot record UPI claim for order in status "${o.status}"` });
-    }
-
-    // Enforce maximum 3 unapproved claims (exempt test harness)
-    if (!isTestOrder && deviceClaims.size >= 3) {
-      return res.status(429).json({
-        error: 'Maximum 3 pending UPI payment claims allowed per device. Please wait for the counter to verify your existing orders.'
-      });
-    }
-
-    const utr = req.body.utr ? String(req.body.utr).trim().slice(0, 32) : null;
-
-    b.events = b.events || [];
-    b.events.push({
-      from_status: o.status,
-      to_status: 'upi_claimed',
-      triggered_by: 'student',
-      timestamp: now,
-      utr
-    });
-    b.upiClaim = {
-      claimedAt: now,
-      utr
-    };
-
-    o.status = 'upi_claimed';
-    o.payment_status = 'upi_claimed';
-    o.updated_at = now;
-    o.basket = JSON.stringify(b);
-    memOrders.set(o.id, o);
-    deviceClaims.add(o.id);
-
-    for (const it of memOrderItems.values()) {
-      if (it.order_id === o.id && (it.status === 'waiting_payment' || it.status === 'preparing')) {
-        it.status = 'ready_to_print';
-      }
-    }
-
-    if (zcql) {
-      const updatedBasket = esc(JSON.stringify(b));
-      await zcql.executeZCQLQuery(
-        `UPDATE orders SET status = 'upi_claimed', basket = '${updatedBasket}', updated_at = ${now} WHERE id = '${esc(o.id)}'`
-      ).catch(() => {});
-      await zcql.executeZCQLQuery(
-        `UPDATE order_items SET status = 'ready_to_print' WHERE order_id = '${esc(o.id)}' AND status = 'waiting_payment'`
-      ).catch(() => {});
-    }
-
-    res.json({
-      ok: true,
-      status: 'upi_claimed',
-      payment_status: 'upi_claimed',
-      orderId: o.id,
-      orderNumber: o.order_number || b.orderNumber,
-      total: o.total,
-      claimedAt: now,
-      pickupCode: null
-    });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to record UPI return claim' });
-  }
-});
-
-/* ─── PAYMENT DISCONTINUED (Phase 2 Hardening) ────────────────────── */
-app.post('/orders/:id/pay', (_req, res) => {
-  return res.status(410).json({
-    error: 'Direct student payment claim is disabled. Orders are approved via Razorpay capture or staff counter approval.'
-  });
-});
-
-/* ─── DORMANT RAZORPAY INTEGRATION & WEBHOOKS ────────────────── */
-
-// 1. Create Razorpay Order
-app.post('/orders/:id/razorpay', async (req, res) => {
-  const rzpKey = process.env.RAZORPAY_KEY_ID;
-  const rzpSecret = process.env.RAZORPAY_KEY_SECRET;
-  const rzpEnabled = process.env.RAZORPAY_ENABLED === 'true' || Boolean(rzpKey && rzpSecret);
-
-  if (!rzpKey || !rzpSecret || !rzpEnabled) {
-    return res.status(400).json({
-      error: 'Online payments are currently disabled. Please pay with Cash at the counter.',
-      enabled: false
-    });
-  }
-
-  try {
-    const catalystApp = catalyst.initialize(req);
-    const zcql = catalystApp.zcql();
-    const rows = await zcql.executeZCQLQuery(
-      `SELECT id, total, status, basket, access_token_hash FROM orders WHERE id = '${esc(req.params.id)}'`
-    );
-    if (!rows || rows.length === 0) return res.status(404).json({ error: 'Order not found' });
-    const o = rows[0].orders;
-
-    // Verify access token
-    const clientToken = req.headers['x-order-token'] || req.query.token;
-    let b = {};
-    try { b = JSON.parse(o.basket || '{}'); } catch(e) {}
-    const storedHash = o.access_token_hash || b.accessTokenHash;
-    if (clientToken && storedHash) {
-      const clientHash = crypto.createHash('sha256').update(String(clientToken)).digest('hex');
-      if (!timingSafeCompare(clientHash, storedHash) && !isStaff(req)) {
-        return res.status(403).json({ error: 'Invalid order access token' });
-      }
-    }
-
-    if (o.status !== 'pending_payment' && o.status !== 'pending_cash') {
-      return res.status(409).json({ error: `Cannot initiate payment for order in status "${o.status}"` });
-    }
-
-    const amountInPaise = Math.round(Number(o.total) * 100);
-    const authHeader = 'Basic ' + Buffer.from(`${rzpKey}:${rzpSecret}`).toString('base64');
-
-    const rzpRes = await fetch('https://api.razorpay.com/v1/orders', {
-      method: 'POST',
-      headers: {
-        'Authorization': authHeader,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        amount: amountInPaise,
-        currency: 'INR',
-        receipt: o.id.slice(0, 40),
-        notes: { orderId: o.id }
-      })
-    });
-
-    if (!rzpRes.ok) {
-      const rzpErr = await rzpRes.json().catch(() => ({}));
-      return res.status(502).json({ error: 'Payment gateway error', details: rzpErr.error?.description || 'Gateway error' });
-    }
-
-    const rzpData = await rzpRes.json();
-    const now = nowSec();
-
-    try {
-      await zcql.executeZCQLQuery(
-        `UPDATE orders SET razorpay_order_id = '${esc(rzpData.id)}', updated_at = ${now} WHERE id = '${esc(o.id)}'`
-      );
-    } catch (e) {}
-
-    res.json({
-      razorpayOrderId: rzpData.id,
-      keyId: rzpKey,
-      amount: rzpData.amount,
-      currency: 'INR'
-    });
-  } catch (err) {
-    res.status(500).json({ error: 'Could not create online payment order' });
-  }
-});
-
-// 2. Server-side Razorpay Signature Verification & Capture
-app.post('/orders/:id/verify-payment', async (req, res) => {
-  const rzpKey = process.env.RAZORPAY_KEY_ID;
-  const rzpSecret = process.env.RAZORPAY_KEY_SECRET;
-  const rzpEnabled = process.env.RAZORPAY_ENABLED === 'true' || Boolean(rzpKey && rzpSecret);
-
-  if (!rzpKey || !rzpSecret || !rzpEnabled) {
-    return res.status(400).json({
-      error: 'Online payments are currently disabled. Please pay with Cash at the counter.',
-      enabled: false
-    });
-  }
-
-  const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
-  if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
-    return res.status(400).json({ error: 'Missing payment verification parameters' });
-  }
-
-  try {
-    const expectedSignature = crypto
-      .createHmac('sha256', rzpSecret)
-      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-      .digest('hex');
-
-    if (!timingSafeCompare(expectedSignature, razorpay_signature)) {
-      return res.status(400).json({ error: 'Invalid payment signature' });
-    }
-
-    const catalystApp = catalyst.initialize(req);
-    const zcql = catalystApp.zcql();
-    const rows = await zcql.executeZCQLQuery(
-      `SELECT id, total, status, basket FROM orders WHERE id = '${esc(req.params.id)}'`
-    );
-    if (!rows || rows.length === 0) return res.status(404).json({ error: 'Order not found' });
-    const o = rows[0].orders;
-
-    // Verify captured amount with Razorpay
-    const authHeader = 'Basic ' + Buffer.from(`${rzpKey}:${rzpSecret}`).toString('base64');
-    const paymentRes = await fetch(`https://api.razorpay.com/v1/payments/${razorpay_payment_id}`, {
-      headers: { 'Authorization': authHeader }
-    });
-
-    if (!paymentRes.ok) {
-      return res.status(502).json({ error: 'Failed to verify payment status with gateway' });
-    }
-    const paymentData = await paymentRes.json();
-    const expectedAmountPaise = Math.round(Number(o.total) * 100);
-
-    if (paymentData.amount < expectedAmountPaise) {
-      return res.status(400).json({ error: 'Paid amount does not match order total' });
-    }
-
-    const now = nowSec();
-    let b = {};
-    try { b = JSON.parse(o.basket || '{}'); } catch(e) {}
-    b.events = b.events || [];
-    b.events.push({
-      from_status: o.status,
-      to_status: 'processing',
-      triggered_by: 'razorpay',
-      timestamp: now,
-      reason: `Verified payment ${razorpay_payment_id}`
-    });
-    const updatedBasket = esc(JSON.stringify(b));
-
-    await zcql.executeZCQLQuery(
-      `UPDATE orders SET status = 'processing', confirmed_by = 'razorpay', confirmed_at = ${now}, razorpay_payment_id = '${esc(razorpay_payment_id)}', basket = '${updatedBasket}', updated_at = ${now} WHERE id = '${esc(o.id)}'`
-    );
-
-    res.json({ ok: true, status: 'processing', orderId: o.id });
-  } catch (err) {
-    res.status(500).json({ error: 'Payment verification failed' });
-  }
-});
-
-// 3. Razorpay Webhooks (Replay Protected)
-app.post('/webhooks/razorpay', async (req, res) => {
-  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
-  if (!webhookSecret) {
-    return res.status(400).json({ error: 'Webhook secret not configured' });
-  }
-
-  const signature = req.headers['x-razorpay-signature'];
-  if (!signature) {
-    return res.status(400).json({ error: 'Missing webhook signature' });
-  }
-
-  const rawBody = JSON.stringify(req.body);
-  const expectedSig = crypto.createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
-
-  if (!timingSafeCompare(expectedSig, signature)) {
-    return res.status(400).json({ error: 'Invalid webhook signature' });
-  }
-
-  const event = req.body.event;
-  const paymentPayload = req.body.payload?.payment?.entity;
-
-  if (event === 'payment.captured' && paymentPayload) {
-    const orderId = paymentPayload.notes?.orderId;
-    if (orderId) {
-      try {
-        const catalystApp = catalyst.initialize(req);
-        const zcql = catalystApp.zcql();
-        const rows = await zcql.executeZCQLQuery(`SELECT id, status, basket FROM orders WHERE id = '${esc(orderId)}'`);
-        if (rows && rows.length > 0 && rows[0].orders.status !== 'processing') {
-          const now = nowSec();
-          await zcql.executeZCQLQuery(
-            `UPDATE orders SET status = 'processing', confirmed_by = 'razorpay_webhook', confirmed_at = ${now}, updated_at = ${now} WHERE id = '${esc(orderId)}'`
-          );
-        }
-      } catch (e) {}
-    }
-  }
-
-  res.json({ status: 'ok' });
-});
+/* Legacy payment gateway & old UPI claim routes removed — handled by UPILerify router in upilerify.js */
 
 /* ─── STUDENT ORDER CANCELLATION ─────────────────────────────────── */
 app.post('/orders/:id/cancel', async (req, res) => {
@@ -2094,7 +1624,7 @@ app.post('/orders/:id/cancel', async (req, res) => {
       }
     }
 
-    if (!['pending_payment', 'pending_cash', 'waiting_quote', 'upi_started'].includes(o.status) && !isStaff(req)) {
+    if (!['pending_payment', 'pending_cash', 'waiting_quote', 'PENDING', 'EXPIRED'].includes(o.status) && !isStaff(req)) {
       return res.status(409).json({ error: 'Cannot cancel order that has already started processing' });
     }
 
@@ -2123,13 +1653,15 @@ app.post('/orders/:id/cancel', async (req, res) => {
 
 // Order State Machine Allowed Transitions
 const VALID_TRANSITIONS = {
-  pending_payment: ['pending_cash', 'upi_started', 'cancelled', 'expired'],
+  PENDING: ['UNDER_REVIEW', 'PAID', 'EXPIRED', 'pending_cash', 'cancelled'],
+  UNDER_REVIEW: ['PAID', 'EXPIRED', 'processing', 'cancelled', 'rejected'],
+  PAID: ['processing', 'printing', 'ready', 'completed', 'cancelled'],
+  EXPIRED: ['PENDING', 'cancelled'],
+  pending_payment: ['PENDING', 'pending_cash', 'PAID', 'cancelled', 'expired', 'EXPIRED'],
   pending_cash: ['processing', 'cancelled', 'expired'],
-  upi_started: ['upi_claimed', 'pending_cash', 'processing', 'cancelled', 'expired'],
-  upi_claimed: ['processing', 'pending_cash', 'cancelled', 'expired', 'rejected'],
   waiting_quote: ['quote_sent', 'cancelled', 'rejected'],
   quote_sent: ['accepted', 'declined', 'cancelled'],
-  accepted: ['pending_payment', 'pending_cash', 'processing', 'cancelled'],
+  accepted: ['pending_payment', 'PENDING', 'pending_cash', 'processing', 'cancelled'],
   processing: ['printing', 'cancelled', 'rejected'],
   printing: ['ready', 'cancelled', 'failed'],
   ready: ['completed', 'cancelled'],
@@ -2269,7 +1801,7 @@ app.post('/orders/:id/approve-cash', async (req, res) => {
     const o = (rows && rows.length > 0) ? rows[0].orders : memOrders.get(req.params.id);
     if (!o) return res.status(404).json({ error: 'Order not found' });
     const current = o.status;
-    if (!['pending_cash', 'pending_payment', 'upi_started', 'upi_claimed'].includes(current)) {
+    if (!['pending_cash', 'pending_payment', 'PENDING', 'UNDER_REVIEW'].includes(current)) {
       return res.status(409).json({ error: `Cannot approve order in status "${current}"` });
     }
     const now = nowSec();
@@ -2283,7 +1815,7 @@ app.post('/orders/:id/approve-cash', async (req, res) => {
       timestamp: now,
       action: 'staff_approved'
     });
-    const paymentStatus = (current === 'upi_claimed' || current === 'upi_started') ? 'paid_verified' : 'cash_collected';
+    const paymentStatus = (current === 'UNDER_REVIEW' || current === 'PENDING') ? 'paid_verified' : 'cash_collected';
     o.status = 'processing';
     o.payment_status = paymentStatus;
     o.confirmed_by = 'staff';
@@ -2431,12 +1963,12 @@ async function expireStaleOrdersAndPurgeFiles(catalystApp, zcql, filestore) {
     const createdAt = Number(o.created_at || now);
     const updatedAt = Number(o.updated_at || createdAt);
 
-    const isPendingExpired = ['pending_payment', 'upi_started'].includes(o.status) && (now - createdAt >= paymentExpirySec);
-    const isUpiClaimExpired = (o.status === 'upi_claimed') && (now - updatedAt >= upiClaimExpirySec);
-    const isAncientStale = createdAt <= staleDayCutoff && !['printed', 'completed'].includes(o.status);
+    const isPendingExpired = ['pending_payment', 'PENDING'].includes(o.status) && (now - createdAt >= paymentExpirySec);
+    const isUpiClaimExpired = (o.status === 'UNDER_REVIEW') && (now - updatedAt >= upiClaimExpirySec);
+    const isAncientStale = createdAt <= staleDayCutoff && !['printed', 'completed', 'PAID'].includes(o.status);
 
     if (isPendingExpired || isUpiClaimExpired || isAncientStale) {
-      o.status = 'expired';
+      o.status = 'EXPIRED';
       o.payment_status = 'not_paid';
       o.updated_at = now;
       expiredOrdersCount++;

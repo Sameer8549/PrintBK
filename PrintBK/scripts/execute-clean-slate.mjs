@@ -160,8 +160,7 @@ async function run() {
     body: JSON.stringify({
       payments: {
         cash: true,
-        upi: true,
-        razorpay: false,
+        upi: true
         upiVpa: 'Q098686787@ybl',
         upiName: 'HKBK Student Point'
       },

@@ -1,12 +1,6 @@
 import path from 'path';
 import fs from 'fs';
-import dns from 'dns';
 import { pathToFileURL } from 'url';
-
-// Prioritize IPv4 across all Node DNS lookups to prevent blackhole timeouts on campus/office Ethernet
-try {
-  dns.setDefaultResultOrder('ipv4first');
-} catch (_) {}
 
 // Mark as supervised by desktop app to suppress separate WinForms tray
 process.env.DESKTOP_SUPERVISED = 'true';

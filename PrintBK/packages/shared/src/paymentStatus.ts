@@ -1,14 +1,14 @@
 /**
- * Canonical Payment Status State Machine for PrintBK
+ * Canonical Payment Status State Machine for PrintBK (UPILerify + Cash)
  * 
  * Rules:
  *  - cash_due: until the shop collects cash
  *  - cash_collected: afterwards
- *  - upi_claimed: after the student returns from the UPI app
- *  - paid_verified: once the shop approves a UPI order (and for Razorpay after verified capture)
- *  - not_paid: for cancelled, rejected, or expired orders that never got paid
+ *  - upi_claimed: when UPILerify status is UNDER_REVIEW (manual 12-digit UTR submitted)
+ *  - paid_verified: when UPILerify confirms payment (PAID) or staff verifies UTR / order moves to fulfillment
+ *  - not_paid: for cancelled, rejected, or expired orders (EXPIRED) that never got paid
  *  - refunded: for refunded orders
- *  - unpaid: newly created order awaiting payment selection
+ *  - unpaid: newly created order awaiting UPILerify payment (PENDING)
  */
 
 export type PaymentStatus =
@@ -26,6 +26,7 @@ export interface OrderPaymentContext {
   payment_method?: string;
   payment?: string;
   payment_status?: string;
+  utrNumber?: string;
   basket?: any;
 }
 
@@ -39,7 +40,21 @@ export function computePaymentStatus(order: OrderPaymentContext): PaymentStatus 
     return 'refunded';
   }
 
-  // 2. Parse basket if string
+  // 2. UPILerify explicit states
+  if (status === 'paid') {
+    return 'paid_verified';
+  }
+  if (status === 'under_review') {
+    return 'upi_claimed';
+  }
+  if (status === 'expired') {
+    return 'not_paid';
+  }
+  if (status === 'pending') {
+    return 'unpaid';
+  }
+
+  // 3. Parse basket if string
   let b: any = {};
   if (typeof order.basket === 'string') {
     try { b = JSON.parse(order.basket); } catch (_) {}
@@ -57,18 +72,16 @@ export function computePaymentStatus(order: OrderPaymentContext): PaymentStatus 
   ).toLowerCase().trim();
 
   const isCash = rawMethod === 'cash' || status === 'pending_cash' || status === 'cash_collected';
-  const isUpi = rawMethod === 'upi' || status === 'upi_started' || status === 'upi_claimed';
-  const isRazorpay = rawMethod === 'razorpay' || rawMethod === 'online' || rawMethod === 'card';
+  const isUpi = rawMethod === 'upi' || rawMethod === 'upilerify' || Boolean(order.utrNumber);
 
-  // 3. Terminal states (cancelled, rejected, expired)
+  // 4. Terminal states (cancelled, rejected, expired)
   if (['cancelled', 'rejected', 'expired'].includes(status)) {
-    // If it was already collected/verified before cancellation:
     if (order.payment_status === 'cash_collected' || order.payment_status === 'paid_verified') {
       return order.payment_status as PaymentStatus;
     }
     const events = Array.isArray(b.events) ? b.events : [];
     const wasPaid = events.some((e: any) =>
-      ['cash_collected', 'processing', 'printing', 'ready', 'completed', 'paid'].includes(e.to_status)
+      ['cash_collected', 'processing', 'printing', 'ready', 'completed', 'paid', 'PAID'].includes(e.to_status)
     );
     if (wasPaid) {
       return isCash ? 'cash_collected' : 'paid_verified';
@@ -76,7 +89,7 @@ export function computePaymentStatus(order: OrderPaymentContext): PaymentStatus 
     return 'not_paid';
   }
 
-  // 4. Cash Lifecycle
+  // 5. Cash Lifecycle
   if (isCash) {
     if (status === 'pending_cash') {
       return 'cash_due';
@@ -87,12 +100,12 @@ export function computePaymentStatus(order: OrderPaymentContext): PaymentStatus 
     return 'cash_due';
   }
 
-  // 5. UPI Lifecycle
+  // 6. Direct UPI (UPILerify) Lifecycle
   if (isUpi) {
-    if (status === 'pending_payment' || status === 'upi_started') {
+    if (status === 'pending_payment' || status === 'pending') {
       return 'unpaid';
     }
-    if (status === 'upi_claimed') {
+    if (status === 'under_review') {
       return 'upi_claimed';
     }
     if (['processing', 'printing', 'ready', 'completed', 'paid'].includes(status)) {
@@ -101,26 +114,12 @@ export function computePaymentStatus(order: OrderPaymentContext): PaymentStatus 
     return 'unpaid';
   }
 
-  // 6. Razorpay Lifecycle
-  if (isRazorpay) {
-    if (['processing', 'printing', 'ready', 'completed', 'paid'].includes(status)) {
-      return 'paid_verified';
-    }
-    return 'unpaid';
-  }
-
   // 7. General Status Fallback
-  if (['processing', 'printing', 'ready', 'completed'].includes(status)) {
+  if (['processing', 'printing', 'ready', 'completed', 'paid'].includes(status)) {
     return 'paid_verified';
-  }
-  if (status === 'upi_claimed') {
-    return 'upi_claimed';
   }
   if (status === 'pending_cash') {
     return 'cash_due';
-  }
-  if (['cancelled', 'rejected', 'expired'].includes(status)) {
-    return 'not_paid';
   }
 
   return 'unpaid';

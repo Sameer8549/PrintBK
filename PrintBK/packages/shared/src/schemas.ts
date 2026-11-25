@@ -117,9 +117,15 @@ export const BasketSchema = z.object({
 });
 export type Basket = z.infer<typeof BasketSchema>;
 
+export const UpiLerifyStatusSchema = z.enum(['PENDING', 'UNDER_REVIEW', 'PAID', 'EXPIRED']);
+export type UpiLerifyStatus = z.infer<typeof UpiLerifyStatusSchema>;
+
+export const UtrNumberSchema = z.string().regex(/^\d{12}$/, 'UTR number must be a 12-digit numeric UPI reference ID');
+
 export const OrderStatusSchema = z.enum([
-  'pending_payment', 'pending_cash', 'upi_started', 'upi_claimed', 'cash_collected', 'waiting_quote', 'quote_sent', 'accepted', 'declined', 
-  'paid', 'processing', 'printing', 'ready', 'completed', 'cancelled', 'rejected', 'failed', 'refunded', 'expired'
+  'PENDING', 'UNDER_REVIEW', 'PAID', 'EXPIRED',
+  'pending_payment', 'pending_cash', 'cash_collected', 'waiting_quote', 'quote_sent', 'accepted', 'declined',
+  'paid', 'processing', 'printing', 'ready', 'completed', 'cancelled', 'rejected', 'refunded', 'expired'
 ]);
 export type OrderStatus = z.infer<typeof OrderStatusSchema>;
 

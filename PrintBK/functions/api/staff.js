@@ -400,7 +400,7 @@ router.get('/live', async (req, res) => {
 
     // 3. Fetch active orders
     const deleteCutoff = now - (shop.delete_delay_minutes * 60);
-    const activeStatuses = "'pending_cash', 'pending_payment', 'upi_started', 'upi_claimed', 'cash_collected', 'processing', 'printing', 'ready', 'waiting_quote', 'quote_sent'";
+    const activeStatuses = "'pending_cash', 'pending_payment', 'PENDING', 'UNDER_REVIEW', 'PAID', 'upi_started', 'upi_claimed', 'cash_collected', 'processing', 'printing', 'ready', 'waiting_quote', 'quote_sent'";
     
     const ordersMap = new Map();
     if (zcql) {
@@ -428,7 +428,7 @@ router.get('/live', async (req, res) => {
 
     // Merge in-memory orders
     for (const [id, o] of memOrders) {
-      const activeList = ['pending_cash', 'pending_payment', 'upi_started', 'upi_claimed', 'cash_collected', 'processing', 'printing', 'ready', 'waiting_quote', 'quote_sent'];
+      const activeList = ['pending_cash', 'pending_payment', 'PENDING', 'UNDER_REVIEW', 'PAID', 'upi_started', 'upi_claimed', 'cash_collected', 'processing', 'printing', 'ready', 'waiting_quote', 'quote_sent'];
       if (activeList.includes(o.status) && !ordersMap.has(id)) {
         ordersMap.set(id, o);
       }
@@ -505,6 +505,8 @@ router.get('/live', async (req, res) => {
             price: Number(it.price || 0),
             status: it.status,
             payment_status: computePaymentStatus(o),
+            utrNumber: o.utrNumber || b?.upilerify?.utrNumber || null,
+            utr: o.utrNumber || b?.upilerify?.utrNumber || null,
             pages_done: 0,
             pages_total: 1,
             created_at: new Date(orderObj.createdAt * 1000).toISOString(),
@@ -545,6 +547,8 @@ router.get('/live', async (req, res) => {
             price: item.computedPricing?.lineTotal || 0,
             status: (o.status === 'cash_collected' || o.status === 'upi_claimed') ? 'ready_to_print' : (o.status === 'pending_cash' ? 'preparing' : 'waiting_payment'),
             payment_status: computePaymentStatus(o),
+            utrNumber: o.utrNumber || b?.upilerify?.utrNumber || null,
+            utr: o.utrNumber || b?.upilerify?.utrNumber || null,
             pages_done: 0,
             pages_total: 1,
             created_at: new Date(orderObj.createdAt * 1000).toISOString(),
@@ -1425,8 +1429,9 @@ router.get('/settings', authenticateStaff, async (req, res) => {
       printer_mapping: shop_info.printer_mapping || {},
       printers,
       updated_at: Number(s?.updated_at || mem?.updated_at || now),
-      razorpay_configured: Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
-      razorpay_key_id: process.env.RAZORPAY_KEY_ID ? `${process.env.RAZORPAY_KEY_ID.slice(0, 8)}...` : ''
+      upilerify_configured: Boolean(process.env.UPILERIFY_BASE_URL && process.env.UPILERIFY_API_KEY),
+      upilerify_base_url: process.env.UPILERIFY_BASE_URL || '',
+      merchant_upi_id: process.env.MERCHANT_UPI_ID || process.env.UPI_ID || ''
     };
 
     res.json({ ok: true, settings });
@@ -2068,7 +2073,7 @@ router.get('/diagnostics', authenticateStaff, staffRateLimiter, (req, res) => {
       agentTokenConfigured: Boolean(process.env.AGENT_TOKEN),
       cronSecretConfigured: Boolean(process.env.CRON_SECRET),
       upiConfigured: Boolean(process.env.UPI_ID && process.env.UPI_PAYEE_NAME),
-      razorpayConfigured: Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
+      upilerifyConfigured: Boolean(process.env.UPILERIFY_BASE_URL && process.env.UPILERIFY_API_KEY && process.env.UPILERIFY_WEBHOOK_SECRET),
       allowedOriginsConfigured: Boolean(process.env.ALLOWED_ORIGINS)
     },
     system: {

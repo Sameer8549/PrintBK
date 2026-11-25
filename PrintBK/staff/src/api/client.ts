@@ -387,3 +387,25 @@ export async function revokePairedCounter(counterId: string) {
   return data
 }
 
+export async function getUnderReviewOrders() {
+  const res = await staffFetch("/admin/orders/under-review")
+  const data = await res.json()
+  if (!res.ok) {
+    throw new StaffApiError(data.error || "Failed to fetch under-review orders", res.status, data)
+  }
+  return data.orders || []
+}
+
+export async function verifyAdminOrder(orderId: string, action: "approve" | "reject", notes?: string) {
+  const res = await staffFetch("/admin/orders/verify", {
+    method: "POST",
+    body: JSON.stringify({ orderId, action, notes }),
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    throw new StaffApiError(data.error || "Failed to verify order", res.status, data)
+  }
+  return data
+}
+
+

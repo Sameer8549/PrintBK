@@ -11,14 +11,13 @@ function Checkout({ go, setSheet, services }: {
   setSheet: (sheet: Sheet) => void;
   services: any[];
 }) {
-  const [payment, setPayment] = useState<'UPI' | 'Cash' | 'Razorpay'>('UPI');
+  const [payment, setPayment] = useState<'UPI' | 'Cash'>('UPI');
   const cfg = useShopConfig(s => s.config);
   const isOpen = cfg.open !== false;
 
   const enabledMethods = {
     cash: cfg.paymentMethods?.cash !== false,
-    upi: cfg.paymentMethods?.upi !== false,
-    razorpay: Boolean(cfg.paymentMethods?.razorpay)
+    upi: cfg.paymentMethods?.upi !== false
   };
 
   const [phone, setPhone] = useState(() => {
@@ -57,7 +56,7 @@ function Checkout({ go, setSheet, services }: {
         files: basket.files,
         services: basket.services,
         rush: false,
-        payment: isCash ? 'Cash' : (payment === 'Razorpay' ? 'Razorpay' : 'UPI'),
+        payment: isCash ? 'Cash' : 'UPI',
         phone: phone.trim() || undefined,
         expectedTotal: total,
         settingsVersion: cfg.version
@@ -70,7 +69,7 @@ function Checkout({ go, setSheet, services }: {
         files: basket.files.map(f => f.name),
         total,
         pickupCode: result.pickupCode || '——',
-        status: result.status || (isCash ? 'pending_cash' : 'pending_payment'),
+        status: result.status || (isCash ? 'pending_cash' : 'PENDING'),
         accessToken: result.accessToken,
         paymentMethod: isCash ? 'cash' : 'upi'
       });
@@ -80,8 +79,8 @@ function Checkout({ go, setSheet, services }: {
         notify('Order reserved. Pay cash at the counter.');
         go(`/order/${result.orderId}`);
       } else {
-        // Direct UPI Intent / QR payment page (Keep basket intact so back button does not lose documents)
-        go(`/pay/${result.orderId}`);
+        // Direct UPILerify UPI Checkout Page
+        go(`/checkout/${result.orderId}`);
       }
     } catch (err: any) {
       if (err?.pricesChanged) {
@@ -289,46 +288,6 @@ function Checkout({ go, setSheet, services }: {
                 background: payment === 'Cash' ? '#16a34a' : '#fff'
               }}>
                 {payment === 'Cash' && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
-              </div>
-            </div>
-          )}
-
-          {/* 3. Razorpay (only shown if configured) */}
-          {enabledMethods.razorpay && (
-            <div
-              onClick={() => setPayment('Razorpay')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '16px',
-                marginBottom: 10,
-                background: payment === 'Razorpay' ? '#eff6ff' : '#ffffff',
-                border: `2px solid ${payment === 'Razorpay' ? '#2563eb' : '#e2e8f0'}`,
-                borderRadius: 14,
-                cursor: 'pointer'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
-                  
-                </div>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a' }}>Online Cards & Netbanking</div>
-                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Debit card, Credit card, Netbanking</div>
-                </div>
-              </div>
-              <div style={{
-                width: 20,
-                height: 20,
-                borderRadius: '50%',
-                border: `2px solid ${payment === 'Razorpay' ? '#2563eb' : '#cbd5e1'}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: payment === 'Razorpay' ? '#2563eb' : '#fff'
-              }}>
-                {payment === 'Razorpay' && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
               </div>
             </div>
           )}

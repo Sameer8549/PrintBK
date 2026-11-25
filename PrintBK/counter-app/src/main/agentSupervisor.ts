@@ -6,6 +6,14 @@ import { EventEmitter } from 'events';
 
 export type AgentStatus = 'starting' | 'connected' | 'printing' | 'offline' | 'error';
 
+export interface SupervisedFetchResponse {
+  status: number;
+  statusText: string;
+  ok: boolean;
+  headers: Record<string, string>;
+  bodyBase64: string;
+}
+
 export interface AgentSupervisorOptions {
   workerScript: string;
   apiBase: string;
@@ -17,6 +25,7 @@ export interface AgentSupervisorOptions {
   bwPrinter?: string;
   colourPrinter?: string;
   photoPrinter?: string;
+  fetchHandler?: (url: string, options?: any) => Promise<SupervisedFetchResponse>;
 }
 
 export class AgentSupervisor extends EventEmitter {
@@ -143,8 +152,7 @@ export class AgentSupervisor extends EventEmitter {
       AGENT_TOKEN: this.options.agentToken,
       AGENT_LABEL: this.options.deviceLabel,
       ELECTRON_RUN_AS_NODE: '1',
-      DESKTOP_SUPERVISED: 'true',
-      NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --dns-result-order=ipv4first`.trim()
+      DESKTOP_SUPERVISED: 'true'
     };
 
     if (this.options.bwPrinter) env.BW_PRINTER = this.options.bwPrinter;
@@ -201,6 +209,27 @@ export class AgentSupervisor extends EventEmitter {
           this.setStatus(msg.status);
         } else if (msg?.type === 'printers') {
           this.emit('printers', msg.printers);
+        } else if (msg?.type === 'net_fetch_request' && msg.id && msg.url) {
+          if (!this.options.fetchHandler) {
+            this.child?.send({ type: 'net_fetch_response', id: msg.id, error: 'NO_FETCH_HANDLER' });
+            return;
+          }
+          this.options.fetchHandler(msg.url, msg.options || {})
+            .then((result) => {
+              if (this.child && this.child.connected) {
+                this.child.send({ type: 'net_fetch_response', id: msg.id, result });
+              }
+            })
+            .catch((err: any) => {
+              if (this.child && this.child.connected) {
+                this.child.send({
+                  type: 'net_fetch_response',
+                  id: msg.id,
+                  error: err?.message || String(err),
+                  code: err?.code
+                });
+              }
+            });
         }
       });
 

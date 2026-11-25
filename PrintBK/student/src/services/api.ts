@@ -27,7 +27,7 @@ export interface CreateOrderResponse {
 }
 
 export const api = {
-  async getConfig(): Promise<ShopConfig & { paymentMethods?: { cash: boolean; razorpay: boolean } }> {
+  async getConfig(): Promise<ShopConfig & { paymentMethods?: { cash: boolean; upi: boolean } }> {
     try {
       const res = await fetch(`${API_BASE}/config`);
       if (res.ok) return res.json();
@@ -174,6 +174,91 @@ export const api = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Failed to claim UPI payment');
+    }
+    return res.json();
+  },
+
+  async createCheckout(payload: {
+    orderId?: string;
+    files?: any[];
+    services?: any[];
+    rush?: boolean;
+    phone?: string;
+    userId?: string;
+    customerEmail?: string;
+  }): Promise<{
+    orderId: string;
+    orderNumber?: number;
+    baseAmount: number;
+    payableAmount: number;
+    qrCodeData: string;
+    upiIntentUrl: string;
+    merchantUpiId: string;
+    payeeName: string;
+    expiresAt: string;
+    status: string;
+    accessToken?: string;
+  }> {
+    const res = await fetch(`${API_BASE}/checkout/create`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Device-Id': getDeviceId()
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to create UPILerify checkout session');
+    }
+    return res.json();
+  },
+
+  async getCheckoutStatus(orderId: string): Promise<{
+    orderId: string;
+    orderNumber: number | null;
+    status: 'PENDING' | 'UNDER_REVIEW' | 'PAID' | 'EXPIRED';
+    fulfillmentStatus: string;
+    baseAmount: number;
+    payableAmount: number;
+    qrCodeData?: string;
+    upiIntentUrl?: string;
+    merchantUpiId?: string;
+    payeeName?: string;
+    utrNumber?: string;
+    expiresAt: string;
+    pickupCode?: string | null;
+  }> {
+    const res = await fetch(`${API_BASE}/checkout/status/${orderId}`, {
+      headers: {
+        'X-Device-Id': getDeviceId()
+      }
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to fetch checkout status');
+    }
+    return res.json();
+  },
+
+  async submitManualUtr(orderId: string, utrNumber: string): Promise<{
+    success: boolean;
+    status: string;
+    orderId: string;
+    utrNumber: string;
+    redirectUrl: string;
+  }> {
+    const res = await fetch(`${API_BASE}/checkout/manual-utr`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Device-Id': getDeviceId()
+      },
+      body: JSON.stringify({ orderId, utrNumber })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to submit 12-digit UTR');
     }
     return res.json();
   },

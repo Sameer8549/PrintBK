@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PrintBK Counter — Offline</title>
+  <title>PrintBK Counter — Network Diagnostics</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -20,8 +20,8 @@
       background: #ffffff;
       border: 1.5px solid #0f172a;
       border-radius: 20px;
-      padding: 40px;
-      max-width: 480px;
+      padding: 36px;
+      max-width: 540px;
       width: 100%;
       box-shadow: 6px 6px 0px #0f172a;
       text-align: center;
@@ -38,13 +38,18 @@
       font-size: 12px;
       font-weight: 700;
       letter-spacing: 0.5px;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
+    }
+    .badge.warn {
+      background: #fef3c7;
+      color: #92400e;
+      border-color: #fcd34d;
     }
     .pulse-dot {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #dc2626;
+      background: currentColor;
       animation: pulse 1.5s infinite;
     }
     @keyframes pulse {
@@ -53,44 +58,84 @@
       100% { transform: scale(0.9); opacity: 0.8; }
     }
     h1 {
-      font-size: 24px;
+      font-size: 23px;
       font-weight: 800;
       letter-spacing: -0.5px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
-    p {
+    p.summary {
       color: #475569;
-      font-size: 15px;
+      font-size: 14px;
+      line-height: 1.55;
+      margin-bottom: 18px;
+    }
+    .hint-box {
+      background: #fffbeb;
+      border: 1.5px solid #fde68a;
+      border-radius: 12px;
+      padding: 14px 16px;
+      text-align: left;
+      font-size: 13px;
       line-height: 1.5;
-      margin-bottom: 28px;
+      color: #78350f;
+      margin-bottom: 16px;
+    }
+    .hint-box strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .tech-details {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      text-align: left;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11.5px;
+      color: #334155;
+      line-height: 1.5;
+      margin-bottom: 22px;
+      word-break: break-word;
     }
     .actions {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
     }
     button.primary {
       background: #0f172a;
       color: #ffffff;
       border: none;
-      padding: 14px 20px;
+      padding: 13px 20px;
       border-radius: 12px;
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 700;
       cursor: pointer;
       box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
       transition: all 0.15s ease;
     }
-    button.primary:hover {
-      background: #1e293b;
+    button.primary:hover { background: #1e293b; }
+    button.accent {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1.5px solid #f59e0b;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
     }
+    button.accent:hover { background: #fde68a; }
     button.secondary {
       background: transparent;
       color: #475569;
       border: 1.5px solid #cbd5e1;
-      padding: 12px 20px;
+      padding: 11px 20px;
       border-radius: 12px;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
       cursor: pointer;
     }
@@ -99,50 +144,104 @@
       color: #0f172a;
     }
     .status-text {
-      margin-top: 20px;
-      font-size: 13px;
+      margin-top: 16px;
+      font-size: 12.5px;
       color: #64748b;
     }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="badge">
+    <div class="badge" id="categoryBadge">
       <div class="pulse-dot"></div>
-      SERVER REACHABILITY PAUSED
+      <span id="badgeLabel">SERVER REACHABILITY PAUSED</span>
     </div>
-    <h1>Network Connection Lost</h1>
-    <p>
-      PrintBK Counter cannot reach the shop cloud gateway. Background print agent is still monitoring local queues.
+    <h1 id="headline">Network Connection Lost</h1>
+    <p class="summary" id="summary">
+      PrintBK Counter cannot reach the shop cloud gateway. The background print agent will continue retrying automatically.
     </p>
+
+    <div class="hint-box" id="hintBox" style="display: none;">
+      <strong>Recommended Action on Campus / Office Ethernet</strong>
+      <div id="actionHint"></div>
+    </div>
+
+    <div class="tech-details" id="techDetails" style="display: none;"></div>
+
     <div class="actions">
       <button class="primary" id="retryBtn">Retry Connection Now</button>
-      <button class="secondary" id="checkHealthBtn">Check System Health</button>
+      <button class="accent" id="captivePortalBtn" style="display: none;">Open Captive Portal Login in Browser</button>
+      <button class="secondary" id="networkSettingsBtn" style="display: none;">Open Windows Proxy &amp; Network Settings</button>
+      <button class="secondary" id="checkHealthBtn">Check System Health &amp; LAN Diagnostics</button>
     </div>
     <div class="status-text" id="statusText">
-      Auto-reconnecting in <span id="countdown">5</span> seconds…
+      Auto-reconnecting in <span id="countdown">8</span> seconds…
     </div>
   </div>
 
   <script>
-    let secondsLeft = 5;
+    let secondsLeft = 8;
     const countdownEl = document.getElementById('countdown');
     const retryBtn = document.getElementById('retryBtn');
+    const captivePortalBtn = document.getElementById('captivePortalBtn');
+    const networkSettingsBtn = document.getElementById('networkSettingsBtn');
     const checkHealthBtn = document.getElementById('checkHealthBtn');
+    const categoryBadge = document.getElementById('categoryBadge');
+    const badgeLabel = document.getElementById('badgeLabel');
+    const headline = document.getElementById('headline');
+    const summary = document.getElementById('summary');
+    const hintBox = document.getElementById('hintBox');
+    const actionHint = document.getElementById('actionHint');
+    const techDetails = document.getElementById('techDetails');
+
+    function renderDiagnostic(diag) {
+      if (!diag) return;
+      if (diag.badge) badgeLabel.textContent = diag.badge;
+      if (diag.category === 'CAPTIVE_PORTAL' || diag.category === 'SSL_INTERCEPT' || diag.category === 'PROXY_AUTH') {
+        categoryBadge.classList.add('warn');
+      } else {
+        categoryBadge.classList.remove('warn');
+      }
+      if (diag.title) headline.textContent = diag.title;
+      if (diag.message) summary.textContent = diag.message;
+      if (diag.actionHint) {
+        actionHint.textContent = diag.actionHint;
+        hintBox.style.display = 'block';
+      }
+
+      const lines = [];
+      if (diag.code) lines.push(`Error Code:   ${diag.code}${diag.numericCode ? ' (' + diag.numericCode + ')' : ''}`);
+      if (diag.url) lines.push(`Endpoint:     ${diag.url}`);
+      if (diag.proxyInfo) lines.push(`System Proxy: ${diag.proxyInfo}`);
+      if (diag.certIssuer) lines.push(`Cert Issuer:  ${diag.certIssuer}`);
+      if (diag.portWarning) lines.push(`Port Check:   ${diag.portWarning}`);
+      if (lines.length > 0) {
+        techDetails.textContent = lines.join('\n');
+        techDetails.style.whiteSpace = 'pre-wrap';
+        techDetails.style.display = 'block';
+      }
+
+      const showPortal = diag.category === 'CAPTIVE_PORTAL' || diag.category === 'SSL_INTERCEPT' || diag.category === 'TIMEOUT';
+      const showNetSettings = diag.category === 'PROXY_ERROR' || diag.category === 'PROXY_AUTH' || diag.category === 'DNS_ERROR';
+      captivePortalBtn.style.display = showPortal ? 'block' : 'none';
+      networkSettingsBtn.style.display = showNetSettings ? 'block' : 'none';
+    }
+
+    async function loadDiagnostics() {
+      if (!window.printbkCounter?.getNetworkDiagnostics) return;
+      try {
+        const diag = await window.printbkCounter.getNetworkDiagnostics();
+        renderDiagnostic(diag);
+      } catch (_) {}
+    }
 
     async function triggerReconnect() {
       if (window.printbkCounter && typeof window.printbkCounter.reloadStaffApp === 'function') {
         const statusEl = document.getElementById('statusText');
-        if (statusEl) statusEl.textContent = 'Connecting to shop server…';
+        if (statusEl) statusEl.textContent = 'Connecting via Chromium system network stack…';
         await window.printbkCounter.reloadStaffApp();
       } else {
         window.location.reload();
-      }
-    }
-
-    function checkOnline() {
-      if (navigator.onLine) {
-        triggerReconnect();
       }
     }
 
@@ -150,23 +249,31 @@
       secondsLeft--;
       if (countdownEl) countdownEl.textContent = secondsLeft;
       if (secondsLeft <= 0) {
-        secondsLeft = 5;
+        secondsLeft = 8;
         triggerReconnect();
       }
     }, 1000);
 
     retryBtn.addEventListener('click', () => {
-      secondsLeft = 5;
+      secondsLeft = 8;
       triggerReconnect();
     });
 
-    checkHealthBtn.addEventListener('click', () => {
-      if (window.printbkCounter?.getHealth) {
-        window.location.href = 'health.html';
-      }
+    captivePortalBtn.addEventListener('click', () => {
+      window.printbkCounter?.openCaptivePortal?.();
     });
 
-    window.addEventListener('online', checkOnline);
+    networkSettingsBtn.addEventListener('click', () => {
+      window.printbkCounter?.openWindowsNetworkSettings?.();
+    });
+
+    checkHealthBtn.addEventListener('click', () => {
+      window.location.href = 'health.html';
+    });
+
+    window.addEventListener('online', () => triggerReconnect());
+    window.addEventListener('DOMContentLoaded', loadDiagnostics);
+    window.printbkCounter?.onNetworkDiagnostic?.(renderDiagnostic);
   </script>
 </body>
 </html>

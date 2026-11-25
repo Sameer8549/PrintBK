@@ -27,7 +27,6 @@ export interface ExtendedShopConfig extends ShopConfig {
   paymentMethods: {
     cash: boolean;
     upi: boolean;
-    razorpay: boolean;
   };
   upi: {
     enabled: boolean;
@@ -89,8 +88,7 @@ const DEFAULT_EXTENDED_CONFIG: ExtendedShopConfig = {
   },
   paymentMethods: {
     cash: true,
-    upi: true,
-    razorpay: false
+    upi: true
   },
   upi: {
     enabled: true,

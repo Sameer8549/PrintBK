@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.StaffActionRecordSchema = exports.OrderEventRecordSchema = exports.ShopSettingsRecordSchema = exports.PrinterRecordSchema = exports.AgentDeviceRecordSchema = exports.StaffDeviceRecordSchema = exports.PrintJobRecordSchema = exports.OrderItemRecordSchema = exports.OrderItemSchema = exports.OrderItemPricingSchema = exports.TypingCustomSpecsSchema = exports.PhotocopySpecsSchema = exports.ScanningSpecsSchema = exports.LaminationSpecsSchema = exports.BindingSpecsSchema = exports.PhotoSpecsSchema = exports.DocumentColourSpecsSchema = exports.DocumentBwSpecsSchema = exports.ItemStatusSchema = exports.OrderItemTypeSchema = exports.OrderStatusSchema = exports.BasketSchema = exports.ServiceLineSchema = exports.PrintFileSchema = exports.ColorPlanSchema = exports.ShopConfigSchema = void 0;
+exports.StaffActionRecordSchema = exports.OrderEventRecordSchema = exports.ShopSettingsRecordSchema = exports.PrinterRecordSchema = exports.AgentDeviceRecordSchema = exports.StaffDeviceRecordSchema = exports.PrintJobRecordSchema = exports.OrderItemRecordSchema = exports.OrderItemSchema = exports.OrderItemPricingSchema = exports.TypingCustomSpecsSchema = exports.PhotocopySpecsSchema = exports.ScanningSpecsSchema = exports.LaminationSpecsSchema = exports.BindingSpecsSchema = exports.PhotoSpecsSchema = exports.DocumentColourSpecsSchema = exports.DocumentBwSpecsSchema = exports.ItemStatusSchema = exports.OrderItemTypeSchema = exports.OrderStatusSchema = exports.UtrNumberSchema = exports.UpiLerifyStatusSchema = exports.BasketSchema = exports.ServiceLineSchema = exports.PrintFileSchema = exports.ColorPlanSchema = exports.ShopConfigSchema = void 0;
 exports.isStaffVisibleOrder = isStaffVisibleOrder;
 exports.canApprovePrint = canApprovePrint;
 exports.canCollectCash = canCollectCash;
@@ -111,9 +111,12 @@ exports.BasketSchema = zod_1.z.object({
     services: zod_1.z.array(exports.ServiceLineSchema),
     rush: zod_1.z.boolean().default(false)
 });
+exports.UpiLerifyStatusSchema = zod_1.z.enum(['PENDING', 'UNDER_REVIEW', 'PAID', 'EXPIRED']);
+exports.UtrNumberSchema = zod_1.z.string().regex(/^\d{12}$/, 'UTR number must be a 12-digit numeric UPI reference ID');
 exports.OrderStatusSchema = zod_1.z.enum([
-    'pending_payment', 'pending_cash', 'upi_started', 'upi_claimed', 'cash_collected', 'waiting_quote', 'quote_sent', 'accepted', 'declined',
-    'paid', 'processing', 'printing', 'ready', 'completed', 'cancelled', 'rejected', 'failed', 'refunded', 'expired'
+    'PENDING', 'UNDER_REVIEW', 'PAID', 'EXPIRED',
+    'pending_payment', 'pending_cash', 'cash_collected', 'waiting_quote', 'quote_sent', 'accepted', 'declined',
+    'paid', 'processing', 'printing', 'ready', 'completed', 'cancelled', 'rejected', 'refunded', 'expired'
 ]);
 /* ─── Typed Order Items for Staff App Tables ──────────────────────── */
 exports.OrderItemTypeSchema = zod_1.z.enum([
