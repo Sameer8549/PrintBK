@@ -13,10 +13,19 @@ export default function OrderSuccess({
   const navigate = useNavigate();
   const { orders } = useHistory();
 
-  // Read orderId from URL search params
+  // Read orderId from URL search params (supporting standard UPILerify redirect parameters order_id & status=VERIFIED)
   const orderId = useMemo(() => {
-    const query = new URLSearchParams(location.search);
-    return query.get('orderId') || query.get('id') || '';
+    const hashQuery = new URLSearchParams(location.search);
+    const windowQuery = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    return (
+      hashQuery.get('orderId') ||
+      hashQuery.get('order_id') ||
+      hashQuery.get('id') ||
+      windowQuery?.get('orderId') ||
+      windowQuery?.get('order_id') ||
+      windowQuery?.get('id') ||
+      ''
+    );
   }, [location.search]);
 
   const [loading, setLoading] = useState(true);

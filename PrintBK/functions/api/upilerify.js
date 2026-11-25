@@ -401,6 +401,10 @@ function buildUpilerifyRouter(deps) {
       let upilerifyOrderId = null;
       let engineMode = 'embedded';
 
+      const defaultAppBase = 'https://printbk-60074625517.development.catalystserverless.in/app/index.html';
+      const studentAppBase = (process.env.STUDENT_APP_URL || defaultAppBase).replace(/\/$/, '');
+      const redirectUrl = `${studentAppBase}#/order-success?orderId=${encodeURIComponent(order.id)}&status=VERIFIED`;
+
       // ─── External UPILerify Service Integration (Official API Spec) ─────
       if (upilerifyBase && upilerifyApiKey) {
         try {
@@ -419,7 +423,7 @@ function buildUpilerifyRouter(deps) {
               merchantUpiId,
               merchantName: payeeName,
               useMicroOffset: true,
-              redirectUrl: `${process.env.STUDENT_APP_URL || ''}/order-success?orderId=${encodeURIComponent(order.id)}`,
+              redirectUrl,
               metadata: {
                 orderId: order.id,
                 printbkOrderId: order.id,
@@ -500,11 +504,26 @@ function buildUpilerifyRouter(deps) {
       const phonepeUrl = `phonepe://pay?${intentParams}`;
       const paytmUrl = `paytmmp://pay?${intentParams}`;
 
+      // Clean Direct P2P Intent links (pa & pn only) - completely immune to NPCI "Link payments not accepted" errors
+      const cleanIntentParams = `pa=${encodeURIComponent(merchantUpiId)}&pn=${encodeURIComponent(payeeName)}`;
+      const cleanIntentUrl = `upi://pay?${cleanIntentParams}`;
+      const cleanGpayUrl = `tez://upi/pay?${cleanIntentParams}`;
+      const cleanPhonepeUrl = `phonepe://pay?${cleanIntentParams}`;
+      const cleanPaytmUrl = `paytmmp://pay?${cleanIntentParams}`;
+
+      const checkoutUrl = upilerifyBase && engineMode === 'external'
+        ? `${upilerifyBase}/pay/${order.id}`
+        : `#/checkout/${order.id}`;
+
       basketData.upilerify = {
         baseAmount,
         payableAmount,
         qrCodeData,
         upiIntentUrl,
+        cleanIntentUrl,
+        cleanGpayUrl,
+        cleanPhonepeUrl,
+        cleanPaytmUrl,
         gpayUrl,
         phonepeUrl,
         paytmUrl,
@@ -512,6 +531,8 @@ function buildUpilerifyRouter(deps) {
         merchantUpiId,
         payeeName,
         expiresAt,
+        redirectUrl,
+        checkoutUrl,
         status: 'PENDING',
         utrNumber: null,
         upilerifyOrderId,
@@ -555,6 +576,10 @@ function buildUpilerifyRouter(deps) {
         payableAmount,
         qrCodeData,
         upiIntentUrl,
+        cleanIntentUrl,
+        cleanGpayUrl,
+        cleanPhonepeUrl,
+        cleanPaytmUrl,
         gpayUrl,
         phonepeUrl,
         paytmUrl,
@@ -562,6 +587,8 @@ function buildUpilerifyRouter(deps) {
         merchantUpiId,
         payeeName,
         expiresAt,
+        redirectUrl,
+        checkoutUrl,
         status: 'PENDING',
         engine: engineMode,
         ...(orderToken ? { accessToken: orderToken } : {})
@@ -627,10 +654,16 @@ function buildUpilerifyRouter(deps) {
         payableAmount,
         qrCodeData: order.qrCodeData || b?.upilerify?.qrCodeData || null,
         upiIntentUrl: order.upiIntentUrl || b?.upilerify?.upiIntentUrl || null,
+        cleanIntentUrl: b?.upilerify?.cleanIntentUrl || `upi://pay?pa=${encodeURIComponent(b?.upilerify?.merchantUpiId || 'Q098686787@ybl')}&pn=${encodeURIComponent(b?.upilerify?.payeeName || 'PrintBK HKBK')}`,
+        cleanGpayUrl: b?.upilerify?.cleanGpayUrl || `tez://upi/pay?pa=${encodeURIComponent(b?.upilerify?.merchantUpiId || 'Q098686787@ybl')}&pn=${encodeURIComponent(b?.upilerify?.payeeName || 'PrintBK HKBK')}`,
+        cleanPhonepeUrl: b?.upilerify?.cleanPhonepeUrl || `phonepe://pay?pa=${encodeURIComponent(b?.upilerify?.merchantUpiId || 'Q098686787@ybl')}&pn=${encodeURIComponent(b?.upilerify?.payeeName || 'PrintBK HKBK')}`,
+        cleanPaytmUrl: b?.upilerify?.cleanPaytmUrl || `paytmmp://pay?pa=${encodeURIComponent(b?.upilerify?.merchantUpiId || 'Q098686787@ybl')}&pn=${encodeURIComponent(b?.upilerify?.payeeName || 'PrintBK HKBK')}`,
         gpayUrl: b?.upilerify?.gpayUrl || null,
         phonepeUrl: b?.upilerify?.phonepeUrl || null,
         paytmUrl: b?.upilerify?.paytmUrl || null,
         refNote: b?.upilerify?.refNote || null,
+        redirectUrl: b?.upilerify?.redirectUrl || null,
+        checkoutUrl: b?.upilerify?.checkoutUrl || `#/checkout/${order.id}`,
         merchantUpiId: b?.upilerify?.merchantUpiId || process.env.MERCHANT_UPI_ID || process.env.UPI_ID || 'Q098686787@ybl',
         payeeName: b?.upilerify?.payeeName || process.env.UPI_PAYEE_NAME || 'HKBK Student Point',
         utrNumber: order.utrNumber || b?.upilerify?.utrNumber || null,

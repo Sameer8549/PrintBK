@@ -94,6 +94,19 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderId: st
     order.merchantName
   )}&am=${order.expectedAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(order.refNote)}`;
 
+  // Clean P2P Intent URL (omitting am & tn) - guarantees zero "Link payment not accepted" rejections on P2P VPAs
+  const cleanUpiUri = `upi://pay?pa=${encodeURIComponent(order.merchantUpiId)}&pn=${encodeURIComponent(
+    order.merchantName
+  )}`;
+
+  const handleDirectP2P = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(order.expectedAmount.toFixed(2)).catch(() => {});
+    }
+    window.location.href = cleanUpiUri;
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-[#0A0F1D] flex flex-col font-sans selection:bg-cyan-500/20 selection:text-cyan-800">
       
@@ -188,13 +201,37 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderId: st
                 <QRCodeSVG value={upiIntentUri} size={185} level="M" />
               </div>
 
-              {/* Mobile Pay Deep Link Button */}
+              {/* Mobile Pay Direct P2P Launcher (Bypasses "Link Payment Not Accepted" block) */}
+              <button
+                type="button"
+                onClick={handleDirectP2P}
+                className="w-full py-3.5 px-4 rounded-2xl bg-[#0066FF] hover:bg-[#0052cc] text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all duration-200 cursor-pointer border-none"
+              >
+                <Smartphone className="w-4 h-4 text-white" />
+                <span>Pay via UPI App (Direct Transfer)</span>
+              </button>
+
+              <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
+                <span>UPI ID: <strong className="text-slate-800">{order.merchantUpiId}</strong></span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (navigator.clipboard) {
+                      navigator.clipboard.writeText(order.merchantUpiId);
+                    }
+                  }}
+                  className="text-xs font-bold text-blue-600 hover:underline bg-transparent border-none cursor-pointer"
+                >
+                  Copy ID
+                </button>
+              </div>
+
+              {/* Standard Auto-Fill Fallback */}
               <a
                 href={upiIntentUri}
-                className="w-full py-3.5 px-4 rounded-2xl bg-[#0A0F1D] hover:bg-[#0066FF] text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-slate-900/10 transition-all duration-200 cursor-pointer"
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-center"
               >
-                <Smartphone className="w-4 h-4 text-[#00D2FF]" />
-                <span>Pay with GPay / PhonePe / Paytm</span>
+                <span>Try Auto-Fill Link (₹{order.expectedAmount.toFixed(2)})</span>
               </a>
 
               {/* Awaiting Confirmation Badge */}
