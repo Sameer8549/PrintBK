@@ -1,0 +1,16 @@
+{
+	"command": "npm start",
+	"build_path": "./",
+	"stack": "node18",
+	"env_variables": {
+		"DEFAULT_UPI_ID": "Q098686787@ybl",
+		"DEFAULT_UPI_NAME": "PrintBK HKBK",
+		"UPILERIFY_API_KEY": "c369e8bb247161bcf7041764ee71a7ca2b67f1013401569d67566ef71746f3a1",
+		"WEBHOOK_SECRET": "57b546e927ef45ea1d20ff56ce0839e334a17056e300951662d59cf02cb51f38",
+		"WEBHOOK_URL": "https://printbk-60074625517.development.catalystserverless.in/server/api/webhooks/upilerify",
+		"DATABASE_PATH": "./data/upilerify.db",
+		"PORT": "3000"
+	},
+	"memory": 512,
+	"scripts": {}
+}

@@ -39,6 +39,10 @@ export default function PaymentState({
     payableAmount: number;
     qrCodeData: string;
     upiIntentUrl: string;
+    gpayUrl?: string;
+    phonepeUrl?: string;
+    paytmUrl?: string;
+    refNote?: string;
     merchantUpiId: string;
     payeeName: string;
     expiresAt: string;
@@ -130,6 +134,10 @@ export default function PaymentState({
             payableAmount: Number(createRes.payableAmount || createRes.baseAmount || 0),
             qrCodeData: createRes.qrCodeData,
             upiIntentUrl: createRes.upiIntentUrl,
+            gpayUrl: createRes.gpayUrl,
+            phonepeUrl: createRes.phonepeUrl,
+            paytmUrl: createRes.paytmUrl,
+            refNote: createRes.refNote,
             merchantUpiId: createRes.merchantUpiId,
             payeeName: createRes.payeeName,
             expiresAt: createRes.expiresAt,
@@ -143,6 +151,10 @@ export default function PaymentState({
             payableAmount: Number(statusRes.payableAmount || 0),
             qrCodeData: statusRes.qrCodeData || statusRes.upiIntentUrl,
             upiIntentUrl: statusRes.upiIntentUrl,
+            gpayUrl: statusRes.gpayUrl,
+            phonepeUrl: statusRes.phonepeUrl,
+            paytmUrl: statusRes.paytmUrl,
+            refNote: statusRes.refNote,
             merchantUpiId: statusRes.merchantUpiId || '',
             payeeName: statusRes.payeeName || 'HKBK Student Point',
             expiresAt: statusRes.expiresAt,
@@ -207,15 +219,14 @@ export default function PaymentState({
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }, [remainingSeconds]);
 
-  // 4. Automatic Polling: Poll GET /api/checkout/status/[orderId] every 3 seconds
+  // 4. Ultra-Fast Polling (1.2s) & Instant Resume on Tab Focus
   useEffect(() => {
     if (!orderId || isExpired || redirectingRef.current) return;
 
     let active = true;
 
-    const pollInterval = setInterval(async () => {
+    async function checkStatusNow() {
       if (!active || redirectingRef.current || document.visibilityState !== 'visible') return;
-
       try {
         const res = await api.getCheckoutStatus(orderId);
         if (!active || !res) return;
@@ -239,7 +250,7 @@ export default function PaymentState({
           notify('Payment verified! Redirecting to receipt…');
           setTimeout(() => {
             navigate(`/order-success?orderId=${encodeURIComponent(orderId)}`, { replace: true });
-          }, 800);
+          }, 200);
           return;
         }
 
@@ -255,11 +266,22 @@ export default function PaymentState({
       } catch (_) {
         // Tolerant to transient connection hiccups
       }
-    }, 3000);
+    }
+
+    const pollInterval = setInterval(checkStatusNow, 1200);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkStatusNow();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       active = false;
       clearInterval(pollInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [orderId, isExpired, existingOrder, updateOrder, navigate]);
 
@@ -658,8 +680,76 @@ export default function PaymentState({
             </div>
           </div>
 
-          {/* Prominent "Pay via UPI App" Button (Mobile Intent) */}
+          {/* Dedicated UPI App Buttons & Mobile Intents */}
           <div style={{ marginBottom: 16 }}>
+            {/* Direct App Launchers */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
+              <a
+                href={checkoutData.gpayUrl || checkoutData.upiIntentUrl}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '10px 6px',
+                  background: '#ffffff',
+                  border: '1.5px solid #e2e8f0',
+                  borderRadius: 12,
+                  textDecoration: 'none',
+                  color: '#0f172a',
+                  fontWeight: 700,
+                  fontSize: 11,
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
+                }}
+              >
+                <GPayLogo size={22} />
+                <span style={{ marginTop: 4 }}>GPay</span>
+              </a>
+              <a
+                href={checkoutData.phonepeUrl || checkoutData.upiIntentUrl}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '10px 6px',
+                  background: '#ffffff',
+                  border: '1.5px solid #e2e8f0',
+                  borderRadius: 12,
+                  textDecoration: 'none',
+                  color: '#0f172a',
+                  fontWeight: 700,
+                  fontSize: 11,
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
+                }}
+              >
+                <PhonePeLogo size={22} />
+                <span style={{ marginTop: 4 }}>PhonePe</span>
+              </a>
+              <a
+                href={checkoutData.paytmUrl || checkoutData.upiIntentUrl}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '10px 6px',
+                  background: '#ffffff',
+                  border: '1.5px solid #e2e8f0',
+                  borderRadius: 12,
+                  textDecoration: 'none',
+                  color: '#0f172a',
+                  fontWeight: 700,
+                  fontSize: 11,
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
+                }}
+              >
+                <PaytmLogo size={22} />
+                <span style={{ marginTop: 4 }}>Paytm</span>
+              </a>
+            </div>
+
+            {/* Main All-UPI Intent Link */}
             <a
               href={checkoutData.upiIntentUrl}
               style={{
@@ -668,11 +758,11 @@ export default function PaymentState({
                 justifyContent: 'center',
                 gap: 10,
                 width: '100%',
-                padding: '16px',
+                padding: '15px',
                 background: '#2563eb',
                 color: '#ffffff',
                 borderRadius: 14,
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: 900,
                 textDecoration: 'none',
                 textAlign: 'center',
@@ -680,18 +770,29 @@ export default function PaymentState({
                 boxSizing: 'border-box'
               }}
             >
-              <UpiLogo size={26} />
-              <span>Pay via UPI App (₹{checkoutData.payableAmount.toFixed(2)})</span>
+              <UpiLogo size={24} />
+              <span>Pay via Any UPI App (₹{checkoutData.payableAmount.toFixed(2)})</span>
             </a>
+          </div>
 
-            {/* Real UPI App Logos */}
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 10 }}>
-              <GPayLogo size={24} />
-              <PhonePeLogo size={24} />
-              <PaytmLogo size={24} />
-              <BhimLogo size={24} />
-              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>+ All UPI Apps</span>
+          {/* Bank Policy Bypass Guidance Box */}
+          <div style={{
+            background: '#fffbeb',
+            border: '1.5px solid #fde68a',
+            borderRadius: 14,
+            padding: '12px 14px',
+            marginBottom: 16,
+            fontSize: 12,
+            color: '#92400e',
+            lineHeight: 1.5
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, marginBottom: 4 }}>
+              <span>🛡️</span>
+              <span>Bank app showing &ldquo;Payment blocked by policy&rdquo;?</span>
             </div>
+            <p style={{ margin: 0, fontSize: 11.5, color: '#78350f' }}>
+              No worries! Tap <strong>Copy UPI ID</strong> below, open any UPI app, send <strong>₹{checkoutData.payableAmount.toFixed(2)}</strong> directly as a standard transfer, and enter your 12-digit UTR below for instant auto-activation.
+            </p>
           </div>
 
           {/* Copy-to-clipboard: Merchant UPI ID & Payee */}
@@ -703,7 +804,7 @@ export default function PaymentState({
             marginBottom: 16
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Merchant UPI ID</span>
+              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Direct UPI ID</span>
               <button
                 type="button"
                 onClick={handleCopyUpiId}
@@ -753,34 +854,32 @@ export default function PaymentState({
             </span>
           </div>
 
-          {/* 20-Second Delayed "I Have Paid" Fallback Button */}
-          {elapsedSeconds >= 20 && (
-            <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid #f1f5f9', textAlign: 'center' }}>
-              <p style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
-                Bank SMS or alert delayed? Submit your 12-digit UPI reference:
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setManualUtrError(null);
-                  setShowManualModal(true);
-                }}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  background: '#f8fafc',
-                  border: '1.5px solid #2563eb',
-                  color: '#2563eb',
-                  borderRadius: 12,
-                  fontSize: 14,
-                  fontWeight: 800,
-                  cursor: 'pointer'
-                }}
-              >
-                I Have Paid (Enter 12-Digit UTR)
-              </button>
-            </div>
-          )}
+          {/* Immediate UTR Access Fallback Button */}
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid #f1f5f9', textAlign: 'center' }}>
+            <p style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+              Paid via UPI transfer or SMS delayed? Submit reference:
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setManualUtrError(null);
+                setShowManualModal(true);
+              }}
+              style={{
+                width: '100%',
+                padding: '12px',
+                background: '#f8fafc',
+                border: '1.5px solid #2563eb',
+                color: '#2563eb',
+                borderRadius: 12,
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: 'pointer'
+              }}
+            >
+              I Have Paid (Enter 12-Digit UTR)
+            </button>
+          </div>
 
           {/* Switch to Cash Option */}
           <div style={{ marginTop: 12, textAlign: 'center' }}>
