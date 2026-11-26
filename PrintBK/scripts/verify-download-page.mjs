@@ -38,7 +38,7 @@ const server = http.createServer((req, res) => {
       minSupportedVersion: '1.0.0',
       fileSize: '100.5 MB',
       fileSizeBytes: 105352009,
-      releaseDate: 'November 22, 2026',
+      releaseDate: 'November 26, 2026',
       sha256: '21bc58c6090b66174f97fdc0f63bead64bdab51790e78a1169012ad1dff44d63',
       downloadUrl: 'https://github.com/Sameer8549/PrintBK-releases/releases/latest/download/PrintBK-Counter-Setup-1.0.0.exe',
       stableDownloadUrl: 'https://github.com/Sameer8549/PrintBK-releases/releases/latest/download/PrintBK-Counter-Setup.exe',

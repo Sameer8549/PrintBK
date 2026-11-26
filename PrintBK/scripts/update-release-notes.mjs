@@ -9,7 +9,7 @@ const rootDir = path.resolve(__dirname, '..', '..');
 
 const notes = `### PrintBK Counter — Official Workstation Setup (Windows 64-bit)
 
-Official desktop counter workstation release for HKBK Campus Print Services. Production Go-Live Hardened (v1.0.0, Released November 25, 2026).
+Official desktop counter workstation release for HKBK Campus Print Services. Production Go-Live Hardened (v1.0.0, Released November 26, 2026).
 
 #### Release Highlights & Verified Fixes
 - **UPILerify Direct-UPI Payment Engine**: Full end-to-end integration of self-hosted open-source UPI payment verification (\`harshavarma02/upilerify\`). Complete removal of legacy payment gateways (Razorpay). Features micro-offset amount generation (e.g., ₹499.03), dynamic vector QR codes, universal UPI intent deep-linking, real-time 3-second bank reconciliation polling, 20-second delayed "I Have Paid" 12-digit UTR manual fallback modal, and HMAC-SHA256 signed webhook processing with idempotent fulfillment.

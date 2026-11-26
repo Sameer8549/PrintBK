@@ -124,7 +124,7 @@ If an unexpected regression occurs in production:
 
 ---
 
-## 7. Production Release Changelog (v1.0.0 — November 24, 2026)
+## 7. Production Release Changelog (v1.0.0 — November 26, 2026)
 
 ### 🚀 Major Improvements & Architecture Updates
 

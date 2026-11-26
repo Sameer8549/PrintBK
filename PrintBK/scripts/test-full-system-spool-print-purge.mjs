@@ -56,6 +56,13 @@ async function run() {
     // 1. VERIFY AGENT FILES & DOWNLOADS
     // ════════════════════════════════════════════════════════════════════
     console.log('--- 1. Agent Files & Staff Download Hub ---');
+    const allInOneRes = await fetch(`${BASE}/counter/agent/download/PrintBK-Counter-AllInOne.bat`);
+    assert(allInOneRes.status === 200, 'PrintBK-Counter-AllInOne.bat is downloadable (200 OK)');
+    const allInOneText = await allInOneRes.text();
+    assert(allInOneText.includes('PrintBK Counter Station & Print Spooler Agent'), 'PrintBK-Counter-AllInOne.bat has unified header');
+    assert(allInOneText.includes('PBK-SETUP-9021'), 'PrintBK-Counter-AllInOne.bat includes setup code PBK-SETUP-9021');
+    assert(allInOneText.includes('app/staff/index.html'), 'PrintBK-Counter-AllInOne.bat launches staff counter app');
+
     const agentZipRes = await fetch(`${BASE}/counter/agent/download/printbk-agent-standalone.zip`);
     assert(agentZipRes.status === 200, 'Agent standalone zip bundle is downloadable (200 OK)', `Got ${agentZipRes.status}`);
     const zipBuf = Buffer.from(await agentZipRes.arrayBuffer());

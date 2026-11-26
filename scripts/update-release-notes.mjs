@@ -3,7 +3,7 @@ import { execSync } from 'child_process';
 
 const notes = `### PrintBK Counter — Official Workstation Setup (Windows 64-bit)
 
-Official desktop counter workstation release for HKBK Campus Print Services. Production Go-Live Hardened (v1.0.0, Released November 24, 2026).
+Official desktop counter workstation release for HKBK Campus Print Services. Production Go-Live Hardened (v1.0.0, Released November 26, 2026).
 
 #### Release Highlights & Verified Fixes
 - **56/56 Physical & Virtual Printer Pipeline Pass**: Complete end-to-end pipeline verified from student upload to Windows print spoolers (SumatraPDF silent engine) across B/W, Colour, Custom Split, and Passport Photo prints.

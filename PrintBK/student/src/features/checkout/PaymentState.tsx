@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import QRCode from 'qrcode';
-import { Topbar, Icon, UpiLogo, GPayLogo, PhonePeLogo, PaytmLogo, BhimLogo } from '../../components/ui';
+import { Topbar, Icon } from '../../components/ui';
 import { Screen } from '../../lib/types';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../../services/api';
@@ -28,41 +28,33 @@ export default function PaymentState({
     return orders.find(o => o.id === orderId);
   }, [orders, orderId]);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !(existingOrder && existingOrder.total));
   const [error, setError] = useState<string | null>(null);
 
   // UPILerify checkout data
-  const [checkoutData, setCheckoutData] = useState<{
-    orderId: string;
-    orderNumber: number | null;
-    baseAmount: number;
-    payableAmount: number;
-    qrCodeData: string;
-    upiIntentUrl: string;
-    intentGpayUrl?: string;
-    intentPhonepeUrl?: string;
-    intentPaytmUrl?: string;
-    intentBhimUrl?: string;
-    intentAnyUrl?: string;
-    cleanIntentUrl?: string;
-    cleanIntentGpayUrl?: string;
-    cleanIntentPhonepeUrl?: string;
-    cleanIntentPaytmUrl?: string;
-    cleanIntentAnyUrl?: string;
-    cleanGpayUrl?: string;
-    cleanPhonepeUrl?: string;
-    cleanPaytmUrl?: string;
-    redirectUrl?: string;
-    checkoutUrl?: string;
-    gpayUrl?: string;
-    phonepeUrl?: string;
-    paytmUrl?: string;
-    refNote?: string;
-    merchantUpiId: string;
-    payeeName: string;
-    expiresAt: string;
-    status: 'PENDING' | 'UNDER_REVIEW' | 'PAID' | 'EXPIRED';
-  } | null>(null);
+  const [checkoutData, setCheckoutData] = useState<any>(() => {
+    if (existingOrder && existingOrder.total) {
+      const amt = Number(existingOrder.total);
+      const encMerchant = encodeURIComponent('Q098686787@ybl');
+      const encPayee = encodeURIComponent('HKBK Student Point');
+      const amountStr = amt.toFixed(2);
+      const cleanRef = `PrintBK${existingOrder.orderNumber || ''}`;
+      const baseIntent = `upi://pay?pa=${encMerchant}&pn=${encPayee}&am=${amountStr}&cu=INR&tn=${encodeURIComponent(cleanRef)}`;
+      return {
+        orderId: existingOrder.id,
+        orderNumber: existingOrder.orderNumber ?? null,
+        baseAmount: amt,
+        payableAmount: amt,
+        qrCodeData: baseIntent,
+        upiIntentUrl: baseIntent,
+        merchantUpiId: 'Q098686787@ybl',
+        payeeName: 'HKBK Student Point',
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+        status: 'PENDING'
+      };
+    }
+    return null;
+  });
 
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copiedUpiId, setCopiedUpiId] = useState(false);
@@ -103,14 +95,6 @@ export default function PaymentState({
   const isAndroid = /android/i.test(ua);
   const isIOS = /iphone|ipad|ipod/i.test(ua);
 
-  // Prepares clipboard with exact amount and shows notification before opening UPI app
-  const prepareAppPay = (appName: string) => {
-    if (checkoutData?.payableAmount) {
-      navigator.clipboard?.writeText(checkoutData.payableAmount.toFixed(2)).catch(() => {});
-      notify(`Opening ${appName} with exact total ₹${checkoutData.payableAmount.toFixed(2)}…`);
-    }
-  };
-
   // 1. Initial Load: create or fetch UPILerify checkout session
   useEffect(() => {
     if (!orderId) {
@@ -123,116 +107,48 @@ export default function PaymentState({
 
     async function initializeCheckout() {
       try {
-        setLoading(true);
         setError(null);
 
-        // First check if an existing session is already active or paid
-        let statusRes: any = null;
-        try {
-          statusRes = await api.getCheckoutStatus(orderId);
-        } catch (_) {
-          statusRes = null;
-        }
+        // Instant 1-Roundtrip Checkout Initializer
+        const res = await api.createCheckout({ orderId });
+        if (!active) return;
 
-        if (statusRes && statusRes.status === 'PAID') {
-          if (active) {
-            setIsPaidSuccess(true);
-            redirectingRef.current = true;
-            useBasket.getState().clear();
-            setTimeout(() => {
-              navigate(`/order-success?orderId=${encodeURIComponent(orderId)}`, { replace: true });
-            }, 600);
-          }
+        if (res.status === 'PAID') {
+          setIsPaidSuccess(true);
+          redirectingRef.current = true;
+          useBasket.getState().clear();
+          setTimeout(() => {
+            navigate(`/order-success?orderId=${encodeURIComponent(orderId)}`, { replace: true });
+          }, 600);
           return;
         }
 
-        if (statusRes && statusRes.status === 'UNDER_REVIEW') {
-          if (active) {
-            navigate(`/order-pending?orderId=${encodeURIComponent(orderId)}`, { replace: true });
-          }
+        if (res.status === 'UNDER_REVIEW') {
+          navigate(`/order-pending?orderId=${encodeURIComponent(orderId)}`, { replace: true });
           return;
         }
 
-        if (statusRes && statusRes.status === 'EXPIRED') {
-          if (active) {
-            setIsExpired(true);
-            setLoading(false);
-          }
+        if (res.status === 'EXPIRED') {
+          setIsExpired(true);
           return;
         }
 
-        // If no upiIntentUrl or session needs refresh, call createCheckout
-        if (!statusRes?.upiIntentUrl || !statusRes?.payableAmount) {
-          const createRes = await api.createCheckout({ orderId });
-          if (!active) return;
-          setCheckoutData({
-            orderId: createRes.orderId,
-            orderNumber: createRes.orderNumber ?? existingOrder?.orderNumber ?? null,
-            baseAmount: Number(createRes.baseAmount || 0),
-            payableAmount: Number(createRes.payableAmount || createRes.baseAmount || 0),
-            qrCodeData: createRes.qrCodeData,
-            upiIntentUrl: createRes.upiIntentUrl,
-            intentGpayUrl: createRes.intentGpayUrl,
-            intentPhonepeUrl: createRes.intentPhonepeUrl,
-            intentPaytmUrl: createRes.intentPaytmUrl,
-            intentBhimUrl: createRes.intentBhimUrl,
-            intentAnyUrl: createRes.intentAnyUrl,
-            cleanIntentUrl: createRes.cleanIntentUrl,
-            cleanIntentGpayUrl: createRes.cleanIntentGpayUrl,
-            cleanIntentPhonepeUrl: createRes.cleanIntentPhonepeUrl,
-            cleanIntentPaytmUrl: createRes.cleanIntentPaytmUrl,
-            cleanIntentAnyUrl: createRes.cleanIntentAnyUrl,
-            cleanGpayUrl: createRes.cleanGpayUrl,
-            cleanPhonepeUrl: createRes.cleanPhonepeUrl,
-            cleanPaytmUrl: createRes.cleanPaytmUrl,
-            redirectUrl: createRes.redirectUrl,
-            checkoutUrl: createRes.checkoutUrl,
-            gpayUrl: createRes.gpayUrl,
-            phonepeUrl: createRes.phonepeUrl,
-            paytmUrl: createRes.paytmUrl,
-            refNote: createRes.refNote,
-            merchantUpiId: createRes.merchantUpiId,
-            payeeName: createRes.payeeName,
-            expiresAt: createRes.expiresAt,
-            status: 'PENDING'
-          });
-        } else {
-          setCheckoutData({
-            orderId: statusRes.orderId,
-            orderNumber: statusRes.orderNumber ?? existingOrder?.orderNumber ?? null,
-            baseAmount: Number(statusRes.baseAmount || 0),
-            payableAmount: Number(statusRes.payableAmount || 0),
-            qrCodeData: statusRes.qrCodeData || statusRes.upiIntentUrl,
-            upiIntentUrl: statusRes.upiIntentUrl,
-            intentGpayUrl: statusRes.intentGpayUrl,
-            intentPhonepeUrl: statusRes.intentPhonepeUrl,
-            intentPaytmUrl: statusRes.intentPaytmUrl,
-            intentBhimUrl: statusRes.intentBhimUrl,
-            intentAnyUrl: statusRes.intentAnyUrl,
-            cleanIntentUrl: statusRes.cleanIntentUrl,
-            cleanIntentGpayUrl: statusRes.cleanIntentGpayUrl,
-            cleanIntentPhonepeUrl: statusRes.cleanIntentPhonepeUrl,
-            cleanIntentPaytmUrl: statusRes.cleanIntentPaytmUrl,
-            cleanIntentAnyUrl: statusRes.cleanIntentAnyUrl,
-            cleanGpayUrl: statusRes.cleanGpayUrl,
-            cleanPhonepeUrl: statusRes.cleanPhonepeUrl,
-            cleanPaytmUrl: statusRes.cleanPaytmUrl,
-            redirectUrl: statusRes.redirectUrl,
-            checkoutUrl: statusRes.checkoutUrl,
-            gpayUrl: statusRes.gpayUrl,
-            phonepeUrl: statusRes.phonepeUrl,
-            paytmUrl: statusRes.paytmUrl,
-            refNote: statusRes.refNote,
-            merchantUpiId: statusRes.merchantUpiId || '',
-            payeeName: statusRes.payeeName || 'HKBK Student Point',
-            expiresAt: statusRes.expiresAt,
-            status: statusRes.status
-          });
-        }
+        setCheckoutData({
+          orderId: res.orderId,
+          orderNumber: res.orderNumber ?? existingOrder?.orderNumber ?? null,
+          baseAmount: Number(res.baseAmount || 0),
+          payableAmount: Number(res.payableAmount || res.baseAmount || 0),
+          qrCodeData: res.qrCodeData || res.upiIntentUrl,
+          upiIntentUrl: res.upiIntentUrl,
+          merchantUpiId: res.merchantUpiId || 'Q098686787@ybl',
+          payeeName: res.payeeName || 'HKBK Student Point',
+          expiresAt: res.expiresAt,
+          status: 'PENDING'
+        });
       } catch (err: any) {
-        if (active) {
+        if (active && !checkoutData) {
           console.error('[UPILerify Checkout] Init error:', err);
-          setError(err?.message || 'Failed to initialize UPILerify payment session.');
+          setError(err?.message || 'Failed to initialize payment session.');
         }
       } finally {
         if (active) setLoading(false);
@@ -353,27 +269,6 @@ export default function PaymentState({
     };
   }, [orderId, isExpired, existingOrder, updateOrder, navigate]);
 
-  // Direct P2P App Launcher: Copies exact amount to clipboard & launches clean P2P intent
-  // This bypasses NPCI "Link payments not accepted" blocks on personal VPAs
-  const handleDirectAppPay = (e: React.MouseEvent, targetUrl: string) => {
-    e.preventDefault();
-    if (checkoutData?.payableAmount) {
-      navigator.clipboard?.writeText(checkoutData.payableAmount.toFixed(2)).catch(() => {});
-      notify(`Amount ₹${checkoutData.payableAmount.toFixed(2)} copied! Opening UPI app…`);
-    }
-    window.location.href = targetUrl;
-  };
-
-  // Copy Merchant UPI ID
-  const handleCopyUpiId = () => {
-    if (!checkoutData?.merchantUpiId) return;
-    navigator.clipboard?.writeText(checkoutData.merchantUpiId).then(() => {
-      setCopiedUpiId(true);
-      notify('UPI ID copied to clipboard');
-      setTimeout(() => setCopiedUpiId(false), 2500);
-    }).catch(() => {});
-  };
-
   // Copy Exact Payable Amount
   const handleCopyAmount = () => {
     if (!checkoutData?.payableAmount) return;
@@ -381,20 +276,6 @@ export default function PaymentState({
       setCopiedAmount(true);
       notify(`Payable amount ₹${checkoutData.payableAmount.toFixed(2)} copied`);
       setTimeout(() => setCopiedAmount(false), 2500);
-    }).catch(() => {});
-  };
-
-  // 1-Click Copy Combo: Copies UPI ID and notifies exact amount
-  const handleCopyBoth = () => {
-    if (!checkoutData?.merchantUpiId || !checkoutData?.payableAmount) return;
-    navigator.clipboard?.writeText(checkoutData.merchantUpiId).then(() => {
-      setCopiedUpiId(true);
-      setCopiedAmount(true);
-      notify(`Copied UPI ID (${checkoutData.merchantUpiId})! Exact payable total is ₹${checkoutData.payableAmount.toFixed(2)}`);
-      setTimeout(() => {
-        setCopiedUpiId(false);
-        setCopiedAmount(false);
-      }, 3000);
     }).catch(() => {});
   };
 
@@ -649,7 +530,7 @@ export default function PaymentState({
         }}>
           
           {/* Header Row: Order Number & 15-Minute Countdown Timer */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <div>
               <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 ORDER #{checkoutData.orderNumber || orderId.slice(0, 8)}
@@ -672,8 +553,29 @@ export default function PaymentState({
             </div>
           </div>
 
+          {/* Quick Instructions At The Top */}
+          <div style={{
+            background: '#f8fafc',
+            borderRadius: 14,
+            border: '1.5px solid #e2e8f0',
+            padding: '12px 14px',
+            marginBottom: 16,
+            textAlign: 'left'
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>📌</span>
+              <span>How to complete your order:</span>
+            </div>
+            <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: '#334155', lineHeight: 1.55 }}>
+              <li>Scan the QR code below with Google Pay, PhonePe, Paytm, or any UPI app.</li>
+              <li>Pay the exact amount: <strong>₹{checkoutData.payableAmount.toFixed(2)}</strong>.</li>
+              <li>Tap <strong>&ldquo;I Have Paid&rdquo;</strong> below right after sending payment.</li>
+              <li>Or tap <strong>&ldquo;Pay Cash at Counter&rdquo;</strong> to pay cash when picking up your printouts!</li>
+            </ol>
+          </div>
+
           {/* Exact Payable Amount Hero */}
-          <div style={{ textAlign: 'center', margin: '8px 0 16px' }}>
+          <div style={{ textAlign: 'center', margin: '4px 0 14px' }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1 }}>
               EXACT PAYABLE AMOUNT
             </div>
@@ -707,28 +609,6 @@ export default function PaymentState({
                 {copiedAmount ? 'Copied ✓' : 'Copy'}
               </button>
             </div>
-
-            {/* Exact Source Amount Notice */}
-            <div style={{
-              background: '#eff6ff',
-              border: '1.5px solid #bfdbfe',
-              borderRadius: 12,
-              padding: '10px 14px',
-              marginTop: 12,
-              fontSize: 12.5,
-              lineHeight: 1.45,
-              color: '#1e40af',
-              fontWeight: 600,
-              textAlign: 'left',
-              display: 'flex',
-              gap: 8,
-              alignItems: 'center'
-            }}>
-              <span style={{ fontSize: 16 }}>ℹ️</span>
-              <div>
-                <strong>Exact Order Total: ₹{checkoutData.payableAmount.toFixed(2)}</strong>. Pay via QR or 1-tap app transfer with zero extra charges.
-              </div>
-            </div>
           </div>
 
           {/* Dynamic Scannable UPI QR Code */}
@@ -741,7 +621,7 @@ export default function PaymentState({
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            margin: '16px 0'
+            margin: '8px 0 16px'
           }}>
             {qrDataUrl ? (
               <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
@@ -792,228 +672,9 @@ export default function PaymentState({
               </div>
             )}
 
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 8, textAlign: 'center' }}>
-              Scan with any UPI app: Google Pay, PhonePe, Paytm, BHIM, or Mobile Banking
+            <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 10, textAlign: 'center', fontWeight: 600 }}>
+              Scan with Google Pay, PhonePe, Paytm, BHIM, or any Mobile Banking App
             </div>
-          </div>
-
-          {/* Direct UPI App Buttons (Official Intent URIs - Eliminates Bank Internal Policy Errors) */}
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span>🚀</span>
-              <span>1-Tap Direct UPI Pay (No Link Block)</span>
-            </div>
-
-            {/* Direct App Launchers with clean VPA intent */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
-              <a
-                href={isAndroid ? (checkoutData.intentGpayUrl || checkoutData.cleanIntentGpayUrl || checkoutData.cleanIntentUrl) : (checkoutData.cleanIntentUrl || checkoutData.upiIntentUrl)}
-                target="_self"
-                rel="noopener noreferrer"
-                onClick={() => prepareAppPay('Google Pay')}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '12px 6px',
-                  background: '#ffffff',
-                  border: '1.5px solid #e2e8f0',
-                  borderRadius: 14,
-                  color: '#0f172a',
-                  fontWeight: 700,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  textDecoration: 'none',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
-                }}
-              >
-                <GPayLogo size={24} />
-                <span style={{ marginTop: 4 }}>Google Pay</span>
-              </a>
-
-              <a
-                href={isAndroid ? (checkoutData.intentPhonepeUrl || checkoutData.cleanIntentPhonepeUrl || checkoutData.cleanIntentUrl) : (checkoutData.phonepeUrl || checkoutData.cleanIntentUrl)}
-                target="_self"
-                rel="noopener noreferrer"
-                onClick={() => prepareAppPay('PhonePe')}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '12px 6px',
-                  background: '#ffffff',
-                  border: '1.5px solid #e2e8f0',
-                  borderRadius: 14,
-                  color: '#0f172a',
-                  fontWeight: 700,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  textDecoration: 'none',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
-                }}
-              >
-                <PhonePeLogo size={24} />
-                <span style={{ marginTop: 4 }}>PhonePe</span>
-              </a>
-
-              <a
-                href={isAndroid ? (checkoutData.intentPaytmUrl || checkoutData.cleanIntentPaytmUrl || checkoutData.cleanIntentUrl) : (checkoutData.paytmUrl || checkoutData.cleanIntentUrl)}
-                target="_self"
-                rel="noopener noreferrer"
-                onClick={() => prepareAppPay('Paytm')}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '12px 6px',
-                  background: '#ffffff',
-                  border: '1.5px solid #e2e8f0',
-                  borderRadius: 14,
-                  color: '#0f172a',
-                  fontWeight: 700,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  textDecoration: 'none',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
-                }}
-              >
-                <PaytmLogo size={24} />
-                <span style={{ marginTop: 4 }}>Paytm</span>
-              </a>
-            </div>
-
-            {/* Main Primary Direct Transfer Action Button */}
-            <a
-              href={isAndroid ? (checkoutData.intentAnyUrl || checkoutData.cleanIntentAnyUrl || checkoutData.cleanIntentUrl) : (checkoutData.cleanIntentUrl || checkoutData.upiIntentUrl)}
-              target="_self"
-              rel="noopener noreferrer"
-              onClick={() => prepareAppPay('UPI App')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 10,
-                width: '100%',
-                padding: '16px',
-                background: '#2563eb',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: 14,
-                fontSize: 15,
-                fontWeight: 900,
-                cursor: 'pointer',
-                textAlign: 'center',
-                textDecoration: 'none',
-                boxShadow: '0 4px 16px rgba(37,99,235,0.25)',
-                boxSizing: 'border-box'
-              }}
-            >
-              <UpiLogo size={26} />
-              <span>Open Any UPI App (Direct Transfer)</span>
-            </a>
-            <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center', marginTop: 6 }}>
-              ✨ Copies exact amount (₹{checkoutData.payableAmount.toFixed(2)}) &amp; opens UPI app to recipient safely
-            </div>
-          </div>
-
-          {/* Solution for "Link Payments Not Accepted" */}
-          <div style={{
-            background: '#f0fdf4',
-            border: '1.5px solid #bbf7d0',
-            borderRadius: 14,
-            padding: '12px 14px',
-            marginBottom: 16,
-            fontSize: 12,
-            color: '#166534',
-            lineHeight: 1.5
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, marginBottom: 4 }}>
-              <span>✅</span>
-              <span>Why this solves &ldquo;Link payment not accepted&rdquo;:</span>
-            </div>
-            <p style={{ margin: '0 0 6px 0', fontSize: 11.5 }}>
-              Banks block payment links that lock commercial totals on personal accounts. Our direct button opens your UPI app safely as a personal transfer with the exact amount copied to your clipboard.
-            </p>
-            <p style={{ margin: 0, fontSize: 11.5, fontWeight: 700 }}>
-              📸 Scanning the QR code above from your camera or gallery is also 100% accepted by every bank.
-            </p>
-          </div>
-
-          {/* Copy-to-clipboard: Merchant UPI ID & Payee */}
-          <div style={{
-            background: '#f8fafc',
-            borderRadius: 12,
-            border: '1px solid #e2e8f0',
-            padding: '12px 14px',
-            marginBottom: 16
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Direct UPI ID</span>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button
-                  type="button"
-                  onClick={handleCopyUpiId}
-                  style={{
-                    background: copiedUpiId ? '#dcfce7' : '#ffffff',
-                    color: copiedUpiId ? '#15803d' : '#2563eb',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: 6,
-                    padding: '2px 8px',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  {copiedUpiId ? 'Copied ✓' : 'Copy ID'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCopyBoth}
-                  style={{
-                    background: copiedAmount ? '#dcfce7' : '#ffffff',
-                    color: copiedAmount ? '#15803d' : '#2563eb',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: 6,
-                    padding: '2px 8px',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Copy Both
-                </button>
-              </div>
-            </div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', wordBreak: 'break-all' }}>
-              {checkoutData.merchantUpiId || 'Q098686787@ybl'}
-            </div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
-              Payee: <strong>{checkoutData.payeeName}</strong>
-            </div>
-          </div>
-
-          {/* Clear Instructions Card: What To Do */}
-          <div style={{
-            background: '#f8fafc',
-            borderRadius: 14,
-            border: '1.5px solid #e2e8f0',
-            padding: '14px 16px',
-            marginTop: 14,
-            textAlign: 'left'
-          }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>📌</span>
-              <span>Instructions — What to do:</span>
-            </div>
-            <ol style={{ margin: 0, paddingLeft: 20, fontSize: 12.5, color: '#334155', lineHeight: 1.6 }}>
-              <li>Scan the QR code above or tap any 1-Tap UPI app button.</li>
-              <li>Pay the exact amount: <strong>₹{checkoutData.payableAmount.toFixed(2)}</strong>.</li>
-              <li>Tap <strong>&ldquo;I Have Paid&rdquo;</strong> below right after completing payment.</li>
-              <li>Or tap <strong>&ldquo;Pay Cash at Counter&rdquo;</strong> if you prefer to pay in cash when collecting prints!</li>
-            </ol>
           </div>
 
           {/* Action Buttons: "I Have Paid" + "Pay Cash at Counter" */}

@@ -67,7 +67,7 @@ export function DownloadPage({ onPairSuccess }: DownloadPageProps) {
   if (fileSize === "2.0 GB" || fileSize === "367 MB" || (versionInfo?.fileSizeBytes && versionInfo.fileSizeBytes > 200000000)) {
     fileSize = "100.5 MB"
   }
-  const releaseDate = versionInfo?.releaseDate || "November 22, 2026"
+  const releaseDate = versionInfo?.releaseDate || "November 26, 2026"
   let sha256 = versionInfo?.sha256 || "21bc58c6090b66174f97fdc0f63bead64bdab51790e78a1169012ad1dff44d63"
   if (sha256.startsWith("8ba7d7") || sha256.startsWith("0d0474") || sha256.startsWith("b639e2") || sha256.startsWith("e90dca") || sha256.startsWith("023cc1") || sha256.startsWith("36ac21") || sha256.startsWith("2d9bbe") || sha256.startsWith("738de2")) {
     sha256 = "21bc58c6090b66174f97fdc0f63bead64bdab51790e78a1169012ad1dff44d63"
@@ -266,6 +266,60 @@ export function DownloadPage({ onPairSuccess }: DownloadPageProps) {
             <p style={{ fontSize: 13.5, color: '#475569', margin: 0, lineHeight: 1.5 }}>
               All background spooler binaries, startup batch files, and auto-start services for your shop printers. Run standalone on any Windows PC without Electron.
             </p>
+          </div>
+
+          {/* Unified All-In-One Master Runner Card (Recommended) */}
+          <div style={{
+            background: '#eff6ff',
+            border: '2px solid #3b82f6',
+            borderRadius: 16,
+            padding: '20px 22px',
+            marginBottom: 20,
+            boxShadow: '0 4px 16px rgba(59,130,246,0.12)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 24 }}>🚀</span>
+                  <strong style={{ fontSize: 16, color: '#1e3a8a' }}>PrintBK-Counter-AllInOne.bat</strong>
+                  <span style={{
+                    background: '#2563eb',
+                    color: '#ffffff',
+                    fontSize: 10,
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    textTransform: 'uppercase'
+                  }}>Single File • Recommended</span>
+                </div>
+                <p style={{ fontSize: 13, color: '#1e40af', lineHeight: 1.5, margin: 0, maxWidth: 640 }}>
+                  <strong>All-In-One Master Runner:</strong> One single file that runs the print agent daemon and staff application together! Auto-configures setup code <code>PBK-SETUP-9021</code>, detects printers, registers auto-start, and launches the Staff Counter Web Workbench.
+                </p>
+              </div>
+              <a
+                href="./agent/PrintBK-Counter-AllInOne.bat"
+                download="PrintBK-Counter-AllInOne.bat"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '12px 22px',
+                  background: '#2563eb',
+                  color: '#ffffff',
+                  borderRadius: 12,
+                  fontSize: 14,
+                  fontWeight: 800,
+                  textDecoration: 'none',
+                  boxShadow: '0 4px 12px rgba(37,99,235,0.25)',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <span>📥 Download All-In-One Runner (.bat)</span>
+              </a>
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>

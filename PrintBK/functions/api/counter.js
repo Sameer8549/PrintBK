@@ -249,7 +249,7 @@ router.get('/version', (req, res) => {
   const minSupportedVersion = process.env.COUNTER_MIN_VERSION || '1.0.0';
   let fileSize = process.env.COUNTER_FILE_SIZE || '100.5 MB';
   let fileSizeBytes = Number(process.env.COUNTER_FILE_SIZE_BYTES) || 105404787;
-  const releaseDate = process.env.COUNTER_RELEASE_DATE || '2026-11-22';
+  const releaseDate = process.env.COUNTER_RELEASE_DATE || '2026-11-26';
   let sha256 = process.env.COUNTER_SHA256 || '21bc58c6090b66174f97fdc0f63bead64bdab51790e78a1169012ad1dff44d63';
 
   // Sanitize stale legacy console env vars (e.g. '2.0 GB' or '367 MB')
@@ -265,7 +265,7 @@ router.get('/version', (req, res) => {
   const downloadUrl = process.env.COUNTER_DOWNLOAD_URL || `${defaultReleaseBase}/PrintBK-Counter-Setup-1.0.0.exe`;
   const stableDownloadUrl = process.env.COUNTER_STABLE_DOWNLOAD_URL || `${defaultReleaseBase}/PrintBK-Counter-Setup.exe`;
   const updateFeedUrl = process.env.COUNTER_UPDATE_URL || defaultReleaseBase;
-  const releaseNotes = process.env.COUNTER_RELEASE_NOTES || 'PrintBK Counter v1.0.0 Production Release: Hardened print spooler engine (B/W, Colour, Custom Split, Photo), sub-second order delivery (<750ms), dynamic printer routing, Ethernet IPv4 resilience, full UPI verified payment flows, and high-DPI vector QR placard poster printing.';
+  const releaseNotes = process.env.COUNTER_RELEASE_NOTES || 'PrintBK Counter v1.0.0 Production Release (November 26, 2026): Unified All-In-One Windows Agent Runner, zero-delay instant checkout, direct UPI QR payment flow, B/W, Colour, Custom Split, and Photo physical print routing.';
 
   const data = {
     ok: true,
@@ -293,7 +293,17 @@ const fs = require('fs');
 
 router.get(['/agent/download/:filename', '/agent-files/:filename'], (req, res) => {
   const filename = path.basename(req.params.filename);
-  const allowed = ['printbk-agent-standalone.zip', 'start-agent.bat', 'install-service.bat', 'uninstall-service.bat', 'start-agent.vbs', 'install-service.ps1', 'config.sample.json'];
+  const allowed = [
+    'PrintBK-Counter-AllInOne.bat',
+    'printbk-counter-allinone.bat',
+    'printbk-agent-standalone.zip',
+    'start-agent.bat',
+    'install-service.bat',
+    'uninstall-service.bat',
+    'start-agent.vbs',
+    'install-service.ps1',
+    'config.sample.json'
+  ];
   if (!allowed.includes(filename)) {
     return res.status(404).json({ error: 'File not found' });
   }
