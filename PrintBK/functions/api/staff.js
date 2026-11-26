@@ -367,7 +367,7 @@ router.get('/live', async (req, res) => {
         const printerRows = await zcql.executeZCQLQuery(`SELECT * FROM printers`);
         for (const r of (printerRows || [])) {
           const p = r.printers;
-          const isDbOnline = p.online !== false && String(p.online) !== 'false' && (now - Number(p.last_seen || 0) < 60);
+          const isDbOnline = p.online !== false && String(p.online) !== 'false' && (now - Number(p.last_seen || 0) < 180);
           printers.push({
             id: p.id,
             name: p.name,
@@ -383,7 +383,7 @@ router.get('/live', async (req, res) => {
     // If no printers in DB, check in-memory printers reported by agent
     if (printers.length === 0 && global.__printbk_printers && global.__printbk_printers.size > 0) {
       for (const [pName, p] of global.__printbk_printers) {
-        const isOnline = p.online !== false && (now - Number(p.last_seen || 0) < 60);
+        const isOnline = p.online !== false && (now - Number(p.last_seen || 0) < 180);
         printers.push({
           id: p.id || pName,
           name: p.name || pName,

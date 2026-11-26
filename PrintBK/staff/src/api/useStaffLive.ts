@@ -95,6 +95,7 @@ export function useStaffLive(): UseStaffLiveReturn {
   const [recentlyPrinted, setRecentlyPrinted] = useState<LiveRecentlyPrinted[]>([])
   const [online, setOnline] = useState<boolean>(true)
   const onlineRef = useRef<boolean>(true)
+  const consecutiveErrorsRef = useRef<number>(0)
   const setOnlineState = useCallback((val: boolean) => {
     onlineRef.current = val
     setOnline(val)
@@ -107,12 +108,18 @@ export function useStaffLive(): UseStaffLiveReturn {
   const timeoutIdRef = useRef<number | null>(null)
 
   const poll = useCallback(async () => {
-    if (!isStaffPaired() || isPollingRef.current || !onlineRef.current) return
+    if (!isStaffPaired() || isPollingRef.current) return
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setOnlineState(false)
+      return
+    }
     isPollingRef.current = true
 
     try {
       const res = await fetchLiveFeed(cursorRef.current, lastEtagRef.current)
+      consecutiveErrorsRef.current = 0
       setOnlineState(true)
+      setError(null)
       setError(null)
 
       if (res.notModified) {
@@ -168,18 +175,21 @@ export function useStaffLive(): UseStaffLiveReturn {
       if (err.name === "StaffApiError" && err.status === 401) {
         // Handled by client, will trigger printbk-unauthorized
       } else {
-        setOnlineState(false)
+        consecutiveErrorsRef.current += 1
+        // Only mark offline if 3 consecutive polls fail to prevent UI flashing
+        if (consecutiveErrorsRef.current >= 3) {
+          setOnlineState(false)
+        }
         setError(err)
       }
     } finally {
       isPollingRef.current = false
 
-      // Adaptive lightning-fast polling:
-      // - 1500ms when window is hidden/minimized
-      // - 400ms when queue has active orders
-      // - 600ms when idle (lightning-fast sub-second order arrival on counter workbench)
+      // Adaptive resilient polling delay:
       let delay = 600
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      if (consecutiveErrorsRef.current > 0) {
+        delay = Math.min(1000 + consecutiveErrorsRef.current * 400, 3000)
+      } else if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
         delay = 1500
       } else if (items.length > 0) {
         delay = 400
@@ -188,9 +198,8 @@ export function useStaffLive(): UseStaffLiveReturn {
       if (timeoutIdRef.current) {
         window.clearTimeout(timeoutIdRef.current)
       }
-      if (onlineRef.current) {
-        timeoutIdRef.current = window.setTimeout(poll, delay)
-      }
+      // CRITICAL FIX: ALWAYS schedule next poll so the workbench self-heals and NEVER stays offline!
+      timeoutIdRef.current = window.setTimeout(poll, delay)
     }
   }, [items.length, setOnlineState])
 

@@ -52,12 +52,6 @@ function printReceipt(receiptData?: ReceiptPrintData) {
     return;
   }
 
-  const popup = window.open("", "_blank", "width=460,height=760");
-  if (!popup) {
-    notify("Allow pop-ups to save the receipt as PDF");
-    return;
-  }
-
   const logoUrl = `${window.location.origin}${logo}`;
   const orderNumStr = String(receiptData.orderNumber);
   const codeStr = receiptData.pickupCode || "—";
@@ -74,7 +68,7 @@ function printReceipt(receiptData?: ReceiptPrintData) {
     `<div class="row"><span>${s.name}</span><b>${s.price === null ? "Quote pending" : `₹${s.price}`}</b></div>`
   ).join("");
 
-  popup.document.write(`<!doctype html><html><head><title>PrintBK receipt #${orderNumStr}</title><style>
+  const receiptHtml = `<!doctype html><html><head><title>PrintBK receipt #${orderNumStr}</title><style>
     *{box-sizing:border-box}body{margin:0;padding:32px;background:#f7f4ee;color:#0b1020;font-family:Arial,sans-serif}
     .receipt{max-width:390px;margin:auto;padding:24px;border:2px solid #0b1020;background:#fff;box-shadow:5px 5px 0 #0b1020}
     header{display:flex;align-items:center;justify-content:space-between}img{width:52px;height:52px;object-fit:contain}
@@ -88,8 +82,48 @@ function printReceipt(receiptData?: ReceiptPrintData) {
   <div class="dash"></div><div class="row"><span>Order</span><b>#${orderNumStr}</b></div><div class="row"><span>Paid</span><b class="paid">${paymentMethodStr} · ₹${total.toFixed(2)}</b></div>
   <div class="dash"></div>${fileRows}${serviceRows}
   <div class="dash"></div><div class="row total"><span>Total</span><b>₹${total.toFixed(2)}</b></div><div class="code"><small>PICKUP CODE</small><b>${codeStr}</b></div>
-  <footer>Files auto-delete after printing.<br>${dateStr}</footer></main><script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`);
-  popup.document.close();
+  <footer>Files auto-delete after printing.<br>${dateStr}</footer></main><script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`;
+
+  // 1. Direct file download (Blob)
+  try {
+    const cleanName = orderNumStr.replace(/[^a-zA-Z0-9_-]/g, '');
+    const blob = new Blob([receiptHtml], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `PrintBK-Receipt-${cleanName}.html`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 500);
+  } catch (_) {}
+
+  // 2. Direct print via invisible iframe without navigating current tab or popping blank window
+  try {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow?.document;
+    if (doc) {
+      doc.open();
+      doc.write(receiptHtml);
+      doc.close();
+      iframe.contentWindow?.focus();
+      setTimeout(() => {
+        try { iframe.contentWindow?.print(); } catch (_) {}
+        setTimeout(() => { document.body.removeChild(iframe); }, 2000);
+      }, 300);
+    }
+  } catch (_) {}
+
+  notify("Receipt downloaded & print dialog opened");
 }
 
 async function shareReceipt(receiptData?: ReceiptPrintData) {

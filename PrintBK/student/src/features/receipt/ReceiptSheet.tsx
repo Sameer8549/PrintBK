@@ -92,32 +92,32 @@ function ReceiptSheet({
   const upiName = cfg.upi?.payeeName || (cfg.payments as any)?.upiName || 'PrintBK HKBK';
 
   const saveAsPDF = () => {
-    const popup = window.open('', '_blank', 'width=460,height=760');
-    if (!popup) { notify('Allow pop-ups to save the receipt'); return; }
-    const rows = files.map(name => `<div class="row"><span>${name}</span><b>—</b></div>`).join('');
-    const servicesRows = (services ?? []).map(s => `<div class="row"><span>${s.name}</span><b>${s.price == null ? 'Quote' : `₹${s.price}`}</b></div>`).join('');
+    try {
+      const rows = files.map(name => `<div class="row"><span>${name}</span><b>—</b></div>`).join('');
+      const servicesRows = (services ?? []).map(s => `<div class="row"><span>${s.name}</span><b>${s.price == null ? 'Quote' : `₹${s.price}`}</b></div>`).join('');
+      const utrStr = (targetOrder as any)?.utrNumber || (targetOrder as any)?.utr || '';
 
-    const paySectionHtml = isCash ? `
-      <div class="pay-card cash-card">
-        <div class="pay-badge">PAYMENT: CASH AT COUNTER</div>
-        <div class="pay-row"><span>Collection Counter:</span><b>${shopName} Desk</b></div>
-        <div class="pay-row"><span>Amount Payable:</span><b class="due">₹${total.toFixed(2)} (Cash Due)</b></div>
-        <div class="pay-row"><span>Payment Status:</span><b>DUE ON PICKUP</b></div>
-        <div class="pay-desc">Please pay exact cash at counter when your pickup code is called.</div>
-      </div>
-    ` : `
-      <div class="pay-card upi-card">
-        <div class="pay-badge">PAYMENT: UPI INSTANT TRANSFER</div>
-        <div class="pay-row"><span>Merchant Payee:</span><b>${upiName}</b></div>
-        <div class="pay-row"><span>Beneficiary VPA:</span><b>${upiVpa}</b></div>
-        ${(order as any)?.utr ? `<div class="pay-row"><span>Bank UTR / Ref:</span><b style="font-family:monospace">${(order as any).utr}</b></div>` : ''}
-        <div class="pay-row"><span>Amount Paid:</span><b class="paid">₹${total.toFixed(2)}</b></div>
-        <div class="pay-row"><span>Transaction Status:</span><b>${paymentStatus === 'paid_verified' ? 'VERIFIED' : 'CLAIMED BY STUDENT'}</b></div>
-        <div class="pay-desc">Payment claimed via UPI to ${upiVpa}. Shop staff will verify UTR and release prints.</div>
-      </div>
-    `;
+      const paySectionHtml = isCash ? `
+        <div class="pay-card cash-card">
+          <div class="pay-badge">PAYMENT: CASH AT COUNTER</div>
+          <div class="pay-row"><span>Collection Counter:</span><b>${shopName} Desk</b></div>
+          <div class="pay-row"><span>Amount Payable:</span><b class="due">₹${total.toFixed(2)} (Cash Due)</b></div>
+          <div class="pay-row"><span>Payment Status:</span><b>DUE ON PICKUP</b></div>
+          <div class="pay-desc">Please pay exact cash at counter when your pickup code is called.</div>
+        </div>
+      ` : `
+        <div class="pay-card upi-card">
+          <div class="pay-badge">PAYMENT: UPI INSTANT TRANSFER</div>
+          <div class="pay-row"><span>Merchant Payee:</span><b>${upiName}</b></div>
+          <div class="pay-row"><span>Beneficiary VPA:</span><b>${upiVpa}</b></div>
+          ${utrStr ? `<div class="pay-row"><span>Bank UTR / Ref:</span><b style="font-family:monospace">${utrStr}</b></div>` : ''}
+          <div class="pay-row"><span>Amount Paid:</span><b class="paid">₹${total.toFixed(2)}</b></div>
+          <div class="pay-row"><span>Transaction Status:</span><b>${paymentStatus === 'paid_verified' ? 'VERIFIED' : 'CLAIMED BY STUDENT'}</b></div>
+          <div class="pay-desc">Payment claimed via UPI to ${upiVpa}. Shop staff will verify UTR and release prints.</div>
+        </div>
+      `;
 
-    popup.document.write(`<!doctype html><html><head><title>PrintBK receipt ${displayId}</title>
+      const receiptHtml = `<!doctype html><html><head><title>PrintBK receipt ${displayId}</title>
 <style>
   *{box-sizing:border-box}body{margin:0;padding:28px 20px;background:#f7f4ee;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#0b1020}
   .receipt{max-width:390px;margin:auto;background:#fff;border:2px solid #0b1020;padding:24px;box-shadow:6px 6px 0 #0b1020;border-radius:12px}
@@ -151,8 +151,57 @@ ${servicesRows}
 <div class="row total"><span>Total Amount</span><b>₹${total.toFixed(2)}</b></div>
 <div class="code"><small>PICKUP CODE</small><b>${code}</b><small>${code !== '——' ? 'Present code at counter to receive prints' : 'Issued upon counter release'}</small></div>
 <footer>Files auto-delete 10 minutes after printing.<br>Thank you for using PrintBK!</footer>
-</div><script>window.onload=()=>setTimeout(()=>window.print(),350)</script></body></html>`);
-    popup.document.close();
+</div><script>window.onload=()=>setTimeout(()=>window.print(),350)</script></body></html>`;
+
+      // 1. Direct file download (Blob) so the receipt is downloaded to device
+      try {
+        const cleanName = displayId.replace(/[^a-zA-Z0-9_-]/g, '');
+        const blob = new Blob([receiptHtml], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `PrintBK-Receipt-${cleanName}.html`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 500);
+      } catch (dlErr) {
+        console.warn('[Receipt Download Blob Error]:', dlErr);
+      }
+
+      // 2. Direct print via invisible iframe without navigating current tab or popping blank window
+      try {
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        document.body.appendChild(iframe);
+        const doc = iframe.contentWindow?.document;
+        if (doc) {
+          doc.open();
+          doc.write(receiptHtml);
+          doc.close();
+          iframe.contentWindow?.focus();
+          setTimeout(() => {
+            try { iframe.contentWindow?.print(); } catch (_) {}
+            setTimeout(() => { document.body.removeChild(iframe); }, 2000);
+          }, 300);
+        }
+      } catch (printErr) {
+        console.warn('[Receipt Iframe Print Error]:', printErr);
+      }
+
+      notify('Receipt downloaded & print dialog opened.');
+    } catch (err: any) {
+      console.error('[Receipt Error]:', err);
+      notify('Unable to download receipt. Details copied to clipboard.');
+      navigator.clipboard?.writeText(`PrintBK Receipt ${displayId} · Total: ₹${total.toFixed(2)} · Pickup: ${code}`);
+    }
   };
 
   const shareOrder = async () => {
@@ -217,7 +266,7 @@ ${servicesRows}
             {isCash ? (
               <span>Please pay <b>₹{total.toFixed(2)} in cash</b> when collecting your prints at {shopName} printing desk.</span>
             ) : (
-              <span>Paid to <b>{upiName}</b> (VPA: <code style={{ background: '#dbeafe', padding: '1px 4px', borderRadius: 3, fontWeight: 700 }}>{upiVpa}</code>){(order as any)?.utr ? <> · UTR: <b style={{ fontFamily: 'monospace' }}>{(order as any).utr}</b></> : ''}. Present pickup code at counter for release.</span>
+              <span>Paid to <b>{upiName}</b> (VPA: <code style={{ background: '#dbeafe', padding: '1px 4px', borderRadius: 3, fontWeight: 700 }}>{upiVpa}</code>){((targetOrder as any)?.utrNumber || (targetOrder as any)?.utr) ? <> · UTR: <b style={{ fontFamily: 'monospace' }}>{(targetOrder as any)?.utrNumber || (targetOrder as any)?.utr}</b></> : ''}. Present pickup code at counter for release.</span>
             )}
           </div>
         </div>
