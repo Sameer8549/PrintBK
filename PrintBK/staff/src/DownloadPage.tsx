@@ -157,33 +157,64 @@ export function DownloadPage({ onPairSuccess }: DownloadPageProps) {
           <span className="eyebrow">OFFICIAL WORKSTATION SOFTWARE</span>
           <h1 className="download-headline">PrintBK Counter</h1>
           <p className="download-subline">
-            Install once on your shop PC. Everything is included.
+            Complete all-in-one workstation package for your shop PC. Desktop counter app, Windows Print Agent background daemon, SumatraPDF silent spooler, and auto-printer discovery all included.
           </p>
 
-          <div className="download-action-group">
-            <a
-              href={downloadUrl}
-              className="download-primary-button"
-              id="download-windows-btn"
-              download
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.949-1.801" />
-              </svg>
-              <span>
-                <strong>DOWNLOAD FOR WINDOWS</strong>
-                <small>v{version} · {fileSize} · {releaseDate}</small>
-              </span>
-            </a>
+          <div className="download-action-group" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <a
+                href={downloadUrl}
+                className="download-primary-button"
+                id="download-windows-btn"
+                download
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.949-1.801" />
+                </svg>
+                <span>
+                  <strong>DOWNLOAD FOR WINDOWS</strong>
+                  <small>All-In-One Package (Agent + Spooler + Counter) · v{version} · {fileSize}</small>
+                </span>
+              </a>
 
-            <button
-              type="button"
-              className="download-secondary-button"
-              onClick={handleOpenProtocol}
-              id="open-counter-protocol-btn"
-            >
-              Already installed? Open PrintBK Counter
-            </button>
+              <a
+                href="./agent/PrintBK-Counter-AllInOne.bat"
+                download="PrintBK-Counter-AllInOne.bat"
+                className="download-secondary-button"
+                id="download-allinone-bat-btn"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '14px 20px',
+                  borderRadius: 12,
+                  fontSize: 14,
+                  fontWeight: 800,
+                  textDecoration: 'none'
+                }}
+              >
+                <span>⚡</span>
+                <span>Single-File Runner (.bat)</span>
+              </a>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', justifyContent: 'center', fontSize: 13, color: '#475569', marginTop: 2 }}>
+              <span>✓ <strong>Everything Included:</strong> Counter Screen + Silent Print Daemon + Spoolers</span>
+              <span>✓ <strong>Auto-Routing:</strong> B/W, Colour &amp; Photo Printers</span>
+              <span>✓ <strong>Pre-configured:</strong> Setup Code <code>PBK-SETUP-9021</code></span>
+            </div>
+
+            <div style={{ marginTop: 6 }}>
+              <button
+                type="button"
+                className="download-alt-link"
+                onClick={handleOpenProtocol}
+                id="open-counter-protocol-btn"
+                style={{ background: 'none', border: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                Already installed? Open PrintBK Counter
+              </button>
+            </div>
           </div>
 
           {protocolFallbackVisible && (
@@ -249,244 +280,7 @@ export function DownloadPage({ onPairSuccess }: DownloadPageProps) {
           </section>
         )}
 
-        {/* Standalone Agent Files & Scripts */}
-        <section className="download-agent-section" style={{
-          background: '#ffffff',
-          borderRadius: 20,
-          border: '1.5px solid #e2e8f0',
-          padding: '28px 24px',
-          margin: '32px 0',
-          boxShadow: '0 8px 30px rgba(0,0,0,0.03)'
-        }}>
-          <div style={{ marginBottom: 20, textAlign: 'left' }}>
-            <span className="eyebrow" style={{ color: '#2563eb', fontWeight: 800 }}>STANDALONE BACKGROUND WORKER</span>
-            <h2 style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', margin: '4px 0 8px' }}>
-              Windows Print Agent Files &amp; Scripts
-            </h2>
-            <p style={{ fontSize: 13.5, color: '#475569', margin: 0, lineHeight: 1.5 }}>
-              All background spooler binaries, startup batch files, and auto-start services for your shop printers. Run standalone on any Windows PC without Electron.
-            </p>
-          </div>
 
-          {/* Unified All-In-One Master Runner Card (Recommended) */}
-          <div style={{
-            background: '#eff6ff',
-            border: '2px solid #3b82f6',
-            borderRadius: 16,
-            padding: '20px 22px',
-            marginBottom: 20,
-            boxShadow: '0 4px 16px rgba(59,130,246,0.12)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 14
-          }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 24 }}>🚀</span>
-                  <strong style={{ fontSize: 16, color: '#1e3a8a' }}>PrintBK-Counter-AllInOne.bat</strong>
-                  <span style={{
-                    background: '#2563eb',
-                    color: '#ffffff',
-                    fontSize: 10,
-                    fontWeight: 800,
-                    padding: '2px 8px',
-                    borderRadius: 999,
-                    textTransform: 'uppercase'
-                  }}>Single File • Recommended</span>
-                </div>
-                <p style={{ fontSize: 13, color: '#1e40af', lineHeight: 1.5, margin: 0, maxWidth: 640 }}>
-                  <strong>All-In-One Master Runner:</strong> One single file that runs the print agent daemon and staff application together! Auto-configures setup code <code>PBK-SETUP-9021</code>, detects printers, registers auto-start, and launches the Staff Counter Web Workbench.
-                </p>
-              </div>
-              <a
-                href="./agent/PrintBK-Counter-AllInOne.bat"
-                download="PrintBK-Counter-AllInOne.bat"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '12px 22px',
-                  background: '#2563eb',
-                  color: '#ffffff',
-                  borderRadius: 12,
-                  fontSize: 14,
-                  fontWeight: 800,
-                  textDecoration: 'none',
-                  boxShadow: '0 4px 12px rgba(37,99,235,0.25)',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                <span>📥 Download All-In-One Runner (.bat)</span>
-              </a>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
-            {/* Standalone Agent ZIP Bundle */}
-            <div style={{
-              background: '#f8fafc',
-              border: '1.5px solid #cbd5e1',
-              borderRadius: 14,
-              padding: 16,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between'
-            }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 22 }}>📦</span>
-                  <strong style={{ fontSize: 14, color: '#0f172a' }}>Agent Standalone Bundle</strong>
-                </div>
-                <p style={{ fontSize: 12, color: '#64748b', lineHeight: 1.45, margin: '0 0 12px 0' }}>
-                  Complete package (.zip) containing compiled agent daemon, node scripts, startup batch files, and service installers.
-                </p>
-              </div>
-              <a
-                href="./agent/printbk-agent-standalone.zip"
-                download="printbk-agent-standalone.zip"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  padding: '10px 14px',
-                  background: '#2563eb',
-                  color: '#ffffff',
-                  borderRadius: 10,
-                  fontSize: 12.5,
-                  fontWeight: 800,
-                  textDecoration: 'none'
-                }}
-              >
-                <span>📥 Download Agent Bundle (.zip)</span>
-              </a>
-            </div>
-
-            {/* start-agent.bat */}
-            <div style={{
-              background: '#f8fafc',
-              border: '1.5px solid #cbd5e1',
-              borderRadius: 14,
-              padding: 16,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between'
-            }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 22 }}>⚡</span>
-                  <strong style={{ fontSize: 14, color: '#0f172a' }}>start-agent.bat</strong>
-                </div>
-                <p style={{ fontSize: 12, color: '#64748b', lineHeight: 1.45, margin: '0 0 12px 0' }}>
-                  1-click startup launcher for Windows command prompt with IPv4 pinning and automatic console logging.
-                </p>
-              </div>
-              <a
-                href="./agent/start-agent.bat"
-                download="start-agent.bat"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  padding: '10px 14px',
-                  background: '#ffffff',
-                  color: '#0f172a',
-                  border: '1.5px solid #cbd5e1',
-                  borderRadius: 10,
-                  fontSize: 12.5,
-                  fontWeight: 800,
-                  textDecoration: 'none'
-                }}
-              >
-                <span>📥 Download start-agent.bat</span>
-              </a>
-            </div>
-
-            {/* install-service.bat */}
-            <div style={{
-              background: '#f8fafc',
-              border: '1.5px solid #cbd5e1',
-              borderRadius: 14,
-              padding: 16,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between'
-            }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 22 }}>⚙️</span>
-                  <strong style={{ fontSize: 14, color: '#0f172a' }}>install-service.bat</strong>
-                </div>
-                <p style={{ fontSize: 12, color: '#64748b', lineHeight: 1.45, margin: '0 0 12px 0' }}>
-                  Registers the print agent into Windows Task Scheduler to start silently on system boot.
-                </p>
-              </div>
-              <a
-                href="./agent/install-service.bat"
-                download="install-service.bat"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  padding: '10px 14px',
-                  background: '#ffffff',
-                  color: '#0f172a',
-                  border: '1.5px solid #cbd5e1',
-                  borderRadius: 10,
-                  fontSize: 12.5,
-                  fontWeight: 800,
-                  textDecoration: 'none'
-                }}
-              >
-                <span>📥 Download install-service.bat</span>
-              </a>
-            </div>
-
-            {/* config.sample.json */}
-            <div style={{
-              background: '#f8fafc',
-              border: '1.5px solid #cbd5e1',
-              borderRadius: 14,
-              padding: 16,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between'
-            }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 22 }}>📋</span>
-                  <strong style={{ fontSize: 14, color: '#0f172a' }}>config.sample.json</strong>
-                </div>
-                <p style={{ fontSize: 12, color: '#64748b', lineHeight: 1.45, margin: '0 0 12px 0' }}>
-                  Pre-configured sample mapping setup code PBK-SETUP-9021 and B/W, Colour, &amp; Photo roles.
-                </p>
-              </div>
-              <a
-                href="./agent/config.sample.json"
-                download="config.sample.json"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  padding: '10px 14px',
-                  background: '#ffffff',
-                  color: '#0f172a',
-                  border: '1.5px solid #cbd5e1',
-                  borderRadius: 10,
-                  fontSize: 12.5,
-                  fontWeight: 800,
-                  textDecoration: 'none'
-                }}
-              >
-                <span>📥 Download config.sample.json</span>
-              </a>
-            </div>
-          </div>
-        </section>
 
         {/* Features: What You Get */}
         <section className="download-features-grid">
