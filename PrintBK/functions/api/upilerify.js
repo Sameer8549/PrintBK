@@ -499,17 +499,40 @@ function buildUpilerifyRouter(deps) {
         engineMode = 'embedded';
       }
 
-      const intentParams = `pa=${encodeURIComponent(merchantUpiId)}&pn=${encodeURIComponent(payeeName)}&am=${payableAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(refNote)}`;
-      const gpayUrl = `tez://upi/pay?${intentParams}`;
-      const phonepeUrl = `phonepe://pay?${intentParams}`;
-      const paytmUrl = `paytmmp://pay?${intentParams}`;
+      const cleanPayeeName = (payeeName || 'PrintBK').replace(/[^a-zA-Z0-9 ]/g, '').trim() || 'PrintBK';
+      const cleanMerchantUpi = (merchantUpiId || 'Q098686787@ybl').trim();
+      const encMerchant = encodeURIComponent(cleanMerchantUpi);
+      const encPayee = encodeURIComponent(cleanPayeeName);
+      const amountStr = payableAmount.toFixed(2);
+      const encRef = encodeURIComponent(refNote);
 
-      // Clean Direct P2P Intent links (pa & pn only) - completely immune to NPCI "Link payments not accepted" errors
-      const cleanIntentParams = `pa=${encodeURIComponent(merchantUpiId)}&pn=${encodeURIComponent(payeeName)}`;
+      // 1. Universal Standard UPI URL
+      const intentParams = `pa=${encMerchant}&pn=${encPayee}&am=${amountStr}&cu=INR&tn=${encRef}`;
+      const upiIntentUrlComputed = `upi://pay?${intentParams}`;
+      if (!upiIntentUrl) upiIntentUrl = upiIntentUrlComputed;
+
+      // 2. Official Android Chrome Intent URLs (satisfies Android OS & Chrome security checks, avoiding bank risk blocks)
+      const intentGpayUrl = `intent://pay?pa=${encMerchant}&pn=${encPayee}&am=${amountStr}&cu=INR#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end`;
+      const intentPhonepeUrl = `intent://pay?pa=${encMerchant}&pn=${encPayee}&am=${amountStr}&cu=INR#Intent;scheme=upi;package=com.phonepe.app;end`;
+      const intentPaytmUrl = `intent://pay?pa=${encMerchant}&pn=${encPayee}&am=${amountStr}&cu=INR#Intent;scheme=upi;package=net.one97.paytm;end`;
+      const intentBhimUrl = `intent://pay?pa=${encMerchant}&pn=${encPayee}&am=${amountStr}&cu=INR#Intent;scheme=upi;package=in.org.npci.upiapp;end`;
+      const intentAnyUrl = `intent://pay?pa=${encMerchant}&pn=${encPayee}&am=${amountStr}&cu=INR#Intent;scheme=upi;end`;
+
+      // 3. Clean P2P Intent URLs (Zero amount/note lock - completely immune to bank internal policy rejections on personal VPAs)
+      const cleanIntentParams = `pa=${encMerchant}&pn=${encPayee}`;
       const cleanIntentUrl = `upi://pay?${cleanIntentParams}`;
-      const cleanGpayUrl = `tez://upi/pay?${cleanIntentParams}`;
-      const cleanPhonepeUrl = `phonepe://pay?${cleanIntentParams}`;
-      const cleanPaytmUrl = `paytmmp://pay?${cleanIntentParams}`;
+      const cleanIntentGpayUrl = `intent://pay?pa=${encMerchant}&pn=${encPayee}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end`;
+      const cleanIntentPhonepeUrl = `intent://pay?pa=${encMerchant}&pn=${encPayee}#Intent;scheme=upi;package=com.phonepe.app;end`;
+      const cleanIntentPaytmUrl = `intent://pay?pa=${encMerchant}&pn=${encPayee}#Intent;scheme=upi;package=net.one97.paytm;end`;
+      const cleanIntentAnyUrl = `intent://pay?pa=${encMerchant}&pn=${encPayee}#Intent;scheme=upi;end`;
+
+      // Backward-compatible app-specific mappings
+      const gpayUrl = intentGpayUrl;
+      const phonepeUrl = intentPhonepeUrl;
+      const paytmUrl = intentPaytmUrl;
+      const cleanGpayUrl = cleanIntentGpayUrl;
+      const cleanPhonepeUrl = cleanIntentPhonepeUrl;
+      const cleanPaytmUrl = cleanIntentPaytmUrl;
 
       const checkoutUrl = upilerifyBase && engineMode === 'external'
         ? `${upilerifyBase}/pay/${order.id}`
@@ -520,7 +543,16 @@ function buildUpilerifyRouter(deps) {
         payableAmount,
         qrCodeData,
         upiIntentUrl,
+        intentGpayUrl,
+        intentPhonepeUrl,
+        intentPaytmUrl,
+        intentBhimUrl,
+        intentAnyUrl,
         cleanIntentUrl,
+        cleanIntentGpayUrl,
+        cleanIntentPhonepeUrl,
+        cleanIntentPaytmUrl,
+        cleanIntentAnyUrl,
         cleanGpayUrl,
         cleanPhonepeUrl,
         cleanPaytmUrl,
@@ -528,8 +560,8 @@ function buildUpilerifyRouter(deps) {
         phonepeUrl,
         paytmUrl,
         refNote,
-        merchantUpiId,
-        payeeName,
+        merchantUpiId: cleanMerchantUpi,
+        payeeName: cleanPayeeName,
         expiresAt,
         redirectUrl,
         checkoutUrl,
@@ -576,7 +608,16 @@ function buildUpilerifyRouter(deps) {
         payableAmount,
         qrCodeData,
         upiIntentUrl,
+        intentGpayUrl,
+        intentPhonepeUrl,
+        intentPaytmUrl,
+        intentBhimUrl,
+        intentAnyUrl,
         cleanIntentUrl,
+        cleanIntentGpayUrl,
+        cleanIntentPhonepeUrl,
+        cleanIntentPaytmUrl,
+        cleanIntentAnyUrl,
         cleanGpayUrl,
         cleanPhonepeUrl,
         cleanPaytmUrl,
@@ -584,8 +625,8 @@ function buildUpilerifyRouter(deps) {
         phonepeUrl,
         paytmUrl,
         refNote,
-        merchantUpiId,
-        payeeName,
+        merchantUpiId: cleanMerchantUpi,
+        payeeName: cleanPayeeName,
         expiresAt,
         redirectUrl,
         checkoutUrl,
@@ -645,6 +686,13 @@ function buildUpilerifyRouter(deps) {
         order.baseAmount ?? b?.upilerify?.baseAmount ?? order.total ?? 0
       );
 
+      const uData = b?.upilerify || {};
+      const targetMerchant = (uData.merchantUpiId || order.merchantUpiId || process.env.MERCHANT_UPI_ID || process.env.UPI_ID || 'Q098686787@ybl').trim();
+      const targetPayee = (uData.payeeName || order.payeeName || process.env.UPI_PAYEE_NAME || 'PrintBK').replace(/[^a-zA-Z0-9 ]/g, '').trim() || 'PrintBK';
+      const encM = encodeURIComponent(targetMerchant);
+      const encP = encodeURIComponent(targetPayee);
+      const amtStr = payableAmount.toFixed(2);
+
       return res.json({
         orderId: order.id,
         orderNumber: order.order_number || b.orderNumber || null,
@@ -652,21 +700,30 @@ function buildUpilerifyRouter(deps) {
         fulfillmentStatus: currentStatus,
         baseAmount,
         payableAmount,
-        qrCodeData: order.qrCodeData || b?.upilerify?.qrCodeData || null,
-        upiIntentUrl: order.upiIntentUrl || b?.upilerify?.upiIntentUrl || null,
-        cleanIntentUrl: b?.upilerify?.cleanIntentUrl || `upi://pay?pa=${encodeURIComponent(b?.upilerify?.merchantUpiId || 'Q098686787@ybl')}&pn=${encodeURIComponent(b?.upilerify?.payeeName || 'PrintBK HKBK')}`,
-        cleanGpayUrl: b?.upilerify?.cleanGpayUrl || `tez://upi/pay?pa=${encodeURIComponent(b?.upilerify?.merchantUpiId || 'Q098686787@ybl')}&pn=${encodeURIComponent(b?.upilerify?.payeeName || 'PrintBK HKBK')}`,
-        cleanPhonepeUrl: b?.upilerify?.cleanPhonepeUrl || `phonepe://pay?pa=${encodeURIComponent(b?.upilerify?.merchantUpiId || 'Q098686787@ybl')}&pn=${encodeURIComponent(b?.upilerify?.payeeName || 'PrintBK HKBK')}`,
-        cleanPaytmUrl: b?.upilerify?.cleanPaytmUrl || `paytmmp://pay?pa=${encodeURIComponent(b?.upilerify?.merchantUpiId || 'Q098686787@ybl')}&pn=${encodeURIComponent(b?.upilerify?.payeeName || 'PrintBK HKBK')}`,
-        gpayUrl: b?.upilerify?.gpayUrl || null,
-        phonepeUrl: b?.upilerify?.phonepeUrl || null,
-        paytmUrl: b?.upilerify?.paytmUrl || null,
-        refNote: b?.upilerify?.refNote || null,
-        redirectUrl: b?.upilerify?.redirectUrl || null,
-        checkoutUrl: b?.upilerify?.checkoutUrl || `#/checkout/${order.id}`,
-        merchantUpiId: b?.upilerify?.merchantUpiId || process.env.MERCHANT_UPI_ID || process.env.UPI_ID || 'Q098686787@ybl',
-        payeeName: b?.upilerify?.payeeName || process.env.UPI_PAYEE_NAME || 'HKBK Student Point',
-        utrNumber: order.utrNumber || b?.upilerify?.utrNumber || null,
+        qrCodeData: order.qrCodeData || uData.qrCodeData || null,
+        upiIntentUrl: order.upiIntentUrl || uData.upiIntentUrl || null,
+        intentGpayUrl: uData.intentGpayUrl || `intent://pay?pa=${encM}&pn=${encP}&am=${amtStr}&cu=INR#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end`,
+        intentPhonepeUrl: uData.intentPhonepeUrl || `intent://pay?pa=${encM}&pn=${encP}&am=${amtStr}&cu=INR#Intent;scheme=upi;package=com.phonepe.app;end`,
+        intentPaytmUrl: uData.intentPaytmUrl || `intent://pay?pa=${encM}&pn=${encP}&am=${amtStr}&cu=INR#Intent;scheme=upi;package=net.one97.paytm;end`,
+        intentBhimUrl: uData.intentBhimUrl || `intent://pay?pa=${encM}&pn=${encP}&am=${amtStr}&cu=INR#Intent;scheme=upi;package=in.org.npci.upiapp;end`,
+        intentAnyUrl: uData.intentAnyUrl || `intent://pay?pa=${encM}&pn=${encP}&am=${amtStr}&cu=INR#Intent;scheme=upi;end`,
+        cleanIntentUrl: uData.cleanIntentUrl || `upi://pay?pa=${encM}&pn=${encP}`,
+        cleanIntentGpayUrl: uData.cleanIntentGpayUrl || `intent://pay?pa=${encM}&pn=${encP}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end`,
+        cleanIntentPhonepeUrl: uData.cleanIntentPhonepeUrl || `intent://pay?pa=${encM}&pn=${encP}#Intent;scheme=upi;package=com.phonepe.app;end`,
+        cleanIntentPaytmUrl: uData.cleanIntentPaytmUrl || `intent://pay?pa=${encM}&pn=${encP}#Intent;scheme=upi;package=net.one97.paytm;end`,
+        cleanIntentAnyUrl: uData.cleanIntentAnyUrl || `intent://pay?pa=${encM}&pn=${encP}#Intent;scheme=upi;end`,
+        cleanGpayUrl: uData.cleanGpayUrl || `intent://pay?pa=${encM}&pn=${encP}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end`,
+        cleanPhonepeUrl: uData.cleanPhonepeUrl || `intent://pay?pa=${encM}&pn=${encP}#Intent;scheme=upi;package=com.phonepe.app;end`,
+        cleanPaytmUrl: uData.cleanPaytmUrl || `intent://pay?pa=${encM}&pn=${encP}#Intent;scheme=upi;package=net.one97.paytm;end`,
+        gpayUrl: uData.gpayUrl || `intent://pay?pa=${encM}&pn=${encP}&am=${amtStr}&cu=INR#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end`,
+        phonepeUrl: uData.phonepeUrl || `intent://pay?pa=${encM}&pn=${encP}&am=${amtStr}&cu=INR#Intent;scheme=upi;package=com.phonepe.app;end`,
+        paytmUrl: uData.paytmUrl || `intent://pay?pa=${encM}&pn=${encP}&am=${amtStr}&cu=INR#Intent;scheme=upi;package=net.one97.paytm;end`,
+        refNote: uData.refNote || null,
+        redirectUrl: uData.redirectUrl || null,
+        checkoutUrl: uData.checkoutUrl || `#/checkout/${order.id}`,
+        merchantUpiId: targetMerchant,
+        payeeName: targetPayee,
+        utrNumber: order.utrNumber || uData.utrNumber || null,
         expiresAt: order.expiresAt || expiresAtIso,
         pickupCode: paymentStatus === 'PAID' ? (b.pickupCode || null) : null
       });

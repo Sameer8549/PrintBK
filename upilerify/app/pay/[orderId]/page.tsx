@@ -90,21 +90,24 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderId: st
     );
   }
 
-  const upiIntentUri = `upi://pay?pa=${encodeURIComponent(order.merchantUpiId)}&pn=${encodeURIComponent(
-    order.merchantName
-  )}&am=${order.expectedAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(order.refNote)}`;
+  const encMerchant = encodeURIComponent(order.merchantUpiId);
+  const encPayee = encodeURIComponent(order.merchantName || 'PrintBK');
+  const amountStr = order.expectedAmount.toFixed(2);
+  const encRef = encodeURIComponent(order.refNote);
 
-  // Clean P2P Intent URL (omitting am & tn) - guarantees zero "Link payment not accepted" rejections on P2P VPAs
-  const cleanUpiUri = `upi://pay?pa=${encodeURIComponent(order.merchantUpiId)}&pn=${encodeURIComponent(
-    order.merchantName
-  )}`;
+  const upiIntentUri = `upi://pay?pa=${encMerchant}&pn=${encPayee}&am=${amountStr}&cu=INR&tn=${encRef}`;
+  const androidIntentUri = `intent://pay?pa=${encMerchant}&pn=${encPayee}&am=${amountStr}&cu=INR#Intent;scheme=upi;end`;
+  const cleanUpiUri = `upi://pay?pa=${encMerchant}&pn=${encPayee}`;
+  const cleanAndroidIntentUri = `intent://pay?pa=${encMerchant}&pn=${encPayee}#Intent;scheme=upi;end`;
+
+  const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent || '');
+  const primaryPayUrl = isAndroid ? androidIntentUri : upiIntentUri;
+  const directP2pUrl = isAndroid ? cleanAndroidIntentUri : cleanUpiUri;
 
   const handleDirectP2P = (e: React.MouseEvent) => {
-    e.preventDefault();
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(order.expectedAmount.toFixed(2)).catch(() => {});
     }
-    window.location.href = cleanUpiUri;
   };
 
   return (
@@ -201,15 +204,28 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderId: st
                 <QRCodeSVG value={upiIntentUri} size={185} level="M" />
               </div>
 
-              {/* Mobile Pay Direct P2P Launcher (Bypasses "Link Payment Not Accepted" block) */}
-              <button
-                type="button"
+              {/* 1-Tap Direct UPI Pay Anchor (Android Intent & Universal UPI) */}
+              <a
+                href={primaryPayUrl}
+                target="_self"
+                rel="noopener noreferrer"
                 onClick={handleDirectP2P}
-                className="w-full py-3.5 px-4 rounded-2xl bg-[#0066FF] hover:bg-[#0052cc] text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all duration-200 cursor-pointer border-none"
+                className="w-full py-3.5 px-4 rounded-2xl bg-[#0066FF] hover:bg-[#0052cc] text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all duration-200 cursor-pointer no-underline"
               >
                 <Smartphone className="w-4 h-4 text-white" />
-                <span>Pay via UPI App (Direct Transfer)</span>
-              </button>
+                <span>Pay via UPI App (₹{order.expectedAmount.toFixed(2)})</span>
+              </a>
+
+              {/* Zero-Lock P2P Fallback (Bypasses Bank Commercial Policy Blocks) */}
+              <a
+                href={directP2pUrl}
+                target="_self"
+                rel="noopener noreferrer"
+                onClick={handleDirectP2P}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-center no-underline"
+              >
+                <span>Direct Contact Transfer (Amount Pre-Copied)</span>
+              </a>
 
               <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
                 <span>UPI ID: <strong className="text-slate-800">{order.merchantUpiId}</strong></span>
@@ -226,25 +242,22 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderId: st
                 </button>
               </div>
 
-              {/* Standard Auto-Fill Fallback */}
-              <a
-                href={upiIntentUri}
-                className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-center"
-              >
-                <span>Try Auto-Fill Link (₹{order.expectedAmount.toFixed(2)})</span>
-              </a>
-
-              {/* Awaiting Confirmation Badge */}
-              <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs">
-                <div className="flex items-center gap-2 text-amber-800 font-medium">
-                  <Clock className="w-3.5 h-3.5 animate-spin text-amber-600" />
-                  <span>Awaiting Bank Confirmation</span>
+              {/* Automatic Bank Confirmation Badge */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs">
+                <div className="flex items-center gap-2 text-emerald-800 font-medium">
+                  <Clock className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                  <span>Automatic bank verification active (No UTR needed)</span>
                 </div>
-                <span className="font-mono font-bold text-amber-900">{order.refNote}</span>
+                <span className="font-mono font-bold text-emerald-900">{order.refNote}</span>
               </div>
 
-              {/* Fallback UTR Submission Form */}
-              <UtrClaimForm orderId={order.id} onClaimed={fetchOrder} />
+              {/* Optional Fallback UTR Submission Form */}
+              <div className="pt-2 border-t border-slate-100">
+                <p className="text-[11px] text-slate-400 text-center mb-2">
+                  Optional: SMS delayed or paying from another phone?
+                </p>
+                <UtrClaimForm orderId={order.id} onClaimed={fetchOrder} />
+              </div>
             </div>
           )}
 

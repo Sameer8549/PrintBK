@@ -39,7 +39,16 @@ export default function PaymentState({
     payableAmount: number;
     qrCodeData: string;
     upiIntentUrl: string;
+    intentGpayUrl?: string;
+    intentPhonepeUrl?: string;
+    intentPaytmUrl?: string;
+    intentBhimUrl?: string;
+    intentAnyUrl?: string;
     cleanIntentUrl?: string;
+    cleanIntentGpayUrl?: string;
+    cleanIntentPhonepeUrl?: string;
+    cleanIntentPaytmUrl?: string;
+    cleanIntentAnyUrl?: string;
     cleanGpayUrl?: string;
     cleanPhonepeUrl?: string;
     cleanPaytmUrl?: string;
@@ -94,6 +103,16 @@ export default function PaymentState({
   // Platform detection for responsive mobile action
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
   const isMobile = /android|iphone|ipad|ipod/i.test(ua);
+  const isAndroid = /android/i.test(ua);
+  const isIOS = /iphone|ipad|ipod/i.test(ua);
+
+  // Prepares clipboard with exact amount and shows notification before opening UPI app
+  const prepareAppPay = (appName: string) => {
+    if (checkoutData?.payableAmount) {
+      navigator.clipboard?.writeText(checkoutData.payableAmount.toFixed(2)).catch(() => {});
+      notify(`Opening ${appName} with exact total ₹${checkoutData.payableAmount.toFixed(2)}…`);
+    }
+  };
 
   // 1. Initial Load: create or fetch UPILerify checkout session
   useEffect(() => {
@@ -156,7 +175,16 @@ export default function PaymentState({
             payableAmount: Number(createRes.payableAmount || createRes.baseAmount || 0),
             qrCodeData: createRes.qrCodeData,
             upiIntentUrl: createRes.upiIntentUrl,
+            intentGpayUrl: createRes.intentGpayUrl,
+            intentPhonepeUrl: createRes.intentPhonepeUrl,
+            intentPaytmUrl: createRes.intentPaytmUrl,
+            intentBhimUrl: createRes.intentBhimUrl,
+            intentAnyUrl: createRes.intentAnyUrl,
             cleanIntentUrl: createRes.cleanIntentUrl,
+            cleanIntentGpayUrl: createRes.cleanIntentGpayUrl,
+            cleanIntentPhonepeUrl: createRes.cleanIntentPhonepeUrl,
+            cleanIntentPaytmUrl: createRes.cleanIntentPaytmUrl,
+            cleanIntentAnyUrl: createRes.cleanIntentAnyUrl,
             cleanGpayUrl: createRes.cleanGpayUrl,
             cleanPhonepeUrl: createRes.cleanPhonepeUrl,
             cleanPaytmUrl: createRes.cleanPaytmUrl,
@@ -179,7 +207,16 @@ export default function PaymentState({
             payableAmount: Number(statusRes.payableAmount || 0),
             qrCodeData: statusRes.qrCodeData || statusRes.upiIntentUrl,
             upiIntentUrl: statusRes.upiIntentUrl,
+            intentGpayUrl: statusRes.intentGpayUrl,
+            intentPhonepeUrl: statusRes.intentPhonepeUrl,
+            intentPaytmUrl: statusRes.intentPaytmUrl,
+            intentBhimUrl: statusRes.intentBhimUrl,
+            intentAnyUrl: statusRes.intentAnyUrl,
             cleanIntentUrl: statusRes.cleanIntentUrl,
+            cleanIntentGpayUrl: statusRes.cleanIntentGpayUrl,
+            cleanIntentPhonepeUrl: statusRes.cleanIntentPhonepeUrl,
+            cleanIntentPaytmUrl: statusRes.cleanIntentPaytmUrl,
+            cleanIntentAnyUrl: statusRes.cleanIntentAnyUrl,
             cleanGpayUrl: statusRes.cleanGpayUrl,
             cleanPhonepeUrl: statusRes.cleanPhonepeUrl,
             cleanPaytmUrl: statusRes.cleanPaytmUrl,
@@ -754,18 +791,20 @@ export default function PaymentState({
             </div>
           </div>
 
-          {/* Direct P2P App Buttons (Clean P2P — Bypasses "Link payments not accepted" restrictions) */}
+          {/* Direct UPI App Buttons (Official Intent URIs - Eliminates Bank Internal Policy Errors) */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
               <span>🚀</span>
-              <span>1-Tap App Transfer (Direct Link Block Bypass)</span>
+              <span>1-Tap Direct UPI Pay (No Link Block)</span>
             </div>
 
             {/* Direct App Launchers with clean VPA intent */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
-              <button
-                type="button"
-                onClick={(e) => handleDirectAppPay(e, checkoutData.cleanGpayUrl || `tez://upi/pay?pa=${encodeURIComponent(checkoutData.merchantUpiId)}&pn=${encodeURIComponent(checkoutData.payeeName)}`)}
+              <a
+                href={isAndroid ? (checkoutData.intentGpayUrl || checkoutData.cleanIntentGpayUrl || checkoutData.cleanIntentUrl) : (checkoutData.cleanIntentUrl || checkoutData.upiIntentUrl)}
+                target="_self"
+                rel="noopener noreferrer"
+                onClick={() => prepareAppPay('Google Pay')}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -779,16 +818,19 @@ export default function PaymentState({
                   fontWeight: 700,
                   fontSize: 12,
                   cursor: 'pointer',
+                  textDecoration: 'none',
                   boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
                 }}
               >
                 <GPayLogo size={24} />
                 <span style={{ marginTop: 4 }}>Google Pay</span>
-              </button>
+              </a>
 
-              <button
-                type="button"
-                onClick={(e) => handleDirectAppPay(e, checkoutData.cleanPhonepeUrl || `phonepe://pay?pa=${encodeURIComponent(checkoutData.merchantUpiId)}&pn=${encodeURIComponent(checkoutData.payeeName)}`)}
+              <a
+                href={isAndroid ? (checkoutData.intentPhonepeUrl || checkoutData.cleanIntentPhonepeUrl || checkoutData.cleanIntentUrl) : (checkoutData.phonepeUrl || checkoutData.cleanIntentUrl)}
+                target="_self"
+                rel="noopener noreferrer"
+                onClick={() => prepareAppPay('PhonePe')}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -802,16 +844,19 @@ export default function PaymentState({
                   fontWeight: 700,
                   fontSize: 12,
                   cursor: 'pointer',
+                  textDecoration: 'none',
                   boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
                 }}
               >
                 <PhonePeLogo size={24} />
                 <span style={{ marginTop: 4 }}>PhonePe</span>
-              </button>
+              </a>
 
-              <button
-                type="button"
-                onClick={(e) => handleDirectAppPay(e, checkoutData.cleanPaytmUrl || `paytmmp://pay?pa=${encodeURIComponent(checkoutData.merchantUpiId)}&pn=${encodeURIComponent(checkoutData.payeeName)}`)}
+              <a
+                href={isAndroid ? (checkoutData.intentPaytmUrl || checkoutData.cleanIntentPaytmUrl || checkoutData.cleanIntentUrl) : (checkoutData.paytmUrl || checkoutData.cleanIntentUrl)}
+                target="_self"
+                rel="noopener noreferrer"
+                onClick={() => prepareAppPay('Paytm')}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -825,18 +870,21 @@ export default function PaymentState({
                   fontWeight: 700,
                   fontSize: 12,
                   cursor: 'pointer',
+                  textDecoration: 'none',
                   boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
                 }}
               >
                 <PaytmLogo size={24} />
                 <span style={{ marginTop: 4 }}>Paytm</span>
-              </button>
+              </a>
             </div>
 
             {/* Main Primary Direct Transfer Action Button */}
-            <button
-              type="button"
-              onClick={(e) => handleDirectAppPay(e, checkoutData.cleanIntentUrl || `upi://pay?pa=${encodeURIComponent(checkoutData.merchantUpiId)}&pn=${encodeURIComponent(checkoutData.payeeName)}`)}
+            <a
+              href={isAndroid ? (checkoutData.intentAnyUrl || checkoutData.cleanIntentAnyUrl || checkoutData.cleanIntentUrl) : (checkoutData.cleanIntentUrl || checkoutData.upiIntentUrl)}
+              target="_self"
+              rel="noopener noreferrer"
+              onClick={() => prepareAppPay('UPI App')}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -852,13 +900,14 @@ export default function PaymentState({
                 fontWeight: 900,
                 cursor: 'pointer',
                 textAlign: 'center',
+                textDecoration: 'none',
                 boxShadow: '0 4px 16px rgba(37,99,235,0.25)',
                 boxSizing: 'border-box'
               }}
             >
               <UpiLogo size={26} />
               <span>Open Any UPI App (Direct Transfer)</span>
-            </button>
+            </a>
             <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center', marginTop: 6 }}>
               ✨ Copies exact amount (₹{checkoutData.payableAmount.toFixed(2)}) &amp; opens UPI app to recipient safely
             </div>
@@ -946,29 +995,30 @@ export default function PaymentState({
             alignItems: 'center',
             justifyContent: 'center',
             gap: 8,
-            padding: '10px 14px',
-            background: '#f8fafc',
-            borderRadius: 10,
-            border: '1px solid #e2e8f0'
+            padding: '12px 14px',
+            background: '#f0fdf4',
+            borderRadius: 12,
+            border: '1.5px solid #bbf7d0',
+            marginTop: 14
           }}>
             <span style={{
               width: 10,
               height: 10,
               borderRadius: '50%',
-              background: '#2563eb',
-              boxShadow: '0 0 0 3px rgba(37,99,235,0.2)',
+              background: '#16a34a',
+              boxShadow: '0 0 0 3px rgba(22,163,74,0.25)',
               animation: 'pulse 1.8s infinite'
             }} />
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
-              Waiting for automatic bank confirmation…
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>
+              Automatic Bank Verification Active
             </span>
           </div>
+          <div style={{ fontSize: 11.5, color: '#64748b', textAlign: 'center', marginTop: 6, lineHeight: 1.45 }}>
+            ⚡ <strong>No UTR needed.</strong> Once your UPI app confirms payment, this screen automatically redirects to your receipt in ~5 seconds.
+          </div>
 
-          {/* Immediate UTR Access Fallback Button */}
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid #f1f5f9', textAlign: 'center' }}>
-            <p style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
-              Paid via UPI transfer or SMS delayed? Submit reference:
-            </p>
+          {/* Optional UTR Fallback — Subtle & Strictly Optional */}
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #f1f5f9', textAlign: 'center' }}>
             <button
               type="button"
               onClick={() => {
@@ -976,18 +1026,17 @@ export default function PaymentState({
                 setShowManualModal(true);
               }}
               style={{
-                width: '100%',
-                padding: '12px',
-                background: '#f8fafc',
-                border: '1.5px solid #2563eb',
-                color: '#2563eb',
-                borderRadius: 12,
-                fontSize: 14,
-                fontWeight: 800,
-                cursor: 'pointer'
+                background: 'transparent',
+                border: 'none',
+                color: '#64748b',
+                fontSize: 12,
+                fontWeight: 600,
+                textDecoration: 'underline',
+                cursor: 'pointer',
+                padding: '4px 8px'
               }}
             >
-              I Have Paid (Enter 12-Digit UTR)
+              SMS delayed or paid from another phone? (Optional) Submit Reference / UTR
             </button>
           </div>
 
@@ -1034,7 +1083,10 @@ export default function PaymentState({
             boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>Enter 12-Digit UPI UTR</h3>
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: 0 }}>(Optional) Submit Reference</h3>
+                <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 700 }}>Automatic confirmation runs by itself</span>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowManualModal(false)}
@@ -1044,14 +1096,14 @@ export default function PaymentState({
               </button>
             </div>
 
-            <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5, marginBottom: 16 }}>
-              Find the 12-digit numeric <strong>UPI Reference ID / UTR Number</strong> in Google Pay, PhonePe, Paytm, or your bank SMS.
+            <p style={{ fontSize: 12.5, color: '#64748b', lineHeight: 1.5, marginBottom: 16 }}>
+              Submitting a UTR is <strong>completely optional</strong>. If you just paid in Google Pay, PhonePe, or Paytm, our system verifies it automatically in seconds via bank credit alerts. Only enter this if confirmation is taking longer than 60 seconds.
             </p>
 
             <form onSubmit={handleSubmitManualUtr}>
               <div style={{ marginBottom: 14 }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
-                  12-Digit Reference Number (UTR)
+                  (Optional) 12-Digit Reference Number (UTR)
                 </label>
                 <input
                   type="text"
@@ -1118,7 +1170,7 @@ export default function PaymentState({
                     cursor: submittingUtr || manualUtr.length !== 12 ? 'not-allowed' : 'pointer'
                   }}
                 >
-                  {submittingUtr ? 'Submitting…' : 'Submit & Review'}
+                  {submittingUtr ? 'Submitting…' : 'Submit Reference (Optional)'}
                 </button>
               </div>
             </form>
