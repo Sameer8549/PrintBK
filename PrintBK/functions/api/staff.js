@@ -59,7 +59,7 @@ function staffRateLimiter(req, res, next) {
   const deviceId = req.staffDevice?.id || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
   const now = Date.now();
   const windowMs = 60 * 1000;
-  const maxRequests = 120; // 120 requests/min (accommodating live feed 1.5s polling)
+  const maxRequests = 360; // 360 requests/min (accommodating lightning fast 600ms live feed polling)
 
   const rec = deviceRequests.get(deviceId) || { count: 0, resetTime: now + windowMs };
   if (now > rec.resetTime) {
@@ -294,7 +294,7 @@ router.get('/live', async (req, res) => {
 
     // 0. Catalyst Cache Routing: Check cache for sub-millisecond zero-datastore response
     const forceRefresh = req.query.refresh === 'true' || req.headers['x-refresh'] === 'true';
-    const includeTest = req.headers['x-include-test'] === 'true' || req.query.include_test === 'true';
+    const includeTest = req.headers['x-include-test'] === 'true' || req.headers['x-test-suite'] === 'true' || req.query.include_test === 'true';
     if (!forceRefresh && !includeTest && global.__printbk_getCachedQueue) {
       const cached = await global.__printbk_getCachedQueue(catalystApp);
       if (cached && Array.isArray(cached.orders)) {
@@ -891,7 +891,7 @@ router.post('/items/:id/approve-print', async (req, res) => {
 
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    const isPaid = ['cash_collected', 'upi_claimed', 'paid', 'processing', 'printing'].includes(order.status);
+    const isPaid = ['cash_collected', 'upi_claimed', 'paid', 'PAID', 'UNDER_REVIEW', 'processing', 'printing'].includes(order.status);
     if (!isPaid) {
       if (order.status === 'pending_cash') {
         order.status = 'cash_collected';
@@ -900,7 +900,7 @@ router.post('/items/:id/approve-print', async (req, res) => {
           await zcql.executeZCQLQuery(`UPDATE orders SET status = 'cash_collected', payment_status = 'cash_collected', updated_at = ${now} WHERE id = '${esc(orderId)}'`).catch(() => {});
         }
         await recordAudit(zcql, { orderId, itemId, action: 'cash_collected_and_approved', fromStatus: 'pending_cash', toStatus: 'cash_collected' });
-      } else if (order.status === 'upi_started' || order.status === 'pending_payment') {
+      } else if (['upi_started', 'pending_payment', 'PENDING', 'UNDER_REVIEW'].includes(order.status)) {
         order.status = 'upi_claimed';
         order.payment_status = 'upi_claimed';
         if (zcql) {
@@ -2110,7 +2110,8 @@ router.post(['/orders/purge-stale', '/orders/purge-all'], async (req, res) => {
           const updateBatch = [];
           for (const row of staleOrders) {
             const o = row.orders;
-            if (['pending_cash', 'pending_payment', 'waiting_payment', 'ready_to_print', 'preparing', 'ready', 'processing', 'upi_claimed'].includes(o.status)) {
+            const shouldPurge = all || ['pending_cash', 'pending_payment', 'waiting_payment', 'ready_to_print', 'preparing', 'ready', 'processing', 'upi_claimed', 'PENDING', 'UNDER_REVIEW', 'PAID'].includes(o.status);
+            if (shouldPurge) {
               if (o.ROWID) {
                 updateBatch.push({ ROWID: o.ROWID, status: 'cancelled', updated_at: now });
               }
@@ -2165,9 +2166,10 @@ router.post(['/orders/purge-stale', '/orders/purge-all'], async (req, res) => {
       memOrders.clear();
       memOrderItems.clear();
       memPrintJobs.clear();
+      if (global.__printbk_utr_registry) global.__printbk_utr_registry.clear();
     } else {
       for (const [oid, o] of memOrders) {
-        if (Number(o.created_at) < staleCutoff && ['pending_cash', 'pending_payment', 'waiting_payment', 'ready_to_print', 'preparing', 'ready', 'processing', 'upi_claimed'].includes(o.status)) {
+        if (Number(o.created_at) < staleCutoff && ['pending_cash', 'pending_payment', 'waiting_payment', 'ready_to_print', 'preparing', 'ready', 'processing', 'upi_claimed', 'PENDING', 'UNDER_REVIEW', 'PAID'].includes(o.status)) {
           o.status = 'cancelled';
           o.updated_at = now;
           purgedCount++;

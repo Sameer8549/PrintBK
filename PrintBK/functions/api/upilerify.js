@@ -422,7 +422,7 @@ function buildUpilerifyRouter(deps) {
               currency: 'INR',
               merchantUpiId,
               merchantName: payeeName,
-              useMicroOffset: true,
+              useMicroOffset: false,
               redirectUrl,
               metadata: {
                 orderId: order.id,
@@ -489,9 +489,7 @@ function buildUpilerifyRouter(deps) {
       const refNote = `PrintBK${cleanOrderNum}`;
 
       if (engineMode !== 'external') {
-        const seed = (Number(order.order_number || 0) > 0 ? Number(order.order_number) : Math.floor(Date.now() / 1000)) % 90 + 1;
-        const offsetPaise = Number((seed / 100).toFixed(2));
-        payableAmount = Number((baseAmount + offsetPaise).toFixed(2));
+        payableAmount = Number(baseAmount.toFixed(2));
         const baseIntentParams = `pa=${encodeURIComponent(merchantUpiId)}&pn=${encodeURIComponent(payeeName)}&am=${payableAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(refNote)}`;
         upiIntentUrl = `upi://pay?${baseIntentParams}`;
         qrCodeData = upiIntentUrl;
@@ -733,21 +731,25 @@ function buildUpilerifyRouter(deps) {
   });
 
   /**
-   * 3. POST /api/checkout/manual-utr (and /checkout/manual-utr)
-   * Strict 12-digit numeric UTR fallback that marks the order UNDER_REVIEW
-   * after enforcing uniqueness across all orders. Forwards to external UPILerify
-   * /api/verify-utr if external engine is active.
+   * 3. POST /api/checkout/manual-utr (and /checkout/manual-utr, /api/checkout/declare-paid, /checkout/declare-paid)
+   * Handles "I Have Paid" 1-click declaration and optional 12-digit numeric UTR.
+   * Marks the order UNDER_REVIEW so staff counter immediately sees it ready for print.
    */
-  router.post(['/api/checkout/manual-utr', '/checkout/manual-utr'], async (req, res) => {
+  router.post(['/api/checkout/manual-utr', '/checkout/manual-utr', '/api/checkout/declare-paid', '/checkout/declare-paid'], async (req, res) => {
     try {
       const { orderId: rawOrderId, utrNumber: rawUtr } = req.body || {};
       const orderId = String(rawOrderId || '').trim();
-      const utrNumber = String(rawUtr || '').trim();
+      let utrNumber = String(rawUtr || '').trim();
 
       if (!orderId) {
         return res.status(400).json({ error: 'orderId is required' });
       }
-      if (!UTR_REGEX.test(utrNumber)) {
+
+      // If user clicks "I Have Paid" without entering a 12-digit UTR, assign a clean declared marker
+      const isDirectPaidClick = !utrNumber || utrNumber === 'PAID_DECLARED' || utrNumber === 'DECLARED' || utrNumber === 'PAID' || req.path.includes('declare-paid');
+      if (isDirectPaidClick) {
+        utrNumber = `PAID-${Date.now().toString().slice(-8)}`;
+      } else if (!UTR_REGEX.test(utrNumber)) {
         return res.status(400).json({ error: 'Invalid UTR format. Enter exact 12-digit numeric UPI Reference ID.' });
       }
 
@@ -779,11 +781,13 @@ function buildUpilerifyRouter(deps) {
         return res.status(409).json({ error: `Cannot submit UTR for order in status "${order.status}"` });
       }
 
-      const duplicateOrderId = await findOrderClaimingUtr(zcql, utrNumber, order.id);
-      if (duplicateOrderId) {
-        return res.status(409).json({
-          error: 'Duplicate UTR detected: This 12-digit UTR number is already linked to another order.'
-        });
+      if (!utrNumber.startsWith('PAID-')) {
+        const duplicateOrderId = await findOrderClaimingUtr(zcql, utrNumber, order.id);
+        if (duplicateOrderId) {
+          return res.status(409).json({
+            error: 'Duplicate UTR detected: This 12-digit UTR number is already linked to another order.'
+          });
+        }
       }
 
       // If linked to an external UPILerify instance, forward to /api/verify-utr per UPILerify specs

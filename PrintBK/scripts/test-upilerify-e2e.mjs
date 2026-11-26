@@ -291,7 +291,7 @@ try {
     const embedData = await embedRes.json();
     assert(embedRes.status === 200, 'Embedded checkout create returns HTTP 200 (never 503)', `Got ${embedRes.status}`);
     assert(embedData.engine === 'embedded', 'Engine mode is embedded', embedData.engine);
-    assert(embedData.payableAmount > embedData.baseAmount, 'Embedded engine adds unique paise offset', `Base: ₹${embedData.baseAmount}, Payable: ₹${embedData.payableAmount}`);
+    assert(embedData.payableAmount === embedData.baseAmount, 'Embedded engine preserves exact source amount', `Base: ₹${embedData.baseAmount}, Payable: ₹${embedData.payableAmount}`);
     assert(Boolean(embedData.qrCodeData && embedData.upiIntentUrl), 'Embedded engine generates dynamic vector QR & intent URL');
     assert(embedData.status === 'PENDING', 'Embedded checkout order is PENDING', embedData.status);
 

@@ -287,5 +287,32 @@ router.get('/version', (req, res) => {
   res.json(data);
 });
 
+/* ─── 3. GET /agent/download/:filename — Standalone Agent Downloads ─── */
+const path = require('path');
+const fs = require('fs');
+
+router.get(['/agent/download/:filename', '/agent-files/:filename'], (req, res) => {
+  const filename = path.basename(req.params.filename);
+  const allowed = ['printbk-agent-standalone.zip', 'start-agent.bat', 'install-service.bat', 'uninstall-service.bat', 'start-agent.vbs', 'install-service.ps1', 'config.sample.json'];
+  if (!allowed.includes(filename)) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+
+  const candidatePaths = [
+    path.join(__dirname, 'agent', filename),
+    path.join(__dirname, '..', '..', 'staff', 'public', 'agent', filename),
+    path.join(__dirname, '..', '..', 'agent', filename)
+  ];
+
+  for (const p of candidatePaths) {
+    if (fs.existsSync(p)) {
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.sendFile(path.resolve(p));
+    }
+  }
+
+  return res.status(404).json({ error: 'File not available on server' });
+});
+
 module.exports = router;
 module.exports.memPairedCounters = memPairedCounters;

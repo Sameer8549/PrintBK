@@ -249,6 +249,191 @@ export function DownloadPage({ onPairSuccess }: DownloadPageProps) {
           </section>
         )}
 
+        {/* Standalone Agent Files & Scripts */}
+        <section className="download-agent-section" style={{
+          background: '#ffffff',
+          borderRadius: 20,
+          border: '1.5px solid #e2e8f0',
+          padding: '28px 24px',
+          margin: '32px 0',
+          boxShadow: '0 8px 30px rgba(0,0,0,0.03)'
+        }}>
+          <div style={{ marginBottom: 20, textAlign: 'left' }}>
+            <span className="eyebrow" style={{ color: '#2563eb', fontWeight: 800 }}>STANDALONE BACKGROUND WORKER</span>
+            <h2 style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', margin: '4px 0 8px' }}>
+              Windows Print Agent Files &amp; Scripts
+            </h2>
+            <p style={{ fontSize: 13.5, color: '#475569', margin: 0, lineHeight: 1.5 }}>
+              All background spooler binaries, startup batch files, and auto-start services for your shop printers. Run standalone on any Windows PC without Electron.
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+            {/* Standalone Agent ZIP Bundle */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1.5px solid #cbd5e1',
+              borderRadius: 14,
+              padding: 16,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 22 }}>📦</span>
+                  <strong style={{ fontSize: 14, color: '#0f172a' }}>Agent Standalone Bundle</strong>
+                </div>
+                <p style={{ fontSize: 12, color: '#64748b', lineHeight: 1.45, margin: '0 0 12px 0' }}>
+                  Complete package (.zip) containing compiled agent daemon, node scripts, startup batch files, and service installers.
+                </p>
+              </div>
+              <a
+                href="./agent/printbk-agent-standalone.zip"
+                download="printbk-agent-standalone.zip"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  padding: '10px 14px',
+                  background: '#2563eb',
+                  color: '#ffffff',
+                  borderRadius: 10,
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  textDecoration: 'none'
+                }}
+              >
+                <span>📥 Download Agent Bundle (.zip)</span>
+              </a>
+            </div>
+
+            {/* start-agent.bat */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1.5px solid #cbd5e1',
+              borderRadius: 14,
+              padding: 16,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 22 }}>⚡</span>
+                  <strong style={{ fontSize: 14, color: '#0f172a' }}>start-agent.bat</strong>
+                </div>
+                <p style={{ fontSize: 12, color: '#64748b', lineHeight: 1.45, margin: '0 0 12px 0' }}>
+                  1-click startup launcher for Windows command prompt with IPv4 pinning and automatic console logging.
+                </p>
+              </div>
+              <a
+                href="./agent/start-agent.bat"
+                download="start-agent.bat"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  padding: '10px 14px',
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  border: '1.5px solid #cbd5e1',
+                  borderRadius: 10,
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  textDecoration: 'none'
+                }}
+              >
+                <span>📥 Download start-agent.bat</span>
+              </a>
+            </div>
+
+            {/* install-service.bat */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1.5px solid #cbd5e1',
+              borderRadius: 14,
+              padding: 16,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 22 }}>⚙️</span>
+                  <strong style={{ fontSize: 14, color: '#0f172a' }}>install-service.bat</strong>
+                </div>
+                <p style={{ fontSize: 12, color: '#64748b', lineHeight: 1.45, margin: '0 0 12px 0' }}>
+                  Registers the print agent into Windows Task Scheduler to start silently on system boot.
+                </p>
+              </div>
+              <a
+                href="./agent/install-service.bat"
+                download="install-service.bat"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  padding: '10px 14px',
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  border: '1.5px solid #cbd5e1',
+                  borderRadius: 10,
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  textDecoration: 'none'
+                }}
+              >
+                <span>📥 Download install-service.bat</span>
+              </a>
+            </div>
+
+            {/* config.sample.json */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1.5px solid #cbd5e1',
+              borderRadius: 14,
+              padding: 16,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 22 }}>📋</span>
+                  <strong style={{ fontSize: 14, color: '#0f172a' }}>config.sample.json</strong>
+                </div>
+                <p style={{ fontSize: 12, color: '#64748b', lineHeight: 1.45, margin: '0 0 12px 0' }}>
+                  Pre-configured sample mapping setup code PBK-SETUP-9021 and B/W, Colour, &amp; Photo roles.
+                </p>
+              </div>
+              <a
+                href="./agent/config.sample.json"
+                download="config.sample.json"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  padding: '10px 14px',
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  border: '1.5px solid #cbd5e1',
+                  borderRadius: 10,
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  textDecoration: 'none'
+                }}
+              >
+                <span>📥 Download config.sample.json</span>
+              </a>
+            </div>
+          </div>
+        </section>
+
         {/* Features: What You Get */}
         <section className="download-features-grid">
           <div className="download-feature-card">

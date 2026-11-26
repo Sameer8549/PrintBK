@@ -174,15 +174,15 @@ export function useStaffLive(): UseStaffLiveReturn {
     } finally {
       isPollingRef.current = false
 
-      // Adaptive polling:
-      // - 2000ms when window is hidden/minimized
-      // - 1000ms when queue has active orders
-      // - 1500ms when idle (near-instant order arrival on counter workbench)
-      let delay = 1500
+      // Adaptive lightning-fast polling:
+      // - 1500ms when window is hidden/minimized
+      // - 400ms when queue has active orders
+      // - 600ms when idle (lightning-fast sub-second order arrival on counter workbench)
+      let delay = 600
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        delay = 2000
+        delay = 1500
       } else if (items.length > 0) {
-        delay = 1000
+        delay = 400
       }
 
       if (timeoutIdRef.current) {

@@ -73,6 +73,13 @@ for (const imgFile of ['hkbk-logo.jpg', 'printbk-logo.svg', 'printbk-logo.png'])
   }
 }
 
+// Copy agent downloads to client root and client/staff so agent files are always served
+const staffAgentDir = path.join(rootDir, 'staff', 'public', 'agent');
+if (fs.existsSync(staffAgentDir)) {
+  fs.cpSync(staffAgentDir, path.join(clientDir, 'agent'), { recursive: true });
+  fs.cpSync(staffAgentDir, path.join(clientStaffDir, 'agent'), { recursive: true });
+}
+
 // Also create client/staff.html from staff/dist/index.html
 fs.copyFileSync(
   path.join(staffDist, 'index.html'),

@@ -1,0 +1,10 @@
+{
+  "apiBase": "https://printbk-60074625517.development.catalystserverless.in",
+  "setupCode": "PBK-SETUP-9021",
+  "printerProfiles": {
+    "bw": "PrintBK-BW-Virtual",
+    "colour": "PrintBK-Colour-Virtual",
+    "photo": "PrintBK-Photo-Virtual"
+  },
+  "dryRun": false
+}

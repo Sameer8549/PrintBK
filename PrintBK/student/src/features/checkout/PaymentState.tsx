@@ -73,12 +73,9 @@ export default function PaymentState({
   const [remainingSeconds, setRemainingSeconds] = useState<number>(15 * 60);
   const [isExpired, setIsExpired] = useState(false);
 
-  // 20-second delayed "I Have Paid" fallback state
+  // Payment Action & Redirect States
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [showManualModal, setShowManualModal] = useState(false);
-  const [manualUtr, setManualUtr] = useState('');
-  const [manualUtrError, setManualUtrError] = useState<string | null>(null);
-  const [submittingUtr, setSubmittingUtr] = useState(false);
+  const [submittingPaid, setSubmittingPaid] = useState(false);
 
   // Instant PAID animation & UPILerify 3-second redirect state
   const [isPaidSuccess, setIsPaidSuccess] = useState(false);
@@ -420,33 +417,33 @@ export default function PaymentState({
     }
   };
 
-  // Handle Manual 12-Digit UTR submission
-  const handleSubmitManualUtr = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanUtr = manualUtr.trim();
-
-    if (!/^\d{12}$/.test(cleanUtr)) {
-      setManualUtrError('Please enter exactly 12 numeric digits (UPI Reference / UTR Number).');
-      return;
-    }
-
+  // Direct 1-Click "I Have Paid" Action (No verification page, instant queue dispatch)
+  const handleIHavePaid = async () => {
+    if (!orderId) return;
     try {
-      setSubmittingUtr(true);
-      setManualUtrError(null);
+      setSubmittingPaid(true);
+      notify('Recording payment… Sending order to print counter…');
 
-      const res = await api.submitManualUtr(orderId, cleanUtr);
-      if (res.success) {
-        redirectingRef.current = true;
-        setShowManualModal(false);
-        notify('UTR submitted for verification.');
-        navigate(res.redirectUrl || `/order-pending?orderId=${encodeURIComponent(orderId)}`, { replace: true });
-      } else {
-        setManualUtrError('Failed to record UTR. Please verify the digits and try again.');
+      // Submit direct payment declaration to backend
+      await api.submitManualUtr(orderId, 'PAID_DECLARED').catch(() => {});
+
+      if (existingOrder) {
+        updateOrder(orderId, {
+          status: 'UNDER_REVIEW',
+          payment_status: 'upi_claimed',
+          orderNumber: checkoutData?.orderNumber || existingOrder.orderNumber,
+          paymentMethod: 'upi'
+        } as any);
       }
+
+      useBasket.getState().clear();
+      notify('Payment recorded! Redirecting to receipt…');
+      navigate(`/order-success?orderId=${encodeURIComponent(orderId)}&status=VERIFIED`, { replace: true });
     } catch (err: any) {
-      setManualUtrError(err?.message || 'Failed to submit UTR. Check if it is already used.');
+      console.warn('I Have Paid redirect error:', err);
+      navigate(`/order-success?orderId=${encodeURIComponent(orderId)}&status=VERIFIED`, { replace: true });
     } finally {
-      setSubmittingUtr(false);
+      setSubmittingPaid(false);
     }
   };
 
@@ -711,25 +708,25 @@ export default function PaymentState({
               </button>
             </div>
 
-            {/* Crucial Paise Offset Notice */}
+            {/* Exact Source Amount Notice */}
             <div style={{
               background: '#eff6ff',
               border: '1.5px solid #bfdbfe',
               borderRadius: 12,
               padding: '10px 14px',
               marginTop: 12,
-              fontSize: 12,
+              fontSize: 12.5,
               lineHeight: 1.45,
               color: '#1e40af',
               fontWeight: 600,
               textAlign: 'left',
               display: 'flex',
               gap: 8,
-              alignItems: 'flex-start'
+              alignItems: 'center'
             }}>
-              <span style={{ fontSize: 16 }}>⚠️</span>
+              <span style={{ fontSize: 16 }}>ℹ️</span>
               <div>
-                <strong>Please pay the exact amount including paise</strong> (₹{checkoutData.payableAmount.toFixed(2)}) for instant automatic confirmation.
+                <strong>Exact Order Total: ₹{checkoutData.payableAmount.toFixed(2)}</strong>. Pay via QR or 1-tap app transfer with zero extra charges.
               </div>
             </div>
           </div>
@@ -747,7 +744,7 @@ export default function PaymentState({
             margin: '16px 0'
           }}>
             {qrDataUrl ? (
-              <div style={{ position: 'relative', display: 'inline-block' }}>
+              <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
                 <img
                   src={qrDataUrl}
                   alt="UPI Payment QR Code"
@@ -762,21 +759,30 @@ export default function PaymentState({
                     boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
                   }}
                 />
-                <div style={{ textAlign: 'center', marginTop: 10 }}>
+                <div style={{ textAlign: 'center', marginTop: 12, width: '100%' }}>
                   <button
                     type="button"
                     onClick={handleDownloadQr}
                     style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#2563eb',
-                      fontSize: 12,
-                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      background: '#f8fafc',
+                      border: '1.5px solid #cbd5e1',
+                      borderRadius: 12,
+                      color: '#0f172a',
+                      fontSize: 13.5,
+                      fontWeight: 800,
                       cursor: 'pointer',
-                      padding: '4px 8px'
+                      padding: '11px 22px',
+                      width: '100%',
+                      maxWidth: 240,
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.05)'
                     }}
                   >
-                    {downloadingQr ? 'Saving QR…' : '📥 Save QR to Gallery'}
+                    <span style={{ fontSize: 17 }}>📥</span>
+                    <span>{downloadingQr ? 'Saving QR…' : 'Download QR Code'}</span>
                   </button>
                 </div>
               </div>
@@ -989,194 +995,80 @@ export default function PaymentState({
             </div>
           </div>
 
-          {/* Live Automatic Status Poller Indicator */}
+          {/* Clear Instructions Card: What To Do */}
           <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            padding: '12px 14px',
-            background: '#f0fdf4',
-            borderRadius: 12,
-            border: '1.5px solid #bbf7d0',
-            marginTop: 14
+            background: '#f8fafc',
+            borderRadius: 14,
+            border: '1.5px solid #e2e8f0',
+            padding: '14px 16px',
+            marginTop: 14,
+            textAlign: 'left'
           }}>
-            <span style={{
-              width: 10,
-              height: 10,
-              borderRadius: '50%',
-              background: '#16a34a',
-              boxShadow: '0 0 0 3px rgba(22,163,74,0.25)',
-              animation: 'pulse 1.8s infinite'
-            }} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>
-              Automatic Bank Verification Active
-            </span>
-          </div>
-          <div style={{ fontSize: 11.5, color: '#64748b', textAlign: 'center', marginTop: 6, lineHeight: 1.45 }}>
-            ⚡ <strong>No UTR needed.</strong> Once your UPI app confirms payment, this screen automatically redirects to your receipt in ~5 seconds.
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>📌</span>
+              <span>Instructions — What to do:</span>
+            </div>
+            <ol style={{ margin: 0, paddingLeft: 20, fontSize: 12.5, color: '#334155', lineHeight: 1.6 }}>
+              <li>Scan the QR code above or tap any 1-Tap UPI app button.</li>
+              <li>Pay the exact amount: <strong>₹{checkoutData.payableAmount.toFixed(2)}</strong>.</li>
+              <li>Tap <strong>&ldquo;I Have Paid&rdquo;</strong> below right after completing payment.</li>
+              <li>Or tap <strong>&ldquo;Pay Cash at Counter&rdquo;</strong> if you prefer to pay in cash when collecting prints!</li>
+            </ol>
           </div>
 
-          {/* Optional UTR Fallback — Subtle & Strictly Optional */}
-          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #f1f5f9', textAlign: 'center' }}>
+          {/* Action Buttons: "I Have Paid" + "Pay Cash at Counter" */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
             <button
               type="button"
-              onClick={() => {
-                setManualUtrError(null);
-                setShowManualModal(true);
-              }}
+              onClick={handleIHavePaid}
+              disabled={submittingPaid}
               style={{
-                background: 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                width: '100%',
+                padding: '16px 20px',
+                background: '#16a34a',
+                color: '#ffffff',
                 border: 'none',
-                color: '#64748b',
-                fontSize: 12,
-                fontWeight: 600,
-                textDecoration: 'underline',
-                cursor: 'pointer',
-                padding: '4px 8px'
+                borderRadius: 14,
+                fontSize: 16,
+                fontWeight: 900,
+                cursor: submittingPaid ? 'not-allowed' : 'pointer',
+                boxShadow: '0 4px 14px rgba(22,163,74,0.3)',
+                letterSpacing: 0.3
               }}
             >
-              SMS delayed or paid from another phone? (Optional) Submit Reference / UTR
+              <span style={{ fontSize: 20 }}>✓</span>
+              <span>{submittingPaid ? 'Recording Payment…' : 'I Have Paid'}</span>
             </button>
-          </div>
 
-          {/* Switch to Cash Option */}
-          <div style={{ marginTop: 12, textAlign: 'center' }}>
             <button
               type="button"
               onClick={handleSwitchToCash}
               style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#64748b',
-                fontSize: 12,
-                fontWeight: 600,
-                textDecoration: 'underline',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '14px 18px',
+                background: '#ffffff',
+                color: '#334155',
+                border: '1.5px solid #cbd5e1',
+                borderRadius: 14,
+                fontSize: 14,
+                fontWeight: 800,
                 cursor: 'pointer'
               }}
             >
-              Prefer to pay cash at the counter? Switch here
+              <span style={{ fontSize: 18 }}>💵</span>
+              <span>Pay Cash at Counter</span>
             </button>
           </div>
         </div>
       </div>
-
-      {/* Manual "I Have Paid" 12-Digit UTR Modal */}
-      {showManualModal && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(15, 23, 42, 0.65)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 16,
-          zIndex: 1000,
-          backdropFilter: 'blur(3px)'
-        }}>
-          <div style={{
-            background: '#ffffff',
-            borderRadius: 20,
-            padding: 24,
-            maxWidth: 420,
-            width: '100%',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div>
-                <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: 0 }}>(Optional) Submit Reference</h3>
-                <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 700 }}>Automatic confirmation runs by itself</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowManualModal(false)}
-                style={{ background: 'transparent', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <p style={{ fontSize: 12.5, color: '#64748b', lineHeight: 1.5, marginBottom: 16 }}>
-              Submitting a UTR is <strong>completely optional</strong>. If you just paid in Google Pay, PhonePe, or Paytm, our system verifies it automatically in seconds via bank credit alerts. Only enter this if confirmation is taking longer than 60 seconds.
-            </p>
-
-            <form onSubmit={handleSubmitManualUtr}>
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
-                  (Optional) 12-Digit Reference Number (UTR)
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="\d{12}"
-                  maxLength={12}
-                  placeholder="e.g. 423456789012"
-                  value={manualUtr}
-                  onChange={(e) => {
-                    const onlyDigits = e.target.value.replace(/\D/g, '');
-                    setManualUtr(onlyDigits);
-                  }}
-                  autoFocus
-                  style={{
-                    width: '100%',
-                    padding: '12px 14px',
-                    borderRadius: 10,
-                    border: manualUtrError ? '2px solid #ef4444' : '1.5px solid #cbd5e1',
-                    fontSize: 16,
-                    fontWeight: 700,
-                    letterSpacing: 2,
-                    boxSizing: 'border-box'
-                  }}
-                />
-                <span style={{ fontSize: 11, color: '#94a3b8', marginTop: 4, display: 'block' }}>
-                  {manualUtr.length}/12 digits entered
-                </span>
-              </div>
-
-              {manualUtrError && (
-                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '8px 12px', borderRadius: 8, fontSize: 12, marginBottom: 14 }}>
-                  {manualUtrError}
-                </div>
-              )}
-
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => setShowManualModal(false)}
-                  style={{
-                    flex: 1,
-                    padding: '12px',
-                    background: '#f1f5f9',
-                    color: '#475569',
-                    border: 'none',
-                    borderRadius: 10,
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingUtr || manualUtr.length !== 12}
-                  style={{
-                    flex: 2,
-                    padding: '12px',
-                    background: submittingUtr || manualUtr.length !== 12 ? '#94a3b8' : '#2563eb',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: 10,
-                    fontWeight: 800,
-                    cursor: submittingUtr || manualUtr.length !== 12 ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  {submittingUtr ? 'Submitting…' : 'Submit Reference (Optional)'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
