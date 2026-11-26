@@ -814,12 +814,39 @@ router.post('/orders/:id/collect-cash', async (req, res) => {
 });
 
 // B. Approve & Print Item (Allowed only when order is paid/verified)
-router.post('/items/:id/approve-print', async (req, res) => {
+router.post(['/items/:id/approve-print', '/items/:id/approve', '/orders/:id/approve', '/orders/:id/approve-print'], async (req, res) => {
   try {
     const catalystApp = getCatalystApp(req);
     const zcql = catalystApp ? catalystApp.zcql() : null;
-    const itemId = req.params.id;
+    let itemId = req.params.id;
     const now = nowSec();
+
+    let orderId = req.body?.orderId;
+    let order = null;
+
+    // Check if the provided ID is an order ID or order number directly
+    let directOrder = memOrders.get(itemId);
+    if (!directOrder && !isNaN(Number(itemId))) {
+      for (const ord of memOrders.values()) {
+        if (ord.order_number === Number(itemId)) { directOrder = ord; break; }
+      }
+    }
+    if (!directOrder && zcql) {
+      try {
+        const orderRows = await zcql.executeZCQLQuery(`SELECT id, order_number, status, payment_status, basket FROM orders WHERE id = '${esc(itemId)}' OR order_number = ${Number(itemId) || 0}`).catch(() => null);
+        if (orderRows && orderRows.length > 0) directOrder = orderRows[0].orders;
+      } catch (_) {}
+    }
+
+    if (directOrder) {
+      orderId = directOrder.id;
+      order = directOrder;
+      let b = {};
+      try { b = typeof directOrder.basket === 'string' ? JSON.parse(directOrder.basket || '{}') : (directOrder.basket || {}); } catch (_) {}
+      if (b.typedItems && b.typedItems.length > 0) {
+        itemId = b.typedItems[0].id;
+      }
+    }
 
     let itemRecord = memOrderItems.get(itemId);
     if (!itemRecord && zcql) {
@@ -831,8 +858,9 @@ router.post('/items/:id/approve-print', async (req, res) => {
       } catch (_) {}
     }
 
-    let orderId = req.body?.orderId || itemRecord?.order_id;
-    let order = null;
+    if (!orderId) {
+      orderId = req.body?.orderId || itemRecord?.order_id;
+    }
     let itemStatus = itemRecord?.status || 'ready_to_print';
     let kind = itemRecord?.kind || 'document_bw';
 
@@ -945,7 +973,7 @@ router.post('/items/:id/approve-print', async (req, res) => {
     const isPhotoKind = kind.includes('photo');
     const isColourKind = kind.includes('colour') && !isPhotoKind;
 
-    if (zcql) {
+    if (!targetPrinter && zcql) {
       try {
         const sRows = await zcql.executeZCQLQuery(`SELECT shop_info FROM shop_settings WHERE id = 'default' LIMIT 1`);
         if (sRows && sRows.length > 0) {
@@ -1045,7 +1073,7 @@ router.post('/items/:id/approve-print', async (req, res) => {
       await global.__printbk_invalidateCachedQueue(catalystApp);
     }
 
-    res.json({ ok: true, itemId, status: 'sending', printJobId, targetPrinter });
+    res.json({ ok: true, itemId, status: 'sending', printJobId, targetPrinter, printer: targetPrinter });
   } catch (err) {
     res.status(500).json({ error: 'Failed to approve print: ' + err.message });
   }
@@ -2090,12 +2118,12 @@ router.get('/diagnostics', authenticateStaff, staffRateLimiter, (req, res) => {
 });
 
 // L. Purge Stale Test Orders (Clear old queue items > 12 hours, or ALL if requested)
-router.post(['/orders/purge-stale', '/orders/purge-all'], async (req, res) => {
+router.post(['/orders/purge-stale', '/orders/purge-all', '/orders/purge', '/queue/purge'], async (req, res) => {
   try {
     const catalystApp = getCatalystApp(req);
     const zcql = catalystApp ? catalystApp.zcql() : null;
     const now = nowSec();
-    const all = req.body?.all === true || req.query?.all === 'true' || req.path.includes('purge-all');
+    const all = req.body?.all === true || req.query?.all === 'true' || req.path.includes('purge-all') || req.path.includes('queue/purge');
     const staleCutoff = all ? (now + 86400) : (now - (12 * 3600));
 
     let purgedCount = 0;

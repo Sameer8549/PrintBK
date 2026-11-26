@@ -356,9 +356,10 @@ export async function addStaffPrinter(name: string, role: string = "both", ip?: 
   return data
 }
 
-export async function purgeStaleOrders() {
-  const res = await staffFetch("/staff/orders/purge-stale", {
+export async function purgeStaleOrders(all = false) {
+  const res = await staffFetch(all ? "/staff/orders/purge-all" : "/staff/orders/purge-stale", {
     method: "POST",
+    body: JSON.stringify({ all })
   })
   const data = await res.json()
   if (!res.ok) {

@@ -150,18 +150,30 @@ export const useShopConfig = create<ShopConfigStore>((set, get) => ({
         const newEtag = res.headers.get('ETag');
         const data = await res.json();
         const prevConfig = get().config;
+        const mergedRates = {
+          ...DEFAULT_EXTENDED_CONFIG.rates,
+          ...(data.rates || {})
+        };
 
-        const isNewVersion = prevConfig && data.version && data.version !== prevConfig.version;
-        const pricesChanged = isNewVersion && JSON.stringify(prevConfig.rates) !== JSON.stringify(data.rates);
+        const pricesChanged = Boolean(
+          prevConfig && prevConfig.rates && (
+            Number(prevConfig.rates.bw) !== Number(mergedRates.bw) ||
+            Number(prevConfig.rates.colour) !== Number(mergedRates.colour) ||
+            Number(prevConfig.rates.duplex) !== Number(mergedRates.duplex) ||
+            Number(prevConfig.rates.bindingSpiral) !== Number(mergedRates.bindingSpiral) ||
+            Number(prevConfig.rates.bindingComb) !== Number(mergedRates.bindingComb) ||
+            Number(prevConfig.rates.bindingHard) !== Number(mergedRates.bindingHard) ||
+            Number(prevConfig.rates.laminationA4) !== Number(mergedRates.laminationA4) ||
+            Number(prevConfig.rates.scanPerPage) !== Number(mergedRates.scanPerPage) ||
+            Number(prevConfig.rates.photo4x6) !== Number(mergedRates.photo4x6)
+          )
+        );
 
         set({
           config: {
             ...DEFAULT_EXTENDED_CONFIG,
             ...data,
-            rates: {
-              ...DEFAULT_EXTENDED_CONFIG.rates,
-              ...(data.rates || {})
-            },
+            rates: mergedRates,
             services: {
               ...DEFAULT_EXTENDED_CONFIG.services,
               ...(data.services || {})
@@ -180,14 +192,14 @@ export const useShopConfig = create<ShopConfigStore>((set, get) => ({
         });
 
         if (pricesChanged) {
-          notify('Prices updated by shop.');
+          notify(`Prices updated by shop (B&W: ₹${Number(mergedRates.bw).toFixed(2)}, Colour: ₹${Number(mergedRates.colour).toFixed(2)})`);
         }
       }
     } catch (_) {}
   }
 }));
 
-// Initialize polling every 5 seconds, plus on focus/visibility change
+// Initialize polling every 1.5 seconds, plus on focus/visibility change
 let pollingInitialized = false;
 export function initShopConfigPolling() {
   if (typeof window === 'undefined' || pollingInitialized) return;
@@ -196,12 +208,12 @@ export function initShopConfigPolling() {
   // Immediate fetch
   useShopConfig.getState().fetchConfig();
 
-  // 5 second interval
+  // 1.5 second interval for sub-second price updates
   setInterval(() => {
     if (document.visibilityState === 'visible') {
       useShopConfig.getState().fetchConfig();
     }
-  }, 5000);
+  }, 1500);
 
   // Focus & visibility change listener
   window.addEventListener('focus', () => {
