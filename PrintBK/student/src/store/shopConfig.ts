@@ -113,7 +113,7 @@ interface ShopConfigStore {
   dismissPriceNotice: () => void;
 }
 
-const API_BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '');
+const API_BASE = (import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || '/server/api').replace(/\/$/, '');
 
 export const useShopConfig = create<ShopConfigStore>((set, get) => ({
   config: DEFAULT_EXTENDED_CONFIG,
@@ -128,78 +128,83 @@ export const useShopConfig = create<ShopConfigStore>((set, get) => ({
         headers['If-None-Match'] = currentEtag;
       }
 
-      let res = await fetch(`${API_BASE}/server/api/config`, {
-        method: 'GET',
-        headers
-      }).catch(() => null);
+      const endpoint = API_BASE.endsWith('/server/api')
+        ? `${API_BASE}/config`
+        : `${API_BASE}/server/api/config`;
 
-      if (!res || !res.ok) {
-        res = await fetch(`${API_BASE}/config`, {
-          method: 'GET',
-          headers
-        }).catch(() => null);
-      }
+      const res = await fetch(endpoint, {
+        method: 'GET',
+        headers,
+        cache: 'no-store'
+      }).catch(() => null);
 
       if (!res) return;
 
+      // Handle HTTP 304 Not Modified cleanly without falling through
       if (res.status === 304) {
-        return; // Not modified
+        return;
       }
 
-      if (res.ok) {
-        const newEtag = res.headers.get('ETag');
-        const data = await res.json();
-        const prevConfig = get().config;
-        const mergedRates = {
-          ...DEFAULT_EXTENDED_CONFIG.rates,
-          ...(data.rates || {})
-        };
+      if (!res.ok) {
+        return;
+      }
 
-        const pricesChanged = Boolean(
-          prevConfig && prevConfig.rates && (
-            Number(prevConfig.rates.bw) !== Number(mergedRates.bw) ||
-            Number(prevConfig.rates.colour) !== Number(mergedRates.colour) ||
-            Number(prevConfig.rates.duplex) !== Number(mergedRates.duplex) ||
-            Number(prevConfig.rates.bindingSpiral) !== Number(mergedRates.bindingSpiral) ||
-            Number(prevConfig.rates.bindingComb) !== Number(mergedRates.bindingComb) ||
-            Number(prevConfig.rates.bindingHard) !== Number(mergedRates.bindingHard) ||
-            Number(prevConfig.rates.laminationA4) !== Number(mergedRates.laminationA4) ||
-            Number(prevConfig.rates.scanPerPage) !== Number(mergedRates.scanPerPage) ||
-            Number(prevConfig.rates.photo4x6) !== Number(mergedRates.photo4x6)
-          )
-        );
+      const newEtag = res.headers.get('ETag');
+      const data = await res.json();
+      const prevConfig = get().config;
+      const mergedRates = {
+        ...DEFAULT_EXTENDED_CONFIG.rates,
+        ...(data.rates || {})
+      };
 
-        set({
-          config: {
-            ...DEFAULT_EXTENDED_CONFIG,
-            ...data,
-            rates: mergedRates,
-            services: {
-              ...DEFAULT_EXTENDED_CONFIG.services,
-              ...(data.services || {})
-            },
-            shopInfo: {
-              ...DEFAULT_EXTENDED_CONFIG.shopInfo,
-              ...(data.shopInfo || data.shop_info || {})
-            },
-            upi: {
-              ...DEFAULT_EXTENDED_CONFIG.upi,
-              ...(data.upi || {})
-            }
+      const pricesChanged = Boolean(
+        prevConfig && prevConfig.rates && (
+          Number(prevConfig.rates.bw) !== Number(mergedRates.bw) ||
+          Number(prevConfig.rates.colour) !== Number(mergedRates.colour) ||
+          Number(prevConfig.rates.duplex) !== Number(mergedRates.duplex) ||
+          Number(prevConfig.rates.bindingSpiral) !== Number(mergedRates.bindingSpiral) ||
+          Number(prevConfig.rates.bindingComb) !== Number(mergedRates.bindingComb) ||
+          Number(prevConfig.rates.bindingHard) !== Number(mergedRates.bindingHard) ||
+          Number(prevConfig.rates.laminationA4) !== Number(mergedRates.laminationA4) ||
+          Number(prevConfig.rates.scanPerPage) !== Number(mergedRates.scanPerPage) ||
+          Number(prevConfig.rates.photo4x6) !== Number(mergedRates.photo4x6)
+        )
+      );
+
+      set({
+        config: {
+          ...DEFAULT_EXTENDED_CONFIG,
+          ...data,
+          rates: mergedRates,
+          services: {
+            ...DEFAULT_EXTENDED_CONFIG.services,
+            ...(data.services || {})
           },
-          lastEtag: newEtag || currentEtag,
-          pricesUpdatedNotice: pricesChanged ? true : get().pricesUpdatedNotice
-        });
+          shopInfo: {
+            ...DEFAULT_EXTENDED_CONFIG.shopInfo,
+            ...(data.shopInfo || data.shop_info || {})
+          },
+          upi: {
+            ...DEFAULT_EXTENDED_CONFIG.upi,
+            ...(data.upi || {})
+          }
+        },
+        lastEtag: newEtag || currentEtag,
+        pricesUpdatedNotice: pricesChanged ? true : get().pricesUpdatedNotice
+      });
 
-        if (pricesChanged) {
-          notify(`Prices updated by shop (B&W: ₹${Number(mergedRates.bw).toFixed(2)}, Colour: ₹${Number(mergedRates.colour).toFixed(2)})`);
-        }
+      if (typeof window !== 'undefined') {
+        (window as any).__printbk_config = data;
+      }
+
+      if (pricesChanged) {
+        notify(`Prices updated by shop (B&W: ₹${Number(mergedRates.bw).toFixed(2)}, Colour: ₹${Number(mergedRates.colour).toFixed(2)})`);
       }
     } catch (_) {}
   }
 }));
 
-// Initialize polling every 1.5 seconds, plus on focus/visibility change
+// Initialize polling every 1.0 second, plus on focus/visibility change
 let pollingInitialized = false;
 export function initShopConfigPolling() {
   if (typeof window === 'undefined' || pollingInitialized) return;
@@ -208,12 +213,12 @@ export function initShopConfigPolling() {
   // Immediate fetch
   useShopConfig.getState().fetchConfig();
 
-  // 1.5 second interval for sub-second price updates
+  // 1.0 second interval for lightning-fast real-time synchronization
   setInterval(() => {
     if (document.visibilityState === 'visible') {
       useShopConfig.getState().fetchConfig();
     }
-  }, 1500);
+  }, 1000);
 
   // Focus & visibility change listener
   window.addEventListener('focus', () => {

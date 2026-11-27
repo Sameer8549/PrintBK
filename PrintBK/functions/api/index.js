@@ -582,6 +582,19 @@ async function getEffectiveShopSettings(catalystApp) {
         if (s.shop_info) {
           const si = typeof s.shop_info === 'string' ? JSON.parse(s.shop_info) : s.shop_info;
           memShopSettings.shop_info = { ...memShopSettings.shop_info, ...si };
+          if (si.closed_since !== undefined) {
+            memShopSettings.closed_since = si.closed_since ? Number(si.closed_since) : null;
+          }
+          if (si.override_until !== undefined) {
+            memShopSettings.override_until = si.override_until ? Number(si.override_until) : null;
+          }
+          if (si.hours_enabled !== undefined) {
+            memShopSettings.hours_enabled = Boolean(si.hours_enabled);
+            memShopSettings.open_by_hours = Boolean(si.hours_enabled);
+          }
+          if (si.paused !== undefined) {
+            memShopSettings.paused = Boolean(si.paused);
+          }
         }
         memShopSettings.updated_at = Number(s.updated_at || memShopSettings.updated_at || nowSec());
       }
@@ -1041,16 +1054,21 @@ function validateOrderInput(body) {
     const f = files[i];
     if (!f || typeof f !== 'object') return `File ${i + 1} is invalid`;
     if (!f.name || typeof f.name !== 'string') return `File ${i + 1} name is required`;
-    if (typeof f.pages !== 'number' || f.pages < 1) return `File ${f.name} must have at least 1 page`;
+
+    // Resilient page normalization (supports pages, pageCount, string numbers)
+    const pageNum = typeof f.pages === 'number'
+      ? f.pages
+      : (typeof f.pageCount === 'number' ? f.pageCount : Number(f.pages || f.pageCount || 1));
+    f.pages = isNaN(pageNum) ? 1 : Math.max(1, pageNum);
+
     if (f.pages > 500) return `File ${f.name} exceeds maximum 500 pages per file`;
 
     const s = f.settings;
     if (s && typeof s === 'object') {
-      if (typeof s.copies !== 'undefined') {
-        if (typeof s.copies !== 'number' || s.copies < 1 || s.copies > 100) {
-          return `File ${f.name} copies must be between 1 and 100`;
-        }
-      }
+      const copiesNum = typeof s.copies === 'number'
+        ? s.copies
+        : (typeof f.copies === 'number' ? f.copies : Number(s.copies || f.copies || 1));
+      s.copies = isNaN(copiesNum) ? 1 : Math.max(1, Math.min(100, copiesNum));
       if (s.paper && !validPapers.has(s.paper)) return `File ${f.name} has invalid paper size "${s.paper}"`;
       if (s.colorMode && !validColorModes.has(s.colorMode)) return `File ${f.name} has invalid color mode "${s.colorMode}"`;
       if (s.sided && !validSides.has(s.sided)) return `File ${f.name} has invalid side setting "${s.sided}"`;

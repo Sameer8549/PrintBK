@@ -328,20 +328,22 @@ router.get('/live', async (req, res) => {
         const settingsRows = await zcql.executeZCQLQuery(`SELECT * FROM shop_settings WHERE id = 'default' LIMIT 1`);
         if (settingsRows && settingsRows.length > 0) {
           const s = settingsRows[0].shop_settings;
+          const sInfo = typeof s.shop_info === 'string' ? JSON.parse(s.shop_info || '{}') : (s.shop_info || {});
           rawShop = {
             version: Number(s.version || mem.version || 1),
             open: s.open !== false && String(s.open) !== 'false',
-            paused: s.paused === true || String(s.paused) === 'true',
-            hours_enabled: s.hours_enabled === true || String(s.hours_enabled) === 'true' || s.open_by_hours === true,
-            closed_since: s.closed_since ? Number(s.closed_since) : null,
+            paused: sInfo.paused !== undefined ? Boolean(sInfo.paused) : (s.paused === true || String(s.paused) === 'true'),
+            hours_enabled: sInfo.hours_enabled !== undefined ? Boolean(sInfo.hours_enabled) : (s.hours_enabled === true || String(s.hours_enabled) === 'true' || s.open_by_hours === true),
+            closed_since: sInfo.closed_since !== undefined ? (sInfo.closed_since ? Number(sInfo.closed_since) : null) : (s.closed_since ? Number(s.closed_since) : null),
+            override_until: sInfo.override_until ? Number(sInfo.override_until) : (s.override_until ? Number(s.override_until) : null),
             announcement: s.announcement || '',
             delete_delay_minutes: Number(s.delete_delay_minutes || 5),
             mixed_colour_mode: s.mixed_colour_mode || 'split',
             rates: typeof s.rates === 'string' ? JSON.parse(s.rates || '{}') : s.rates || rawShop.rates,
             services: typeof s.services === 'string' ? JSON.parse(s.services || '{}') : s.services || {},
             payments: typeof s.payments === 'string' ? JSON.parse(s.payments || '{}') : s.payments || rawShop.payments,
-            shop_info: typeof s.shop_info === 'string' ? JSON.parse(s.shop_info || '{}') : s.shop_info || rawShop.shop_info,
-            printer_mapping: (typeof s.shop_info === 'string' ? JSON.parse(s.shop_info || '{}') : s.shop_info || {}).printer_mapping || {}
+            shop_info: sInfo,
+            printer_mapping: sInfo.printer_mapping || {}
           };
         }
       } catch (_) {}
@@ -1446,7 +1448,18 @@ router.get('/settings', authenticateStaff, async (req, res) => {
     const settings = {
       version: Number(s?.version || mem?.version || 1),
       open: s ? (s.open !== false && String(s.open) !== 'false') : (mem?.open !== false),
-      closed_since: s?.closed_since || mem?.closed_since || null,
+      closed_since: (typeof shop_info === 'object' && shop_info.closed_since !== undefined)
+        ? (shop_info.closed_since ? Number(shop_info.closed_since) : null)
+        : (s?.closed_since || mem?.closed_since || null),
+      override_until: (typeof shop_info === 'object' && shop_info.override_until !== undefined)
+        ? (shop_info.override_until ? Number(shop_info.override_until) : null)
+        : (s?.override_until || mem?.override_until || null),
+      hours_enabled: (typeof shop_info === 'object' && shop_info.hours_enabled !== undefined)
+        ? Boolean(shop_info.hours_enabled)
+        : (s?.hours_enabled === true || String(s?.hours_enabled) === 'true' || mem?.hours_enabled === true),
+      paused: (typeof shop_info === 'object' && shop_info.paused !== undefined)
+        ? Boolean(shop_info.paused)
+        : (s?.paused === true || String(s?.paused) === 'true' || mem?.paused === true),
       announcement: s?.announcement ?? mem?.announcement ?? '',
       rates,
       services,
@@ -1555,7 +1568,11 @@ router.put('/settings', authenticateStaff, async (req, res) => {
 
     const shopInfoMerged = {
       ...existingShopInfo,
-      ...(req.body.shop_info || {})
+      ...(req.body.shop_info || {}),
+      closed_since: closedSince,
+      override_until: overrideUntil,
+      hours_enabled: hoursEnabled,
+      paused: isPaused
     };
     if (req.body.printer_mapping) {
       shopInfoMerged.printer_mapping = {
@@ -1629,13 +1646,11 @@ router.put('/settings', authenticateStaff, async (req, res) => {
         `mixed_colour_mode = '${esc(mixedMode)}'`,
         `updated_at = ${now}`
       ];
-      if (closedSince) {
-        updates.push(`closed_since = ${closedSince}`);
-      }
 
       try {
         await zcql.executeZCQLQuery(`UPDATE shop_settings SET ${updates.join(', ')} WHERE id = 'default'`);
-      } catch (_) {
+      } catch (updateErr) {
+        console.error('[staff/settings] UPDATE failed:', updateErr?.message);
         try {
           const ratesJson = esc(JSON.stringify(ratesMerged));
           const servicesJson = esc(JSON.stringify(servicesMerged));
